@@ -1,3 +1,6 @@
+Forked from https://github.com/Akasiek/Random-Plex-Movie
+I want to add it to docker and also to be able to start apple tv directly from it. 
+
 # Random Plex Movie
 Python App which chooses a random movie from your Plex Library. Also you can send a watch request to Plex Client with the chosen movie.
 [![GitHub Release](https://img.shields.io/github/v/release/Akasiek/Random-Plex-Movie?include_prereleases&label=Release&style=flat-square)](https://github.com/Akasiek/Random-Plex-Movie/releases)
@@ -63,7 +66,7 @@ cd Random-Plex-Movie
 
 ## Plans for the future
 
-- Login page for Plex credentials
+
 
 
 
