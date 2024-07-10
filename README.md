@@ -30,7 +30,8 @@ services:
     restart: unless-stopped
 ```
 
-# First Use - get the Apple TV ID
+# First Use 
+## Get the Apple TV ID
 
 First start the docker without adding an ID since you do not have it yet.
 
@@ -42,9 +43,15 @@ Note down the Apple TV Identifier, usually the first long one: xxxxxxxx-xxxx-xxx
 
 Add it to the docker ENV and docker compose up -d
 
-#First Use - Pair with Apple TV
+## Pair with Apple TV
+You will see a PIN on the Apple TV which you need to type in the docker sh
 
-TBC
+```
+docker exec -ti random-plex-movie /bin/sh
+atvremote --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx --protocol companion pair
+Enter PIN on screen: 
+Pairing seems to have succeeded, yey!
+```
 
 
 
