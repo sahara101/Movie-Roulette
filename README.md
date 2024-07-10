@@ -7,11 +7,11 @@ Docker container which chooses a random movie from your Plex Library. You can se
 
 <img width="1307" alt="image" src="https://github.com/sahara101/Random-Plex-Movie/assets/22507692/1288b47e-a0f2-48af-93a9-e41f7a6f1bc8">
 
-#DISCLAIMER
+# DISCLAIMER
 I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
 
 
-#Docker-compose
+# Docker-compose
 
 ```
 version: '3.8'
@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
 ```
 
-#First Use - get the Apple TV ID
+# First Use - get the Apple TV ID
 
 First start the docker without adding an ID since you do not have it yet.
 
