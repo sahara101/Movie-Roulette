@@ -1,87 +1,89 @@
-import eel
-import sys
-import configparser
-from eel import browsers
+import os
+import subprocess
+from flask import Flask, jsonify, render_template, send_from_directory
 from plexapi.server import PlexServer
-from random import randint, choice
+from random import choice
+from fetch_movie_links import fetch_movie_links  # Import the fetch_movie_links function
 
 # Plex authorization
-config = configparser.ConfigParser()
-config.read('config/config.ini')
+PLEX_URL = os.getenv('PLEX_URL')
+PLEX_TOKEN = os.getenv('PLEX_TOKEN')
+APPLE_TV_ID = os.getenv('APPLE_TV_ID')
+MOVIES_LIBRARY_NAME = os.getenv('MOVIES_LIBRARY_NAME', 'Movies')  # Default to 'Movies' if not set
 
-# If you get an OSError saying that the Chrome installation cannot be found,
-# in the config.ini file, change 'useCustomPath' to True and specify the file path leading
-# to your Chrome installation directory in 'path'.
-use_custom_path = config.getboolean('set_path', 'useCustomPath')
-filepath = config['set_path']['path']
+plex = PlexServer(PLEX_URL, PLEX_TOKEN)
+movies = plex.library.section(MOVIES_LIBRARY_NAME)
 
-# Change the baseurl and token variables in config.ini file
-plex = PlexServer(config['auth']['baseurl'], config['auth']['token'])
-movies = plex.library.section('Movies')
+app = Flask(__name__, static_folder='static', template_folder='web')
 
-# Initialising eel library in this directory
-eel.init('web')
+# Routes
+@app.route('/')
+def index():
+    return render_template('index.html')
 
+@app.route('/style/<path:filename>')
+def style(filename):
+    return send_from_directory('static/style', filename)
 
-def close_callback(path, list):
-    '''Exiting app when window is closed'''
-    print("Window closed... Aborting!")
-    sys.exit()
+@app.route('/js/<path:filename>')
+def js(filename):
+    return send_from_directory('static/js', filename)
 
+@app.route('/logos/<path:filename>')
+def logos(filename):
+    return send_from_directory('static/logos', filename)
 
-def randomUnwatchedMovie():
+# REST API endpoints
+@app.route('/random_movie')
+def random_movie():
     '''Generates a list of unwatched movies. Randomly selects one to be displayed.
     Pulls movie information and returns movie data for display'''
 
-    global chosen_movie
     chosen_movie = choice(movies.search(unwatched=True))
-    chosen_movie_duration_hours = (chosen_movie.duration/(1000*60*60)) % 24
-    chosen_movie_duration_minutes = (chosen_movie.duration/(1000*60)) % 60
+    chosen_movie_duration_hours = (chosen_movie.duration / (1000 * 60 * 60)) % 24
+    chosen_movie_duration_minutes = (chosen_movie.duration / (1000 * 60)) % 60
 
-    actors = [chosen_movie.actors[a].tag for a in range(
-        len(chosen_movie.actors))]
-    writers = [chosen_movie.writers[w].tag for w in range(
-        len(chosen_movie.writers))]
-    directors = [chosen_movie.directors[d].tag for d in range(
-        len(chosen_movie.directors))]
+    actors = [chosen_movie.actors[a].tag for a in range(len(chosen_movie.actors))]
+    writers = [chosen_movie.writers[w].tag for w in range(len(chosen_movie.writers))]
+    directors = [chosen_movie.directors[d].tag for d in range(len(chosen_movie.directors))]
+    movie_description = chosen_movie.summary
 
-    return {"title": chosen_movie.title,
-            "year": chosen_movie.year,
-            "duration_hours": int(chosen_movie_duration_hours),
-            "duration_minutes": int(chosen_movie_duration_minutes),
-            "directors": directors, "writers": writers, "actors": actors,
-            "poster": chosen_movie.posterUrl,
-            "background": chosen_movie.artUrl
-            }
+    tmdb_url, trakt_url, imdb_url = fetch_movie_links(chosen_movie.title)
 
+    return jsonify({
+        "title": chosen_movie.title,
+        "year": chosen_movie.year,
+        "duration_hours": int(chosen_movie_duration_hours),
+        "duration_minutes": int(chosen_movie_duration_minutes),
+        "directors": directors,
+        "description": movie_description,
+        "writers": writers,
+        "actors": actors,
+        "poster": chosen_movie.posterUrl,
+        "background": chosen_movie.artUrl,
+        "tmdb_url": tmdb_url,
+        "trakt_url": trakt_url,
+        "imdb_url": imdb_url
+    })
 
-@ eel.expose
-def py_returnMovie():
-    '''Sends random movies attributes to JS'''
-    return randomUnwatchedMovie()
+@app.route('/clients')
+def clients():
+    '''Return list of clients'''
+    client_list = [client.title for client in plex.clients()]
+    return jsonify(client_list)
 
+@app.route('/play_movie/<client_name>')
+def play_movie(client_name):
+    '''Play movie on the specified client'''
+    chosen_movie = choice(movies.search(unwatched=True))
+    plex.client(client_name).playMedia(chosen_movie)
+    return jsonify({"status": "playing"})
 
-@ eel.expose
-def py_returnClients():
-    '''Return list of clients to JS'''
-    clients = [client.title for client in plex.clients()]
-    return clients
+@app.route('/start_apple_tv')
+def start_apple_tv():
+    '''Start Apple TV using atvremote command'''
+    subprocess.run(["atvremote", "turn_on", "--id", APPLE_TV_ID])
+    return jsonify({"status": "Apple TV started"})
 
-
-@ eel.expose
-def py_playMovie(client):
-    '''Play movie if button was clicked and client was selected'''
-    plex.client(client).playMedia(chosen_movie)
-
-
-# If using custom path, start accordingly.
-if use_custom_path == True:
-    eel.browsers.set_path('chrome', filepath)
-
-# Starting web server for app. Opening app window.
-eel.start('index.html',
-          browser='Chrome',
-          port=randint(49152, 65535),
-          close_callback=close_callback,
-          size=(1440, 860)
-          )
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=4000)
