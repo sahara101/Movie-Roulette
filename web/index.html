@@ -7,9 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plex Random Movie</title>
 
-    <script type="text/javascript" src="/eel.js"></script>
-
-    <link rel="stylesheet" href="style/style.css">
+    <link rel="stylesheet" href="/style/style.css">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
 </head>
@@ -30,20 +28,24 @@
                     <p id="directors"></p>
                     <p id="writers"></p>
                     <p id="actors"></p>
+					<p id="description"></p>
+                    <div class="logo-container">
+                        <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
+                        <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
+                        <a href="#" id="imdb_link" target="_blank"><img src="/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
+                    </div>
                 </div>
-
             </div>
 
             <div class="button_container">
                 <button id="btn_next_movie" class="button">WATCH</button>
                 <button id="btn_watch" class="button">NEXT</button>
+                <button id="btn_start_appletv" class="button">TURN ON APPLE TV</button>
             </div>
 
             <div id="img_background"></div>
 
         </section>
-
-        </div>
 
         <div id="client_prompt" class="hidden">
 
@@ -61,9 +63,8 @@
 
     </main>
 
-
-
-
-    <script type="text/javascript" src="js/script.js"></script>
+    <script type="text/javascript" src="/js/script.js"></script>
 
 </body>
+
+</html>
