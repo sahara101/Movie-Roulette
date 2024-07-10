@@ -36,6 +36,7 @@ First start the docker without adding an ID since you do not have it yet.
 
 ```
 docker exec -ti random-plex-movie /bin/sh
+atvremote scan
 ```
 Note down the Apple TV Identifier, usually the first long one: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
