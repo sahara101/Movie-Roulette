@@ -16,6 +16,9 @@ movies = plex.library.section(MOVIES_LIBRARY_NAME)
 
 app = Flask(__name__, static_folder='static', template_folder='web')
 
+# Global variable to store the chosen movie
+chosen_movie = None
+
 # Routes
 @app.route('/')
 def index():
@@ -38,7 +41,7 @@ def logos(filename):
 def random_movie():
     '''Generates a list of unwatched movies. Randomly selects one to be displayed.
     Pulls movie information and returns movie data for display'''
-
+    global chosen_movie
     chosen_movie = choice(movies.search(unwatched=True))
     chosen_movie_duration_hours = (chosen_movie.duration / (1000 * 60 * 60)) % 24
     chosen_movie_duration_minutes = (chosen_movie.duration / (1000 * 60)) % 60
@@ -75,7 +78,10 @@ def clients():
 @app.route('/play_movie/<client_name>')
 def play_movie(client_name):
     '''Play movie on the specified client'''
-    chosen_movie = choice(movies.search(unwatched=True))
+    global chosen_movie
+    if chosen_movie is None:
+        return jsonify({"error": "No movie selected"}), 400
+
     plex.client(client_name).playMedia(chosen_movie)
     return jsonify({"status": "playing"})
 
