@@ -3,7 +3,7 @@
 
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
-I want to add it to docker and also to be able to start apple tv directly from it. 
+I want to add it to docker and also to be able to start Apple TV directly from it. 
 
 # Random Plex Movie
 Docker container which chooses a random movie from your Plex Library. You can send a watch request to Plex Client with the chosen movie. You can also turn on your Apple TV and each chosen movie has links to TMDB, Trakt and IMDB.
@@ -44,7 +44,7 @@ atvremote scan
 ```
 Note down the Apple TV Identifier, usually the first long one: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
-Add it to the docker ENV and docker compose up -d
+Add it to the docker ENV and restart the container with docker-compose up -d
 
 ## Pair with Apple TV
 You will see a PIN on the Apple TV which you need to type in the docker sh
@@ -56,7 +56,24 @@ Enter PIN on screen:
 Pairing seems to have succeeded, yey!
 ```
 
+# Plex Client Config
 
+Navigate to Settings and set 'Advertise as player' to 'On'
+
+# Troubleshooting
+Issue: Pressing the WATCH button does not show the Apple TV.
+
+Solution 1: Plex Apple TV is buggy and often it forgets it has the option active. You will need to deactivate the option, force close the app, start the app and activate the option again, restart Plex app. 
+
+Solution 2: You will need to deactivate the option, logoff and force close the app. Start the app, skip login and activate the option. Then you can login back. 
+
+Issue: Pressing the WATCH button does nothing. 
+
+Solution: Check the docker logs, if you get an access denied error, check your Plex Token, it might've changed.
+
+Issue: Apple TV does not turn on
+
+Solution: You need to re-pair. This needs to be done each time you recreate the docker. 
 
 
 
