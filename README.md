@@ -15,6 +15,7 @@ I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify t
 
 
 # docker-compose.yml
+How to get the token: https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
 
 ```
 version: '3.8'
@@ -36,7 +37,7 @@ services:
 # First Use 
 ## Get the Apple TV ID
 
-First start the docker without adding an ID since you do not have it yet.
+First start the container without adding an ID since you do not have it yet.
 
 ```
 docker exec -ti random-plex-movie /bin/sh
@@ -44,7 +45,7 @@ atvremote scan
 ```
 Note down the Apple TV Identifier, usually the first long one: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
-Add it to the docker ENV and restart the container with docker-compose up -d
+Add it to the container ENV and restart it with docker-compose up -d
 
 ## Pair with Apple TV
 You will see a PIN on the Apple TV which you need to type in the docker sh
@@ -57,8 +58,14 @@ Pairing seems to have succeeded, yey!
 ```
 
 # Plex Client Config
+For the atvscan to find the Apple TV it needs to be in the same network, this is done by the docker host network mode.
 
-Navigate to Settings and set 'Advertise as player' to 'On'
+Navigate to settings and set 'Advertise as player' to 'On'
+
+
+# Plex Server Config
+Navigate to settings - network and activate 'Enable local network discovery (GDM)'
+
 
 # Troubleshooting
 Issue: Pressing the WATCH button does not show the Apple TV.
@@ -73,7 +80,7 @@ Solution: Check the docker logs, if you get an access denied error, check your P
 
 Issue: Apple TV does not turn on
 
-Solution: You need to re-pair. This needs to be done each time you recreate the docker. 
+Solution: You need to re-pair. This needs to be done each time you recreate the container. 
 
 
 
