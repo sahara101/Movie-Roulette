@@ -13,7 +13,7 @@ It should work also with other clients which have the advertise as player functi
 I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
 
 
-# Docker-compose.yml
+# docker-compose.yml
 
 ```
 version: '3.8'
