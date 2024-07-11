@@ -1,6 +1,3 @@
-# DO NOT USE YET - WIP
-
-
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
 I want to add it to docker and also to be able to start Apple TV directly from it. 
