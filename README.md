@@ -83,6 +83,8 @@ Issue: Pressing the WATCH button does nothing.
 
 Solution: Check the docker logs, if you get an access denied error, check your Plex Token, it might've changed.
 
+Check curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN" If empty try restarting your client. 
+
 Issue: Apple TV does not turn on
 
 Solution: You need to re-pair. This needs to be done each time you recreate the container. 
