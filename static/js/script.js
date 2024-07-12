@@ -68,19 +68,22 @@ document.getElementById("btn_next_movie").addEventListener("click", async functi
     var clients = await response.json();
 
     // Clear the list of clients
-    list_of_clients.innerHTML = "";
+    document.getElementById("list_of_clients").innerHTML = "";
     // Make client prompt visible
     document.getElementById("client_prompt").classList.remove("hidden");
 
     // For each client make new div
     clients.forEach(client => {
-        document.getElementById("list_of_clients").innerHTML += "<div class=\"client\" onclick=\"playMovie('" + client + "');closeClientPrompt()\"><p>" + client + "</p></div>";
+        document.getElementById("list_of_clients").innerHTML += 
+		`<div class="client" onclick="playMovie('${client.title}', '${client.address}', '${client.port}');closeClientPrompt()">
+                <p>${client.title}</p>
+            </div>`;
     });
 });
 
-function playMovie(client) {
+function playMovie(client, address, port) {
     // Play movie on the specified client using Flask API
-    fetch('/play_movie/' + client)
+    fetch(`/play_movie/${client}?address=${address}&port=${port}`)
         .then(response => response.json())
         .then(data => console.log(data)); // Optionally handle response
 }
