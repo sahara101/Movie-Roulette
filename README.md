@@ -5,8 +5,8 @@ I want to add it to docker and also to be able to start Apple TV directly from i
 # Random Plex Movie
 Docker container which chooses a random movie from your Plex Library. You can send a watch request to Plex Client with the chosen movie. You can also turn on your Apple TV and each chosen movie has links to TMDB, Trakt and IMDB.
 
-# Tested Players
-- Apple TV
+# Tested Players 
+- Apple TV - with turn on function
 - Plex HTPC MacOS Client
 - iPhone
 - Plex for LGTV (WebOS)
