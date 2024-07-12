@@ -1,6 +1,6 @@
 import os
 import subprocess
-from flask import Flask, jsonify, render_template, send_from_directory
+from flask import Flask, jsonify, render_template, send_from_directory, request
 from plexapi.server import PlexServer
 from random import choice
 from fetch_movie_links import fetch_movie_links  # Import the fetch_movie_links function
@@ -46,9 +46,9 @@ def random_movie():
     chosen_movie_duration_hours = (chosen_movie.duration / (1000 * 60 * 60)) % 24
     chosen_movie_duration_minutes = (chosen_movie.duration / (1000 * 60)) % 60
 
-    actors = [chosen_movie.actors[a].tag for a in range(len(chosen_movie.actors))]
-    writers = [chosen_movie.writers[w].tag for w in range(len(chosen_movie.writers))]
-    directors = [chosen_movie.directors[d].tag for d in range(len(chosen_movie.directors))]
+    actors = [actor.tag for actor in chosen_movie.actors]
+    writers = [writer.tag for writer in chosen_movie.writers]
+    directors = [director.tag for director in chosen_movie.directors]
     movie_description = chosen_movie.summary
 
     tmdb_url, trakt_url, imdb_url = fetch_movie_links(chosen_movie.title)
@@ -71,8 +71,15 @@ def random_movie():
 
 @app.route('/clients')
 def clients():
-    '''Return list of clients'''
-    client_list = [client.title for client in plex.clients()]
+    '''Return list of clients'''    
+    client_list = []
+    for client in plex.clients():
+        client_info = {
+            "title": client.title,
+            "address": client._baseurl.split('http://')[1].split(':')[0],  # Extract the IP address
+            "port": client._baseurl.split(':')[2].split('/')[0]  # Extract the port
+        }
+        client_list.append(client_info)
     return jsonify(client_list)
 
 @app.route('/play_movie/<client_name>')
@@ -81,8 +88,13 @@ def play_movie(client_name):
     global chosen_movie
     if chosen_movie is None:
         return jsonify({"error": "No movie selected"}), 400
-
-    plex.client(client_name).playMedia(chosen_movie)
+        client_ip = request.args.get('address')
+    client_port = request.args.get('port')
+    if not client_ip or not client_port:
+        return jsonify({"error": "Client not available"}), 400
+    client = plex.client(client_name)
+    client.proxyThroughServer()  # Call proxyThroughServer as a method
+    client.playMedia(chosen_movie)
     return jsonify({"status": "playing"})
 
 @app.route('/start_apple_tv')
