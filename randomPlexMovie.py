@@ -3,7 +3,9 @@ import subprocess
 from flask import Flask, jsonify, render_template, send_from_directory, request
 from plexapi.server import PlexServer
 from random import choice
-from fetch_movie_links import fetch_movie_links  # Import the fetch_movie_links function
+from fetch_movie_links import fetch_movie_links
+from utils.youtube_trailer import search_youtube_trailer
+
 
 # Plex authorization
 PLEX_URL = os.getenv('PLEX_URL')
@@ -53,6 +55,9 @@ def random_movie():
 
     tmdb_url, trakt_url, imdb_url = fetch_movie_links(chosen_movie.title)
 
+    # Fetch trailer URL from YouTube
+    trailer_url = search_youtube_trailer(chosen_movie.title, chosen_movie.year)
+
     return jsonify({
         "title": chosen_movie.title,
         "year": chosen_movie.year,
@@ -66,7 +71,8 @@ def random_movie():
         "background": chosen_movie.artUrl,
         "tmdb_url": tmdb_url,
         "trakt_url": trakt_url,
-        "imdb_url": imdb_url
+        "imdb_url": imdb_url,
+        "trailer_url": trailer_url
     })
 
 @app.route('/clients')
