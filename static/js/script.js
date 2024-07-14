@@ -48,11 +48,17 @@ window.onload = document.getElementById('btn_watch').onclick = async function sh
 
     // Update TMDB, IMDB and Trakt links
     document.getElementById("tmdb_link").href = py_movie["tmdb_url"];
-//    document.getElementById("tmdb_logo").src = "/logos/tmdb_logo.svg";
     document.getElementById("trakt_link").href = py_movie["trakt_url"];
-//    document.getElementById("trakt_logo").src = "/logos/trakt_logo.svg";
     document.getElementById("imdb_link").href = py_movie["imdb_url"];
-//    document.getElementById("imdb_logo").src = "/logos/imdb_logo.svg";
+    // Update trailer button with trailer URL
+    if (py_movie["trailer_url"]) {
+        document.getElementById("trailer_link").onclick = function() {
+            var trailerPopup = document.getElementById("trailer_popup");
+            var trailerIframe = document.getElementById("trailer_iframe");
+            trailerIframe.src = py_movie["trailer_url"];
+            trailerPopup.classList.remove("hidden");
+        };
+    }
 };
 
 // This sections makes the "WATCH" button work...
@@ -87,6 +93,12 @@ function playMovie(client, address, port) {
         .then(response => response.json())
         .then(data => console.log(data)); // Optionally handle response
 }
+
+// Event listener to close trailer popup
+    document.getElementById("trailer_popup_close").onclick = function() {
+        document.getElementById("trailer_popup").classList.add("hidden");
+        document.getElementById("trailer_iframe").src = "";
+    };
 
 // This section makes the "START APPLE TV" button work...
 document.getElementById("btn_start_appletv").addEventListener("click", async function() {
