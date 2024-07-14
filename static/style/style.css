@@ -182,6 +182,39 @@ main {
   font-weight: 900;
 }
 
+#trailer_popup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+  z-index: 100;
+}
+
+#trailer_iframe {
+  width: 80vw; /* 80% of the viewport width */
+  height: 45vw; /* Maintain 16:9 aspect ratio */
+  max-width: 1200px; /* Maximum width */
+  max-height: 675px; /* Maximum height */
+}
+
+#trailer_popup_close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  cursor: pointer;
+  font-size: 2rem;
+  z-index: 101;
+}
+
+#trailer_popup_close > svg {
+  fill: #EAEAEC;
+}
+
 @media screen and (max-width: 900px) {
   body {
     overflow-y: auto;
@@ -221,6 +254,13 @@ main {
   }
   .client > p {
     font-size: 14pt;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  #trailer_iframe {
+    width: 90vw; /* 90% of the viewport width */
+    height: 50.625vw; /* Maintain 16:9 aspect ratio */
   }
 }
 
