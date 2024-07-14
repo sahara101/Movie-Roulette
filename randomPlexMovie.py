@@ -3,7 +3,7 @@ import subprocess
 from flask import Flask, jsonify, render_template, send_from_directory, request
 from plexapi.server import PlexServer
 from random import choice
-from fetch_movie_links import fetch_movie_links
+from utils.fetch_movie_links import fetch_movie_links
 from utils.youtube_trailer import search_youtube_trailer
 
 
