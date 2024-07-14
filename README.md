@@ -1,9 +1,7 @@
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
-I want to add it to docker and also to be able to start Apple TV directly from it. 
-
 # Random Plex Movie
-Docker container which chooses a random movie from your Plex Library. You can send a watch request to Plex Client with the chosen movie. You can also turn on your Apple TV and each chosen movie has links to TMDB, Trakt and IMDB.
+Docker container which chooses a random movie from your Plex Library. 
 
 # Tested Players 
 - Apple TV - with turn on function
@@ -11,7 +9,17 @@ Docker container which chooses a random movie from your Plex Library. You can se
 - iPhone
 - Plex for LGTV (WebOS)
 
-<img width="1307" alt="image" src="https://github.com/sahara101/Random-Plex-Movie/assets/22507692/1288b47e-a0f2-48af-93a9-e41f7a6f1bc8">
+# Functions
+- Fetch Random unwatched movies from Plex server
+- See movie info
+- URLs to TMDB, Trakt and IMDB
+- Trailers on Youtube
+- Play movie on above tested players
+- Turn on Apple TV
+
+<img width="1403" alt="image" src="https://github.com/user-attachments/assets/75057458-4b3a-4f91-9da6-9efb748ce28e">
+<img width="1358" alt="image" src="https://github.com/user-attachments/assets/27961635-439c-45a2-8e61-6654ca5f15de">
+
 
 # DISCLAIMER
 I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
@@ -38,7 +46,16 @@ services:
 ```
 
 # First Use 
-## Get the Apple TV ID
+!important! - Your client devices and plex need to be in the same network.
+## Plex Client Config
+
+Navigate to settings and set 'Advertise as player' to 'On'
+
+## Plex Server Config
+Navigate to settings - network and activate 'Enable local network discovery (GDM)'
+
+#Apple TV
+## Get the Apple TV ID 
 
 First start the container without adding an ID since you do not have it yet.
 
@@ -60,34 +77,25 @@ Enter PIN on screen:
 Pairing seems to have succeeded, yey!
 ```
 
-# Plex Client Config
-Needed for Apple TV and iPhone (as tested).
-
-For the atvscan to find the Apple TV it needs to be in the same network, this is done by the docker host network mode.
-
-Navigate to settings and set 'Advertise as player' to 'On'
-
-
-# Plex Server Config
-Navigate to settings - network and activate 'Enable local network discovery (GDM)'
-
 
 # Troubleshooting
-Issue: Pressing the WATCH button does not show the Apple TV.
+Issue: Pressing the WATCH button does not show any client.
 
-Solution 1: Plex Apple TV is buggy and often it forgets it has the option active. You will need to deactivate the option, force close the app, start the app and activate the option again, restart Plex app. 
-
-Solution 2: You will need to deactivate the option, logoff and force close the app. Start the app, skip login and activate the option. Then you can login back. 
+- Check above Plex and Plex client config. Restart your client.
+- If Plex API does not find any players, neither will this App. You can get a list of active clients using:
+```
+curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN"
+```
+- (Only Apple TV) Plex Apple TV is buggy and often it forgets it has the option active. You will need to deactivate the option, force close the app, start the app and activate the option again, restart Plex app.
+- (Only Apple TV) You will need to deactivate the option, logoff and force close the app. Start the app, skip login and activate the option. Then you can login back. 
 
 Issue: Pressing the WATCH button does nothing. 
 
-Solution: Check the docker logs, if you get an access denied error, check your Plex Token, it might've changed.
-
-Check curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN" If empty try restarting your client. 
+- Check the docker logs, if you get an access denied error, check your Plex Token, it might've changed.
 
 Issue: Apple TV does not turn on
 
-Solution: You need to re-pair. This needs to be done each time you recreate the container. 
+- You need to re-pair. This needs to be done each time you recreate the container. 
 
 
 
