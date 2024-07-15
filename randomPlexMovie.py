@@ -108,6 +108,3 @@ def start_apple_tv():
     '''Start Apple TV using atvremote command'''
     subprocess.run(["atvremote", "turn_on", "--id", APPLE_TV_ID])
     return jsonify({"status": "Apple TV started"})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=4000)
