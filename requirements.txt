@@ -4,3 +4,4 @@ configparser
 pyatv
 Flask
 requests
+gunicorn
