@@ -13,5 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Make port 4000 available to the world outside this container
 EXPOSE 4000
 
-# Run randomPlexMovie.py when the container launches
-CMD ["python", "randomPlexMovie.py"]
+# Run the application with Gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:4000", "--workers", "3", "--log-level", "debug", "randomPlexMovie:app"]
