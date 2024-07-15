@@ -38,12 +38,15 @@ services:
     environment:
       PLEX_URL: "http://IP:32400"
       PLEX_TOKEN: "TOKEN"
-      MOVIES_LIBRARY_NAME: 'Filme' #Default 'Movies'. Used for TMDB, Trakt and TMDB links. 
+      MOVIES_LIBRARY_NAME: 'Filme' #Default 'Movies'. Used for IMDB, Trakt and TMDB links. 
       APPLE_TV_ID: "ID"
       
     network_mode: host
     restart: unless-stopped
 ```
+If you do not have an Apple TV you can  also change the container port.
+
+Default container port is 4000
 
 # First Use 
 !important! - Your client devices and plex need to be in the same network.
