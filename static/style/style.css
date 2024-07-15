@@ -82,6 +82,18 @@ main {
   font-weight: 900;
 }
 
+.version-label {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    z-index: 1000;
+}
+
 #year_duration {
   font-weight: 700;
 }
