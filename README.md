@@ -8,6 +8,7 @@ Docker container which chooses a random movie from your Plex Library.
 - Plex HTPC MacOS Client
 - iPhone
 - Plex for LGTV (WebOS)
+- Xiaomi MI TV Box S
 
 # Functions
 - Fetch Random unwatched movies from Plex server
