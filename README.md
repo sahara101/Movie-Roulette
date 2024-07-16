@@ -44,7 +44,7 @@ services:
     network_mode: host
     restart: unless-stopped
 ```
-If you do not have an Apple TV you can  also change the container port.
+If you do not have an Apple TV you can  also change the port.
 
 Default container port is 4000
 
