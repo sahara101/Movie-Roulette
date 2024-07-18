@@ -28,7 +28,7 @@
                     <p id="directors"></p>
                     <p id="writers"></p>
                     <p id="actors"></p>
-					<p id="description"></p>
+		    <p id="description"></p>
                     <div class="logo-container">
                         <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
                         <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
@@ -39,9 +39,9 @@
             </div>
 
             <div class="button_container">
-                <button id="btn_next_movie" class="button">WATCH</button>
-                <button id="btn_watch" class="button">NEXT</button>
-                <button id="btn_start_appletv" class="button">TURN ON APPLE TV</button>
+                <button id="btn_watch" class="button">WATCH</button>
+                <button id="btn_next_movie" class="button">NEXT</button>
+                <button id="btn_start_appletv" class="button">TURN ON DEVICE</button>
             </div>
 
             <div id="img_background"></div>
@@ -53,13 +53,22 @@
             <div id="client_prompt_close" onclick="closeClientPrompt()"><svg xmlns="http://www.w3.org/2000/svg"
                     width="42" height="42" viewBox="0 0 24 24">
                     <path
-                        d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.321 8.24-8.206 8.313 3.666 3.666 8.237-8.318 8.285 8.203z" />
+                        d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
                 </svg></div>
 
             <div id="container_list_of_clients">
                 <div id="list_of_clients"></div>
             </div>
+                    </div>
 
+        <div id="device_prompt" class="hidden">
+            <div id="device_prompt_close" onclick="closeDevicePrompt()"><svg xmlns="http://www.w3.org/2000/svg"
+                    width="42" height="42" viewBox="0 0 24 24">
+                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                </svg></div>
+            <div id="container_list_of_devices">
+                <div id="list_of_devices"></div>
+            </div>
         </div>
 
 	<div id="trailer_popup" class="hidden">
@@ -72,7 +81,9 @@
 
     </main>
 
-    <div class="version-label">v1.2.1</div>
+     <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
+      <div class="version-label">v1.3</div>
+    </a>
 
     <script type="text/javascript" src="/js/script.js"></script>
 
