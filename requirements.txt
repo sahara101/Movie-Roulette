@@ -5,3 +5,4 @@ pyatv
 Flask
 requests
 gunicorn
+pywebostv
