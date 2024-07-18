@@ -17,11 +17,7 @@ main {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
-  -webkit-box-pack: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
 }
 
@@ -30,7 +26,6 @@ main {
   padding: 50px;
   position: relative;
   margin: 0 100px;
-  display: -ms-grid;
   display: grid;
   text-align: center;
   max-width: 1200px;
@@ -51,12 +46,9 @@ main {
 
 .movie_container {
   z-index: 10;
-  display: -ms-grid;
   display: grid;
-  -ms-grid-rows: 1fr;
-      grid-template-rows: 1fr;
-  -ms-grid-columns: 1fr 3fr;
-      grid-template-columns: 1fr 3fr;
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr 3fr;
   justify-items: start;
   margin: auto;
 }
@@ -122,7 +114,7 @@ main {
   display: none !important;
 }
 
-#client_prompt {
+#client_prompt, #device_prompt {
   background-color: rgba(40, 42, 45, 0.5);
   z-index: 100;
   position: fixed;
@@ -131,29 +123,23 @@ main {
   width: 100vw;
   max-width: 100%;
   min-height: 100vh;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-pack: center;
-      -ms-flex-pack: center;
-          justify-content: center;
-  -webkit-box-align: center;
-      -ms-flex-align: center;
-          align-items: center;
+  justify-content: center;
+  align-items: center;
 }
 
-#client_prompt_close {
+#client_prompt_close, #device_prompt_close {
   cursor: pointer;
   position: absolute;
   top: 30px;
   right: 30px;
 }
 
-#client_prompt_close > svg {
+#client_prompt_close  > svg, #device_prompt_close > svg {
   fill: #EAEAEC;
 }
 
-#container_list_of_clients {
+#container_list_of_clients, #container_list_of_devices {
   background-color: rgba(67, 71, 76, 0.85);
   margin: 0 100px;
   text-align: center;
@@ -161,11 +147,11 @@ main {
   overflow-y: auto;
 }
 
-#list_of_clients {
+#list_of_clients, #list_of_devices {
   text-align: center;
 }
 
-.client {
+.client, .device {
   cursor: pointer;
   background-color: #E5A00D;
   margin: 35px;
@@ -173,20 +159,16 @@ main {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
-  -webkit-box-pack: center;
-      -ms-flex-pack: center;
-          justify-content: center;
-  -webkit-box-align: center;
-      -ms-flex-align: center;
-          align-items: center;
+  justify-content: center;
+  align-items: center;
   color: #282A2D;
 }
 
-.client:active {
+.client:active, .device:active {
   background-color: #F8D68B;
 }
 
-.client > p {
+.client > p, .device > p {
   margin: 0;
   text-transform: uppercase;
   font-size: 34pt;
@@ -238,10 +220,8 @@ main {
     margin: 30px;
   }
   .movie_container {
-    -ms-grid-rows: auto auto;
-        grid-template-rows: auto auto;
-    -ms-grid-columns: 1fr;
-        grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
   }
   .movie_poster, .movie_details {
     margin: 20px 25px;
@@ -249,7 +229,7 @@ main {
   .movie_poster > img {
     width: 100%;
   }
-  .client > p {
+  .client > p, .device > p {
     font-size: 24pt;
   }
 }
@@ -264,7 +244,7 @@ main {
   .button {
     font-size: 2em;
   }
-  .client > p {
+  .client > p, .device > p {
     font-size: 14pt;
   }
 }
