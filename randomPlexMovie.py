@@ -94,17 +94,46 @@ def play_movie(client_name):
     global chosen_movie
     if chosen_movie is None:
         return jsonify({"error": "No movie selected"}), 400
-        client_ip = request.args.get('address')
+    
+    client_ip = request.args.get('address')
     client_port = request.args.get('port')
+    
     if not client_ip or not client_port:
         return jsonify({"error": "Client not available"}), 400
+    
     client = plex.client(client_name)
     client.proxyThroughServer()  # Call proxyThroughServer as a method
     client.playMedia(chosen_movie)
     return jsonify({"status": "playing"})
 
-@app.route('/start_apple_tv')
-def start_apple_tv():
-    '''Start Apple TV using atvremote command'''
-    subprocess.run(["atvremote", "turn_on", "--id", APPLE_TV_ID])
-    return jsonify({"status": "Apple TV started"})
+@app.route('/devices')
+def devices():
+    '''Return list of devices with ENV set'''
+    devices = []
+
+    if os.getenv('APPLE_TV_ID'):
+        devices.append({"name": "apple_tv", "displayName": "Apple TV"})
+
+    if os.getenv('LGTV_IP') and os.getenv('LGTV_MAC'):
+        devices.append({"name": "lg_tv", "displayName": "LG TV (webOS)"})
+    # Add more devices here if needed, following the same pattern
+
+    return jsonify(devices)
+
+@app.route('/turn_on_device/<device>')
+def turn_on_device(device):
+    '''Turn on the specified device'''
+    if device == "apple_tv":
+        subprocess.run(["atvremote", "turn_on", "--id", APPLE_TV_ID])
+        return jsonify({"status": "Apple TV turned on"})
+    elif device == "lg_tv":
+        try:
+            result = subprocess.run(["python3", "utils/lgtv_control.py"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return jsonify({"status": "LG TV turned on and Plex app launched"})
+            else:
+                return jsonify({"status": f"Failed to control LG TV: {result.stderr}"}), 500
+        except Exception as e:
+            return jsonify({"status": f"Failed to control LG TV: {str(e)}"}), 500
+    else:
+        return jsonify({"status": "Unknown device"}), 400
