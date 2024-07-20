@@ -30,8 +30,6 @@ I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify t
 How to get the token: https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
 
 ```
-version: '3.8'
-
 services:
   plex-random-movie:
     image: ghcr.io/sahara101/random-plex-movie:latest
@@ -52,6 +50,10 @@ If you do not have an Apple TV you can  also change network host mode to use oth
 Default container port is 4000
 
 The TURN ON DEVICE button displays the devices dynamically, meaning you HAVE to add the ```APPLE_TV_ID``` ENV in order to see the corresponding button and both ```LGTV_IP``` and ```LGTV_MAC``` for LG.
+
+#PWA Support
+Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button. 
+![image](https://github.com/user-attachments/assets/564db1e3-0f8e-498e-aedd-f169e143b082)
 
 # First Use 
 !important! - Your client devices and plex need to be in the same network.
