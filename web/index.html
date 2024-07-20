@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="/style/style.css">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <link rel="icon" sizes="512x512" href="/static/icons/icon-512x512.png">
+    <meta name="theme-color" content="#000000">
 </head>
 
 <body>
@@ -82,11 +86,21 @@
     </main>
 
      <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-      <div class="version-label">v1.3</div>
+      <div class="version-label">v1.3.1</div>
     </a>
 
     <script type="text/javascript" src="/js/script.js"></script>
-
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/js/service-worker.js').then((registration) => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }, (error) => {
+            console.log('ServiceWorker registration failed: ', error);
+          });
+        });
+      }
+    </script>
 </body>
 
 </html>
