@@ -20,12 +20,11 @@
 
     <main>
 
-        <section id="section" class="hidden">
+        <section id="section">
 
-            <div class="movie_container">
-                <div class="movie_poster">
-                    <img src="" alt="" id="poster_img">
-                </div>
+            <div class="movie_poster">
+                <img src="" alt="" id="poster_img">
+            </div>
                 <div class="movie_details">
                     <p id="title"></p>
                     <p id="year_duration"></p>
@@ -40,12 +39,11 @@
 			<a href="#" id="trailer_link"><img src="/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
                     </div>
                 </div>
-            </div>
 
             <div class="button_container">
                 <button id="btn_watch" class="button">WATCH</button>
                 <button id="btn_next_movie" class="button">NEXT</button>
-                <button id="btn_start_appletv" class="button">TURN ON DEVICE</button>
+                <button id="btn_power" class="button"></button>
             </div>
 
             <div id="img_background"></div>
@@ -101,6 +99,52 @@
         });
       }
     </script>
+
+	<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var description = document.getElementById('description');
+
+  // Function to check if the text is truncated
+  function isTruncated(element) {
+    var originalHeight = element.clientHeight;
+
+    // Create a clone of the element with the same width
+    var clone = element.cloneNode(true);
+    clone.style.display = 'block';
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.webkitLineClamp = 'initial';
+    clone.style.overflow = 'visible';
+    clone.style.width = element.clientWidth + 'px';
+    document.body.appendChild(clone);
+    
+    // Check if the cloned element's height is greater than the original element's height
+    var isOverflowing = clone.clientHeight > originalHeight;
+    document.body.removeChild(clone);
+    return isOverflowing;
+  }
+
+  // Check if the description is truncated
+  if (isTruncated(description)) {
+    // Add pointer cursor to indicate it's clickable
+    description.style.cursor = 'pointer';
+
+    // Add click event listener
+    description.addEventListener('click', function() {
+      this.classList.toggle('expanded');
+      // Toggle cursor style based on expanded state
+      if (this.classList.contains('expanded')) {
+        this.style.cursor = 'default';
+      } else {
+        this.style.cursor = 'pointer';
+      }
+    });
+  } else {
+    // If not truncated, ensure the cursor is set to default
+    description.style.cursor = 'default';
+  }
+});
+</script>
 </body>
 
 </html>

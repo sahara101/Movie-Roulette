@@ -5,32 +5,33 @@ body {
   font-weight: 900;
   overflow: hidden;
   background-color: #282A2D;
+  font-size: 16px;
 }
 
 main {
-  padding: 0;
+  padding: 0px;
   margin: 0;
   width: 100vw;
   max-width: 100%;
-  min-height: 100vh;
   background-color: #282A2D;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  justify-content: center;
+  #justify-content: center;
   align-items: center;
+  min-height: 100vh;
 }
 
 #section {
   background-color: #3A3C41;
-  padding: 50px;
+  padding: 20px;
   position: relative;
-  margin: 0 100px;
+  margin: 0 0px;
   display: grid;
-  text-align: center;
-  max-width: 1200px;
-  width: 1200px;
-  min-height: 550px;
+  grid-template-columns: auto 1fr; /* First column matches content, second column takes remaining space */
+  grid-template-rows: auto auto; /* Two rows, each with automatic height based on content */
+  grid-gap: 20px; /* Space between grid items */
+  text-align: left;
+  max-width: 100vw;
+  width: 100vw;
 }
 
 #img_background {
@@ -44,17 +45,22 @@ main {
   opacity: .15;
 }
 
-.movie_container {
-  z-index: 10;
-  display: grid;
-  grid-template-rows: 1fr;
-  grid-template-columns: 1fr 3fr;
-  justify-items: start;
-  margin: auto;
+.poster {
+  max-width: 225px; /* Ensures image doesn't overflow its container */
+  min-width: 225px; /* Ensures the image doesn't shrink below 150px */
+  height: auto; /* Maintain aspect ratio */
 }
 
+.poster img {
+  border-radius: 5px;
+  width: 225px;
+  width: 100%; /* Ensure the image takes full width of the container */
+  height: auto; /* Maintain aspect ratio */
+}
+
+
 .movie_poster, .movie_details {
-  margin: 50px 25px;
+  margin: 0px 0px;
 }
 
 .movie_poster > img {
@@ -62,28 +68,49 @@ main {
 }
 
 .movie_details {
+  z-index: 10;
   color: #EAEAEC;
   font-weight: 300;
   text-align: left;
+  align-self: start;
   font-size: 1rem;
 }
 
+
 #title {
-  margin: 30px 0;
+  margin: 0px 0;
   font-size: 3rem;
-  font-weight: 900;
+  font-weight: 600;
+}
+
+#actors {
+  white-space: nowrap; /* Prevent text from wrapping */
+  overflow: hidden; /* Hide overflowed text */
+        }
+
+#description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4; /* Limit to 4 lines */
+  overflow: hidden;
+}
+
+#description.expanded {
+  display: block;
+  -webkit-line-clamp: initial; /* Show all lines */
+  overflow: visible; /* Ensure all content is shown */
 }
 
 .version-label {
-    position: fixed;
-    bottom: 10px;
-    right: 10px;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 12px;
-    z-index: 1000;
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  z-index: 1000;
 }
 
 #year_duration {
@@ -92,19 +119,46 @@ main {
 
 .button_container {
   z-index: 20;
+  grid-column: 1 / -1; /* Makes the third item span across all columns */
+  justify-content: center;
 }
 
 .button {
   text-align: center;
   font-family: 'Montserrat', sans-serif;
-  font-weight: 900;
-  font-size: 3em;
-  border: 0;
+  font-weight: 600;
+  font-size: 2em;
+  border: 1px;
+  padding: 5px;
   background-color: #E5A00D;
   color: #282A2D;
   cursor: pointer;
-  margin: 10px 20px;
+  margin: -5px 15px 0px 0px;
+  border-radius: 10px;
 }
+
+#btn_watch {
+  width: 225px;
+  height: 1.5em;
+  vertical-align: middle;
+}
+
+#btn_next_movie {
+ height: 1.5em;
+ width: 1.5em;
+ vertical-align: middle;
+}
+
+#btn_power {
+  height: 1.5em;
+  width: 1.5em;
+  background-image: url('/images/power.png');
+  background-size: contain; /* or 'cover' */
+  background-repeat: no-repeat;
+  background-position: center;
+  vertical-align: middle;
+}
+
 
 .button:active {
   background-color: #F8D68B;
@@ -135,7 +189,7 @@ main {
   right: 30px;
 }
 
-#client_prompt_close  > svg, #device_prompt_close > svg {
+#client_prompt_close > svg, #device_prompt_close > svg {
   fill: #EAEAEC;
 }
 
@@ -156,8 +210,6 @@ main {
   background-color: #E5A00D;
   margin: 35px;
   padding: 10px;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -209,51 +261,247 @@ main {
   fill: #EAEAEC;
 }
 
-@media screen and (max-width: 900px) {
+
+
+@media (orientation: portrait) {     
   body {
-    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 900;
+    overflow: auto;
+    background-color: #282A2D;
+    font-size: 16px;
   }
-}
 
-@media screen and (max-width: 750px) {
+  main {
+    padding: 0;
+    margin: 0;
+    width: 100vw;
+    max-width: 100%;
+    background-color: #282A2D;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Aligns content at the top */
+  }
+
   #section {
-    margin: 30px;
+    background-color: #3A3C41;
+    padding: 25px;
+    position: relative;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centers items horizontally */
+    width: 100vw;
+    height: 100%;
   }
-  .movie_container {
-    grid-template-rows: auto auto;
-    grid-template-columns: 1fr;
-  }
-  .movie_poster, .movie_details {
-    margin: 20px 25px;
-  }
-  .movie_poster > img {
+
+  #img_background {
+    z-index: 1;
+    position: absolute;
     width: 100%;
+    height: 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover !important;
+    opacity: .15;
   }
-  .client > p, .device > p {
-    font-size: 24pt;
+
+  .poster {
+    width: 70vw;
+    max-width: 70vw; /* Ensures image doesn't overflow */
+    height: auto; /* Maintain aspect ratio */
+    overflow: auto;
   }
+
+  .poster img {
+    width: 100%; /* Ensures the image takes full width of the container */
+    height: auto; /* Maintain aspect ratio */
+  }
+
+  .movie_poster > img {
+    width: 70vw; /* Ensure the image is consistent with .poster width */
+  }
+
+  .movie_details {
+    z-index: 10;
+    color: #EAEAEC;
+    font-weight: 300;
+    text-align: left;
+    font-size: 1rem;
+    width: 70vw; /* Match width with .poster */
+    margin: auto; /* Remove margins */
+    padding: 0; /* Remove padding if it affects alignment */
+  }
+
+#title {
+  margin: 0px 0;
+  font-size: 3rem;
+  font-weight: 600;
 }
 
-@media screen and (max-width: 550px) {
-  #title {
-    font-size: 2rem;
-  }
-  .movie_poster > img {
-    width: 100%;
-  }
-  .button {
-    font-size: 2em;
-  }
-  .client > p, .device > p {
-    font-size: 14pt;
-  }
+
+
+#description {
+   display: -webkit-box;
+   -webkit-box-orient: vertical;
+   -webkit-line-clamp: 4; /* Limit to 3 lines */
+   overflow: hidden;
 }
 
-@media screen and (max-width: 900px) {
-  #trailer_iframe {
-    width: 90vw; /* 90% of the viewport width */
-    height: 50.625vw; /* Maintain 16:9 aspect ratio */
-  }
+
+
+.version-label {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  z-index: 1000;
+}
+
+#year_duration {
+  font-weight: 700;
+}
+
+.button_container {
+  z-index: 20;
+  overflow: auto;
+  width: 70vw;
+  margin: auto;
+  display: flex;
+  justify-content: space-between
+}
+
+.button{
+  text-align: center;
+  flex: 1;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 2em;
+  border: 1px;
+  padding: 5px;
+  background-color: #E5A00D;
+  color: #282A2D;
+  cursor: pointer;
+  border-radius: 10px;
+  margin: auto;
+}
+
+#btn_watch {
+  margin: 0px 10px 0px 0px;
+}
+
+#btn_next_movie {
+  margin: 0px 10px 0px 0px;
+
+}
+
+.button:active {
+  background-color: #F8D68B;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#client_prompt, #device_prompt {
+  background-color: rgba(40, 42, 45, 0.5);
+  z-index: 100;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  max-width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#client_prompt_close, #device_prompt_close {
+  cursor: pointer;
+  position: absolute;
+  top: 30px;
+  right: 30px;
+}
+
+#client_prompt_close > svg, #device_prompt_close > svg {
+  fill: #EAEAEC;
+}
+
+#container_list_of_clients, #container_list_of_devices {
+  background-color: rgba(67, 71, 76, 0.85);
+  margin: 0 100px;
+  text-align: center;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+#list_of_clients, #list_of_devices {
+  text-align: center;
+}
+
+.client, .device {
+  cursor: pointer;
+  background-color: #E5A00D;
+  margin: 35px;
+  padding: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #282A2D;
+}
+
+.client:active, .device:active {
+  background-color: #F8D68B;
+}
+
+.client > p, .device > p {
+  margin: 0;
+  text-transform: uppercase;
+  font-size: 34pt;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+}
+
+#trailer_popup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+  z-index: 100;
+}
+
+#trailer_iframe {
+  width: 80vw; /* 80% of the viewport width */
+  height: 45vw; /* Maintain 16:9 aspect ratio */
+  max-width: 1200px; /* Maximum width */
+  max-height: 675px; /* Maximum height */
+}
+
+#trailer_popup_close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  cursor: pointer;
+  font-size: 2rem;
+  z-index: 101;
+}
+
+#trailer_popup_close > svg {
+  fill: #EAEAEC;
+}
+
 }
 
 .logo {
@@ -266,3 +514,4 @@ main {
   display: flex;
   align-items: center;
 }
+
