@@ -152,7 +152,7 @@ main {
 #btn_power {
   height: 1.5em;
   width: 1.5em;
-  background-image: url('/images/power.png');
+  background-image: url('/icons/power.png');
   background-size: contain; /* or 'cover' */
   background-repeat: no-repeat;
   background-position: center;
