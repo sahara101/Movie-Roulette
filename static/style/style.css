@@ -52,8 +52,8 @@ main {
 }
 
 .poster img {
-border-radius: 5px;
-width: 225px;
+  border-radius: 5px;
+  width: 225px;
   width: 100%; /* Ensure the image takes full width of the container */
   height: auto; /* Maintain aspect ratio */
 }
@@ -84,8 +84,8 @@ width: 225px;
 }
 
 #actors {
-            white-space: nowrap; /* Prevent text from wrapping */
-            overflow: hidden; /* Hide overflowed text */
+  white-space: nowrap; /* Prevent text from wrapping */
+  overflow: hidden; /* Hide overflowed text */
         }
 
 #description {
@@ -140,22 +140,22 @@ width: 225px;
 #btn_watch {
   width: 225px;
   height: 1.5em;
-vertical-align: middle;
+  vertical-align: middle;
 }
 
 #btn_next_movie {
  height: 1.5em;
-  width: 1.5em;
-vertical-align: middle;
+ width: 1.5em;
+ vertical-align: middle;
 }
 
 #btn_power {
   height: 1.5em;
   width: 1.5em;
-  background-image: url('../power.png');
-            background-size: contain; /* or 'cover' */
-            background-repeat: no-repeat;
-            background-position: center;
+  background-image: url('/images/power.png');
+  background-size: contain; /* or 'cover' */
+  background-repeat: no-repeat;
+  background-position: center;
   vertical-align: middle;
 }
 
@@ -345,9 +345,9 @@ vertical-align: middle;
 
 #description {
    display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 4; /* Limit to 3 lines */
-            overflow: hidden;
+   -webkit-box-orient: vertical;
+   -webkit-line-clamp: 4; /* Limit to 3 lines */
+   overflow: hidden;
 }
 
 
