@@ -12,19 +12,19 @@ Docker container which chooses a random movie from your Plex Library.
 
 # Functions
 - Fetch Random unwatched movies from Plex server
+- Filter by genre, year, and/or rating
 - See movie info
 - URLs to TMDB, Trakt and IMDB
 - Trailers on Youtube
 - Play movie on above tested players
 - Turn on Apple TV and LGTV ((webOS) directly in Plex App)
+- PWA support
 
-<img width="1377" alt="image" src="https://github.com/user-attachments/assets/bd508a26-bcd2-4f95-aeb3-4024444ed2fa">
-<img width="1254" alt="image" src="https://github.com/user-attachments/assets/f7fff9ec-8217-4483-b6cb-0831200c66c9">
-
+<img width="1728" alt="image" src="https://github.com/user-attachments/assets/e8d43c32-46d3-43ce-9a95-c9409c94fad9">
+<img width="1727" alt="image" src="https://github.com/user-attachments/assets/ff5b33f4-d632-41e3-a4a2-1dc33ef2eff6">
 
 # DISCLAIMER
 I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
-
 
 # docker-compose.yml
 How to get the token: https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
@@ -35,7 +35,7 @@ services:
     image: ghcr.io/sahara101/random-plex-movie:latest
 
     environment:
-      PLEX_URL: "http://IP:32400"
+      PLEX_URL: "http://IP:32400" #Reverse proxy URL also possible.
       PLEX_TOKEN: "TOKEN"
       MOVIES_LIBRARY_NAME: 'Filme' #Default 'Movies'. Used for IMDB, Trakt and TMDB links. 
       APPLE_TV_ID: "ID" #Optional
@@ -49,7 +49,7 @@ If you do not have an Apple TV you can  also change network host mode to use oth
 
 Default container port is 4000
 
-The TURN ON DEVICE button displays the devices dynamically, meaning you HAVE to add the ```APPLE_TV_ID``` ENV in order to see the corresponding button and both ```LGTV_IP``` and ```LGTV_MAC``` for LG.
+The power button displays the devices dynamically, meaning you HAVE to add the ```APPLE_TV_ID``` ENV in order to see the corresponding button and both ```LGTV_IP``` and ```LGTV_MAC``` for LG.
 
 # PWA Support
 Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button.
@@ -112,5 +112,6 @@ Issue: Apple TV does not turn on
 
 - You need to re-pair. This needs to be done each time you recreate the container.
 
+Issue: Browser does not load the poster and background.
 
-
+- You are probably using RPM with a reverse proxy URL but configured the container with the Plex IP. Change to Plex reverse proxy URL.
