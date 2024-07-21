@@ -1,46 +1,183 @@
-window.onload = async function() {
-    await showRandomMovie(); // Load a random movie on page load
+let currentFilters = {
+    genre: '',
+    year: '',
+    rating: ''
 };
 
-// Function to fetch and display a random movie
-async function showRandomMovie() {
+document.addEventListener('DOMContentLoaded', function() {
+    loadInitialMovie();
+    loadFilterOptions();
+    setupEventListeners();
+});
+
+async function loadInitialMovie() {
     try {
         // Fetch random movie data from Flask API
         const response = await fetch('/random_movie');
         const movieData = await response.json();
-
-        // Update HTML elements with movie details
-        document.getElementById("title").textContent = movieData.title;
-        document.getElementById("year_duration").textContent = `${movieData.year} | ${movieData.duration_hours}h ${movieData.duration_minutes}m`;
-        document.getElementById("directors").textContent = `Directed by: ${movieData.directors.join(", ")}`;
-        document.getElementById("writers").textContent = `Written by: ${movieData.writers.join(", ")}`;
-        document.getElementById("actors").textContent = `Cast: ${movieData.actors.join(", ")}`;
-        document.getElementById("description").textContent = `Description: ${movieData.description}`;
-
-        document.getElementById("poster_img").src = movieData.poster;
-        document.getElementById("img_background").style.backgroundImage = `url(${movieData.background})`;
-
-        document.getElementById("tmdb_link").href = movieData.tmdb_url;
-        document.getElementById("trakt_link").href = movieData.trakt_url;
-        document.getElementById("imdb_link").href = movieData.imdb_url;
-
-        // Show trailer link if available
-        const trailerLink = document.getElementById("trailer_link");
-        if (movieData.trailer_url) {
-            trailerLink.style.display = "block";
-            trailerLink.onclick = function() {
-                document.getElementById("trailer_iframe").src = movieData.trailer_url;
-                document.getElementById("trailer_popup").classList.remove("hidden");
-            };
-        } else {
-            trailerLink.style.display = "none";
-        }
-
-        // Show the main section after loading movie details
-        document.getElementById("section").classList.remove("hidden");
+        updateMovieDisplay(movieData);
     } catch (error) {
         console.error("Error fetching random movie:", error);
     }
+}
+
+async function loadFilterOptions() {
+    try {
+        const [genres, years] = await Promise.all([
+            fetch('/get_genres').then(res => res.json()),
+            fetch('/get_years').then(res => res.json())
+        ]);
+
+        populateDropdown('genreSelect', genres);
+        populateDropdown('yearSelect', years);
+    } catch (error) {
+        console.error("Error loading filter options:", error);
+    }
+}
+
+function populateDropdown(elementId, options) {
+    const select = document.getElementById(elementId);
+    select.innerHTML = '<option value="">Any</option>';
+    options.forEach(option => {
+        if (option) {
+            const optionElement = document.createElement('option');
+            optionElement.value = option;
+            optionElement.textContent = option;
+            select.appendChild(optionElement);
+        }
+    });
+}
+
+function setupEventListeners() {
+    const filterButton = document.getElementById("filterButton");
+    const filterDropdown = document.getElementById("filterDropdown");
+
+    filterButton.addEventListener('click', function(event) {
+        event.stopPropagation();
+        filterDropdown.classList.toggle("show");
+    });
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
+            filterDropdown.classList.remove("show");
+        }
+    });
+
+    filterDropdown.addEventListener('click', function(event) {
+        event.stopPropagation();
+    });
+
+    document.getElementById("applyFilter").addEventListener('click', applyFilter);
+    document.getElementById("clearFilter").addEventListener('click', clearFilter);
+    document.getElementById("btn_watch").addEventListener('click', showClients);
+    document.getElementById("btn_next_movie").addEventListener('click', loadNextMovie);
+    document.getElementById("btn_power").addEventListener('click', showDevices);
+    document.getElementById("trailer_popup_close").addEventListener('click', closeTrailerPopup);
+}
+
+async function applyFilter() {
+    currentFilters.genre = document.getElementById("genreSelect").value;
+    currentFilters.year = document.getElementById("yearSelect").value;
+    currentFilters.rating = document.getElementById("ratingFilter").value;
+
+    try {
+        const response = await fetch(`/filter_movies?genre=${encodeURIComponent(currentFilters.genre)}&year=${currentFilters.year}&rating=${currentFilters.rating}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error);
+        }
+        const movieData = await response.json();
+        updateMovieDisplay(movieData);
+    } catch (error) {
+        console.error("Error applying filter:", error);
+        alert(error.message);
+    }
+}
+
+function clearFilter() {
+    document.getElementById("genreSelect").value = '';
+    document.getElementById("yearSelect").value = '';
+    document.getElementById("ratingFilter").value = '';
+    currentFilters = {
+        genre: '',
+        year: '',
+        rating: ''
+    };
+    loadInitialMovie();
+}
+
+async function loadNextMovie() {
+    try {
+        let url = '/next_movie';
+        if (currentFilters.genre || currentFilters.year || currentFilters.rating) {
+            url = `/filter_movies?genre=${encodeURIComponent(currentFilters.genre)}&year=${currentFilters.year}&rating=${currentFilters.rating}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error);
+        }
+        const movieData = await response.json();
+        updateMovieDisplay(movieData);
+    } catch (error) {
+        console.error("Error fetching next movie:", error);
+        alert(error.message);
+    }
+}
+
+function updateMovieDisplay(movieData) {
+    document.getElementById("title").textContent = movieData.title;
+    document.getElementById("year_duration").textContent = `${movieData.year} | ${movieData.duration_hours}h ${movieData.duration_minutes}m`;
+    document.getElementById("directors").textContent = `Directed by: ${movieData.directors.join(", ")}`;
+    document.getElementById("writers").textContent = `Written by: ${movieData.writers.join(", ")}`;
+    document.getElementById("actors").textContent = `Cast: ${movieData.actors.join(", ")}`;
+    document.getElementById("genres").textContent = `Genres: ${movieData.genres.join(", ")}`;
+    document.getElementById("description").textContent = movieData.description;
+    document.getElementById("poster_img").src = movieData.poster;
+    document.getElementById("img_background").style.backgroundImage = `url(${movieData.background})`;
+    document.getElementById("tmdb_link").href = movieData.tmdb_url;
+    document.getElementById("trakt_link").href = movieData.trakt_url;
+    document.getElementById("imdb_link").href = movieData.imdb_url;
+    const trailerLink = document.getElementById("trailer_link");
+    if (movieData.trailer_url) {
+        trailerLink.style.display = "block";
+        trailerLink.onclick = function() {
+            document.getElementById("trailer_iframe").src = movieData.trailer_url;
+            document.getElementById("trailer_popup").classList.remove("hidden");
+        };
+    } else {
+        trailerLink.style.display = "none";
+    }
+    document.getElementById("section").classList.remove("hidden");
+    setupDescriptionExpander();
+    window.dispatchEvent(new Event('resize'));
+}
+
+function setupDescriptionExpander() {
+    const description = document.getElementById('description');
+    const lineHeight = parseInt(window.getComputedStyle(description).lineHeight);
+    const maxLines = 4;
+    const maxHeight = lineHeight * maxLines;
+
+    function checkTruncation() {
+        if (description.scrollHeight > maxHeight) {
+            description.classList.add('truncated');
+            description.style.cursor = 'pointer';
+            description.addEventListener('click', toggleExpand);
+        } else {
+            description.classList.remove('truncated', 'expanded');
+            description.style.cursor = 'default';
+            description.removeEventListener('click', toggleExpand);
+        }
+    }
+
+    function toggleExpand(event) {
+        event.stopPropagation();
+        description.classList.toggle('expanded');
+    }
+
+    checkTruncation();
+    window.addEventListener('resize', checkTruncation);
 }
 
 // Function to fetch and display a list of clients
@@ -138,22 +275,7 @@ function closeDevicePrompt() {
 }
 
 // Function to close the trailer popup
-document.getElementById("trailer_popup_close").onclick = function() {
-    document.getElementById("trailer_iframe").src = ""; // Stop the trailer video
+function closeTrailerPopup() {
+    document.getElementById("trailer_iframe").src = "";
     document.getElementById("trailer_popup").classList.add("hidden");
-};
-
-// Event listener for WATCH button to show client prompt
-document.getElementById("btn_watch").onclick = function() {
-    showClients();
-};
-
-// Event listener for NEXT button to show next random movie
-document.getElementById("btn_next_movie").onclick = function() {
-    showRandomMovie();
-};
-
-// Event listener for TURN ON DEVICE button to show device prompt
-document.getElementById("btn_start_appletv").onclick = function() {
-    showDevices();
-};
+}
