@@ -15,7 +15,6 @@ main {
   max-width: 100%;
   background-color: #282A2D;
   display: flex;
-  #justify-content: center;
   align-items: center;
   min-height: 100vh;
 }
@@ -92,13 +91,28 @@ main {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4; /* Limit to 4 lines */
-  overflow: hidden;
+  line-height: 1.5em;
+  max-height: 6em; /* 4 lines * 1.5em line-height */
+  position: relative;
+  padding-right: 1em;
+}
+
+#description.truncated::after {
+  content: '...';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding-left: 1em;
+  background: linear-gradient(to right, transparent, #3A3C41 50%);
 }
 
 #description.expanded {
-  display: block;
-  -webkit-line-clamp: initial; /* Show all lines */
-  overflow: visible; /* Ensure all content is shown */
+  -webkit-line-clamp: unset;
+  max-height: none;
+}
+
+#description.expanded::after {
+  display: none;
 }
 
 .version-label {
@@ -143,262 +157,18 @@ main {
   vertical-align: middle;
 }
 
-#btn_next_movie {
- height: 1.5em;
- width: 1.5em;
- vertical-align: middle;
-}
-
-#btn_power {
-  height: 1.5em;
-  width: 1.5em;
-  background-image: url('/icons/power.png');
-  background-size: contain; /* or 'cover' */
-  background-repeat: no-repeat;
-  background-position: center;
-  vertical-align: middle;
-}
-
-
-.button:active {
-  background-color: #F8D68B;
-}
-
-.hidden {
-  display: none !important;
-}
-
-#client_prompt, #device_prompt {
-  background-color: rgba(40, 42, 45, 0.5);
-  z-index: 100;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  max-width: 100%;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-#client_prompt_close, #device_prompt_close {
-  cursor: pointer;
-  position: absolute;
-  top: 30px;
-  right: 30px;
-}
-
-#client_prompt_close > svg, #device_prompt_close > svg {
-  fill: #EAEAEC;
-}
-
-#container_list_of_clients, #container_list_of_devices {
-  background-color: rgba(67, 71, 76, 0.85);
-  margin: 0 100px;
-  text-align: center;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-
-#list_of_clients, #list_of_devices {
-  text-align: center;
-}
-
-.client, .device {
-  cursor: pointer;
-  background-color: #E5A00D;
-  margin: 35px;
-  padding: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: #282A2D;
-}
-
-.client:active, .device:active {
-  background-color: #F8D68B;
-}
-
-.client > p, .device > p {
-  margin: 0;
-  text-transform: uppercase;
-  font-size: 34pt;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 900;
-}
-
-#trailer_popup {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
-  z-index: 100;
-}
-
-#trailer_iframe {
-  width: 80vw; /* 80% of the viewport width */
-  height: 45vw; /* Maintain 16:9 aspect ratio */
-  max-width: 1200px; /* Maximum width */
-  max-height: 675px; /* Maximum height */
-}
-
-#trailer_popup_close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  cursor: pointer;
-  font-size: 2rem;
-  z-index: 101;
-}
-
-#trailer_popup_close > svg {
-  fill: #EAEAEC;
-}
-
-
-
-@media (orientation: portrait) {     
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 900;
-    overflow: auto;
-    background-color: #282A2D;
-    font-size: 16px;
-  }
-
-  main {
-    padding: 0;
-    margin: 0;
-    width: 100vw;
-    max-width: 100%;
-    background-color: #282A2D;
-    display: flex;
+#btn_next_movie, #btn_power {
+    height: 1.5em;
+    width: 1.5em;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    align-items: flex-start; /* Aligns content at the top */
-  }
-
-  #section {
-    background-color: #3A3C41;
-    padding: 25px;
-    position: relative;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center; /* Centers items horizontally */
-    width: 100vw;
-    height: 100%;
-  }
-
-  #img_background {
-    z-index: 1;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover !important;
-    opacity: .15;
-  }
-
-  .poster {
-    width: 70vw;
-    max-width: 70vw; /* Ensures image doesn't overflow */
-    height: auto; /* Maintain aspect ratio */
-    overflow: auto;
-  }
-
-  .poster img {
-    width: 100%; /* Ensures the image takes full width of the container */
-    height: auto; /* Maintain aspect ratio */
-  }
-
-  .movie_poster > img {
-    width: 70vw; /* Ensure the image is consistent with .poster width */
-  }
-
-  .movie_details {
-    z-index: 10;
-    color: #EAEAEC;
-    font-weight: 300;
-    text-align: left;
-    font-size: 1rem;
-    width: 70vw; /* Match width with .poster */
-    margin: auto; /* Remove margins */
-    padding: 0; /* Remove padding if it affects alignment */
-  }
-
-#title {
-  margin: 0px 0;
-  font-size: 3rem;
-  font-weight: 600;
 }
 
-
-
-#description {
-   display: -webkit-box;
-   -webkit-box-orient: vertical;
-   -webkit-line-clamp: 4; /* Limit to 3 lines */
-   overflow: hidden;
-}
-
-
-
-.version-label {
-  position: fixed;
-  bottom: 10px;
-  right: 10px;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  padding: 5px 10px;
-  border-radius: 5px;
-  font-size: 12px;
-  z-index: 1000;
-}
-
-#year_duration {
-  font-weight: 700;
-}
-
-.button_container {
-  z-index: 20;
-  overflow: auto;
-  width: 70vw;
-  margin: auto;
-  display: flex;
-  justify-content: space-between
-}
-
-.button{
-  text-align: center;
-  flex: 1;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 600;
-  font-size: 2em;
-  border: 1px;
-  padding: 5px;
-  background-color: #E5A00D;
-  color: #282A2D;
-  cursor: pointer;
-  border-radius: 10px;
-  margin: auto;
-}
-
-#btn_watch {
-  margin: 0px 10px 0px 0px;
-}
-
-#btn_next_movie {
-  margin: 0px 10px 0px 0px;
-
+#btn_next_movie svg, #btn_power svg {
+    width: 70%;
+    height: 70%;
 }
 
 .button:active {
@@ -515,3 +285,126 @@ main {
   align-items: center;
 }
 
+.filter-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+}
+
+.filter-button {
+  background-color: #E5A00D;
+  color: #282A2D;
+  padding: 10px;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.filter-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  background-color: #3A3C41;
+  min-width: 200px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+  padding: 10px;
+  border-radius: 5px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.filter-option {
+  margin-bottom: 10px;
+}
+
+.filter-option label {
+  display: block;
+  color: #EAEAEC;
+  margin-bottom: 5px;
+}
+
+.filter-option select {
+  width: 100%;
+  padding: 5px;
+  border: 1px solid #EAEAEC;
+  background-color: #282A2D;
+  color: #EAEAEC;
+  border-radius: 3px;
+}
+
+#applyFilter,
+#clearFilter {
+  background-color: #E5A00D;
+  color: #282A2D;
+  border: none;
+  padding: 5px 10px;
+  margin-top: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  width: 100%;
+}
+
+#applyFilter:hover,
+#clearFilter:hover {
+  background-color: #F8D68B;
+}
+
+.show {
+  display: block !important;
+}
+
+@media (max-width: 768px) {
+  .filter-button,
+  .filter-dropdown select,
+  .filter-dropdown button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (orientation: portrait) {
+  body {
+    overflow: auto;
+  }
+
+  main {
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  #section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100vw;
+    height: 100%;
+  }
+
+  .poster, .movie_poster > img, .movie_details {
+    width: 70vw;
+    max-width: 70vw;
+  }
+
+  .button_container {
+    width: 70vw;
+    margin: auto;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .button {
+    flex: 1;
+    margin: auto;
+  }
+
+  #btn_watch, #btn_next_movie {
+    margin: 0px 10px 0px 0px;
+  }
+
+  .filter-container {
+    position: static;
+    margin-bottom: 10px;
+  }
