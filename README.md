@@ -65,7 +65,7 @@ Navigate to settings and set 'Advertise as player' to 'On'
 ## Plex Server Config
 Navigate to settings - network and activate 'Enable local network discovery (GDM)'
 
-#Apple TV
+# Apple TV
 ## Get the Apple TV ID 
 
 First start the container without adding the ID ENV since you do not have it yet.
@@ -87,7 +87,7 @@ atvremote --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx --protocol companion pair
 Enter PIN on screen: 
 Pairing seems to have succeeded, yey!
 ```
-#LGTV (WebOS
+# LGTV (WebOS
 Get the TV IP and MAC and set them up in the ENV. You can see both in the TV settings. If you want to copy the MAC just ping the TV followed by the linux command ```ip neigh show```
 
 Press the ```TURN ON DEVICE``` button and select your ```LGTV (webOS)```. A magic packet will be sent and the TV will turn on. Accept the new connection. This will store the connection details in the container. 
