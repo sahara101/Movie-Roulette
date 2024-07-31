@@ -25,9 +25,9 @@ main {
   position: relative;
   margin: 0 0px;
   display: grid;
-  grid-template-columns: auto 1fr; /* First column matches content, second column takes remaining space */
-  grid-template-rows: auto auto; /* Two rows, each with automatic height based on content */
-  grid-gap: 20px; /* Space between grid items */
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  grid-gap: 20px;
   text-align: left;
   max-width: 100vw;
   width: 100vw;
@@ -45,18 +45,16 @@ main {
 }
 
 .poster {
-  max-width: 225px; /* Ensures image doesn't overflow its container */
-  min-width: 225px; /* Ensures the image doesn't shrink below 150px */
-  height: auto; /* Maintain aspect ratio */
+  max-width: 225px;
+  min-width: 225px;
+  height: auto;
 }
 
 .poster img {
   border-radius: 5px;
-  width: 225px;
-  width: 100%; /* Ensure the image takes full width of the container */
-  height: auto; /* Maintain aspect ratio */
+  width: 100%;
+  height: auto;
 }
-
 
 .movie_poster, .movie_details {
   margin: 0px 0px;
@@ -75,7 +73,6 @@ main {
   font-size: 1rem;
 }
 
-
 #title {
   margin: 0px 0;
   font-size: 3rem;
@@ -83,14 +80,15 @@ main {
 }
 
 #actors {
-  white-space: nowrap; /* Prevent text from wrapping */
-  overflow: hidden; /* Hide overflowed text */
-        }
+  white-space: nowrap;
+  overflow: hidden;
+}
 
 #description {
+  overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4; /* Limit to 4 lines */
+  -webkit-line-clamp: 4;
   line-height: 1.5em;
   max-height: 6em; /* 4 lines * 1.5em line-height */
   position: relative;
@@ -133,7 +131,7 @@ main {
 
 .button_container {
   z-index: 20;
-  grid-column: 1 / -1; /* Makes the third item span across all columns */
+  grid-column: 1 / -1;
   justify-content: center;
 }
 
@@ -248,15 +246,15 @@ main {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+  background-color: rgba(0, 0, 0, 0.8);
   z-index: 100;
 }
 
 #trailer_iframe {
-  width: 80vw; /* 80% of the viewport width */
-  height: 45vw; /* Maintain 16:9 aspect ratio */
-  max-width: 1200px; /* Maximum width */
-  max-height: 675px; /* Maximum height */
+  width: 80vw;
+  height: 45vw;
+  max-width: 1200px;
+  max-height: 675px;
 }
 
 #trailer_popup_close {
@@ -272,12 +270,10 @@ main {
   fill: #EAEAEC;
 }
 
-}
-
 .logo {
-  width: 50px; /* Adjust as needed */
-  height: auto; /* Maintain aspect ratio */
-  margin-right: 10px; /* Optional margin */
+  width: 50px;
+  height: auto;
+  margin-right: 10px;
 }
 
 .logo-container {
@@ -408,3 +404,10 @@ main {
     position: static;
     margin-bottom: 10px;
   }
+
+  .filter-dropdown {
+    position: static;
+    display: none;
+    width: 100%;
+  }
+}
