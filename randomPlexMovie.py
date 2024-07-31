@@ -6,7 +6,6 @@ from plexapi.server import PlexServer
 from utils.fetch_movie_links import fetch_movie_links
 from utils.youtube_trailer import search_youtube_trailer
 
-
 # Plex authorization
 PLEX_URL = os.getenv('PLEX_URL')
 PLEX_TOKEN = os.getenv('PLEX_TOKEN')
@@ -23,7 +22,27 @@ chosen_movie = None
 filtered_movies = []
 last_movie = None
 
-global chosen_movie, filtered_movies, last_movie
+# Routes
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/style/<path:filename>')
+def style(filename):
+    return send_from_directory('static/style', filename)
+
+@app.route('/js/<path:filename>')
+def js(filename):
+    return send_from_directory('static/js', filename)
+
+@app.route('/logos/<path:filename>')
+def logos(filename):
+    return send_from_directory('static/logos', filename)
+
+# REST API endpoints
+@app.route('/random_movie')
+def random_movie():
+    global chosen_movie, filtered_movies, last_movie
     try:
         all_unwatched = movies.search(unwatched=True)
         available_movies = [movie for movie in all_unwatched if movie != last_movie]
@@ -36,7 +55,6 @@ global chosen_movie, filtered_movies, last_movie
         filtered_movies = all_unwatched
         movie_data = get_movie_data(chosen_movie)
         print("Movie data:", movie_data)  # Print the movie data
-
         return movie_data
     except Exception as e:
         print(f"Error in random_movie: {str(e)}")
@@ -137,40 +155,46 @@ def get_genres():
     print("Available genres:", genre_list)  # Debugging line
     return jsonify(genre_list)
 
+@app.route('/get_years')
+def get_years():
+    all_years = set()
+    for movie in movies.search(unwatched=True):
+        all_years.add(movie.year)
+    year_list = sorted(list(all_years), reverse=True)
+    print("Available years:", year_list)  # Debugging line
+    return jsonify(year_list)
+
 @app.route('/clients')
 def clients():
-    '''Return list of clients'''    
     client_list = []
     for client in plex.clients():
         client_info = {
             "title": client.title,
-            "address": client._baseurl.split('http://')[1].split(':')[0],  # Extract the IP address
-            "port": client._baseurl.split(':')[2].split('/')[0]  # Extract the port
+            "address": client._baseurl.split('http://')[1].split(':')[0],
+            "port": client._baseurl.split(':')[2].split('/')[0]
         }
         client_list.append(client_info)
     return jsonify(client_list)
 
 @app.route('/play_movie/<client_name>')
 def play_movie(client_name):
-    '''Play movie on the specified client'''
     global chosen_movie
     if chosen_movie is None:
         return jsonify({"error": "No movie selected"}), 400
-    
+
     client_ip = request.args.get('address')
     client_port = request.args.get('port')
-    
+
     if not client_ip or not client_port:
         return jsonify({"error": "Client not available"}), 400
-    
+
     client = plex.client(client_name)
-    client.proxyThroughServer()  # Call proxyThroughServer as a method
+    client.proxyThroughServer()
     client.playMedia(chosen_movie)
     return jsonify({"status": "playing"})
 
 @app.route('/devices')
 def devices():
-    '''Return list of devices with ENV set'''
     devices = []
 
     if os.getenv('APPLE_TV_ID'):
@@ -178,13 +202,11 @@ def devices():
 
     if os.getenv('LGTV_IP') and os.getenv('LGTV_MAC'):
         devices.append({"name": "lg_tv", "displayName": "LG TV (webOS)"})
-    # Add more devices here if needed, following the same pattern
 
     return jsonify(devices)
 
 @app.route('/turn_on_device/<device>')
 def turn_on_device(device):
-    '''Turn on the specified device'''
     if device == "apple_tv":
         subprocess.run(["atvremote", "turn_on", "--id", APPLE_TV_ID])
         return jsonify({"status": "Apple TV turned on"})
