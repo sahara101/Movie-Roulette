@@ -90,7 +90,7 @@ main {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
   line-height: 1.5em;
-  max-height: 6em; /* 4 lines * 1.5em line-height */
+  max-height: 6em;
   position: relative;
   padding-right: 1em;
 }
@@ -132,7 +132,10 @@ main {
 .button_container {
   z-index: 20;
   grid-column: 1 / -1;
-  justify-content: center;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .button {
@@ -145,28 +148,50 @@ main {
   background-color: #E5A00D;
   color: #282A2D;
   cursor: pointer;
-  margin: -5px 15px 0px 0px;
+  margin-right: 10px;
+  margin-bottom: 10px;
   border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #btn_watch {
   width: 225px;
   height: 1.5em;
-  vertical-align: middle;
+  flex-grow: 1;
+  max-width: 225px;
 }
 
 #btn_next_movie, #btn_power {
-    height: 1.5em;
-    width: 1.5em;
-    vertical-align: middle;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  height: 1.5em;
+  width: 1.5em;
+  flex-grow: 0;
 }
 
 #btn_next_movie svg, #btn_power svg {
-    width: 70%;
-    height: 70%;
+  width: 70%;
+  height: 70%;
+}
+
+#switch_service {
+  width: auto;
+  height: 1.5em;
+  padding: 5px 10px;
+  font-size: 2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#switch_service .service-name {
+  margin-right: 10px;
+}
+
+#switch_service .switch-icon {
+  width: 0.8em;
+  height: 0.8em;
+  fill: currentColor;
 }
 
 .button:active {
@@ -361,7 +386,7 @@ main {
   }
 }
 
-@media (orientation: portrait) {
+@media (max-width: 768px), (orientation: portrait) {
   body {
     overflow: auto;
   }
@@ -385,19 +410,29 @@ main {
   }
 
   .button_container {
-    width: 70vw;
-    margin: auto;
-    display: flex;
-    justify-content: space-between;
+    width: 100%;
+    justify-content: center;
   }
 
   .button {
-    flex: 1;
-    margin: auto;
+    font-size: 1.5em;
   }
 
-  #btn_watch, #btn_next_movie {
-    margin: 0px 10px 0px 0px;
+  #btn_watch {
+    flex-basis: 100%;
+    max-width: none;
+    margin-bottom: 10px;
+  }
+
+  #btn_next_movie, #btn_power, #switch_service {
+    flex-basis: 30%;
+  }
+
+  #switch_service {
+    width: 100%;
+    height: auto;
+    padding: 5px 10px;
+    margin-top: 10px;
   }
 
   .filter-container {

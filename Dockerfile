@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 4000
 
 # Run the application with Gunicorn
-CMD ["gunicorn", "-b", "0.0.0.0:4000", "--workers", "3", "--log-level", "debug", "randomPlexMovie:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:4000", "--workers", "3", "--log-level", "debug", "movie_selector:app"]

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plex Random Movie</title>
+    <title>Streaming Roulette</title>
 
     <link rel="stylesheet" href="/style/style.css">
     <link rel="preconnect" href="https://fonts.gstatic.com">
@@ -52,7 +52,7 @@
                     <button id="clearFilter">Clear Filter</button>
                 </div>
             </div>
-		
+
             <div class="movie_poster">
                 <img src="" alt="" id="poster_img">
             </div>
@@ -62,13 +62,13 @@
                     <p id="directors"></p>
                     <p id="writers"></p>
                     <p id="actors"></p>
-		    <p id="genres"></p>
-		    <p id="description"></p>
+                    <p id="genres"></p>
+                    <p id="description"></p>
                     <div class="logo-container">
                         <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
                         <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
                         <a href="#" id="imdb_link" target="_blank"><img src="/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
-			<a href="#" id="trailer_link"><img src="/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
+                        <a href="#" id="trailer_link"><img src="/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
                     </div>
                 </div>
 
@@ -79,9 +79,15 @@
                     <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
                   </svg>
                 </button>
-		<button id="btn_power" class="button">
+                <button id="btn_power" class="button">
                   <svg width="24" height="24" viewBox="0 0 24 24">
                     <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
+                  </svg>
+                </button>
+                <button id="switch_service" class="button">
+                  <span class="service-name"></span>
+                  <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
+                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
                   </svg>
                 </button>
             </div>
@@ -91,7 +97,6 @@
         </section>
 
         <div id="client_prompt" class="hidden">
-
             <div id="client_prompt_close" onclick="closeClientPrompt()"><svg xmlns="http://www.w3.org/2000/svg"
                     width="42" height="42" viewBox="0 0 24 24">
                     <path
@@ -113,10 +118,10 @@
             </div>
         </div>
 
-	<div id="trailer_popup" class="hidden">
+        <div id="trailer_popup" class="hidden">
             <div id="trailer_popup_close"><svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
                     <path
-			d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                        d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
                 </svg></div>
                 <iframe id="trailer_iframe" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
         </div>
@@ -124,7 +129,7 @@
     </main>
 
      <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-      <div class="version-label">v1.4</div>
+      <div class="version-label">v1.5</div>
     </a>
 
     <script type="text/javascript" src="/js/script.js"></script>
@@ -139,52 +144,6 @@
         });
       }
     </script>
-
-	<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var description = document.getElementById('description');
-
-  // Function to check if the text is truncated
-  function isTruncated(element) {
-    var originalHeight = element.clientHeight;
-
-    // Create a clone of the element with the same width
-    var clone = element.cloneNode(true);
-    clone.style.display = 'block';
-    clone.style.position = 'absolute';
-    clone.style.visibility = 'hidden';
-    clone.style.webkitLineClamp = 'initial';
-    clone.style.overflow = 'visible';
-    clone.style.width = element.clientWidth + 'px';
-    document.body.appendChild(clone);
-    
-    // Check if the cloned element's height is greater than the original element's height
-    var isOverflowing = clone.clientHeight > originalHeight;
-    document.body.removeChild(clone);
-    return isOverflowing;
-  }
-
-  // Check if the description is truncated
-  if (isTruncated(description)) {
-    // Add pointer cursor to indicate it's clickable
-    description.style.cursor = 'pointer';
-
-    // Add click event listener
-    description.addEventListener('click', function() {
-      this.classList.toggle('expanded');
-      // Toggle cursor style based on expanded state
-      if (this.classList.contains('expanded')) {
-        this.style.cursor = 'default';
-      } else {
-        this.style.cursor = 'pointer';
-      }
-    });
-  } else {
-    // If not truncated, ensure the cursor is set to default
-    description.style.cursor = 'default';
-  }
-});
-</script>
 </body>
 
 </html>
