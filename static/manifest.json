@@ -1,6 +1,6 @@
 {
-  "name": "Plex Random Movie",
-  "short_name": "PlexMovie",
+  "name": "Movie Roulette",
+  "short_name": "Movie Roulette",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
