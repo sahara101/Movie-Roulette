@@ -22,7 +22,7 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 - Play movie on above tested players.
 - Turn on Apple TV and LGTV ((webOS) directly in Plex or Jellyfin app).
 - PWA support.
-- Seamless swicth between the two services. 
+- Seamless switch between the two services. 
 
 <img width="1728" alt="image" src="https://github.com/user-attachments/assets/7181ebc1-b909-4e7a-b7e0-a30472515c82">
 <img width="1727" alt="image" src="https://github.com/user-attachments/assets/ff5b33f4-d632-41e3-a4a2-1dc33ef2eff6">
