@@ -1,6 +1,6 @@
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
-# Random Plex Movie
+# Movie Roulette
 Docker container which chooses a random movie from your Plex Library. 
 
 # Tested Players 
