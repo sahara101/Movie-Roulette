@@ -12,7 +12,7 @@ Docker container which chooses a random movie from your Plex Library.
 
 # Functions
 - Fetch Random unwatched movies from Plex server
-- Filter by genre, year, and/or rating
+- Filter by genre, year, and/or rating. Genre and years display only existing movies
 - See movie info
 - URLs to TMDB, Trakt and IMDB
 - Trailers on Youtube
@@ -54,7 +54,7 @@ The power button displays the devices dynamically, meaning you HAVE to add the `
 # PWA Support
 Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button.
 
-![image](https://github.com/user-attachments/assets/564db1e3-0f8e-498e-aedd-f169e143b082)
+![image](https://github.com/user-attachments/assets/ffb29414-8886-4376-952c-2949af401b68)
 
 # First Use 
 !important! - Your client devices and plex need to be in the same network.
@@ -93,16 +93,20 @@ Get the TV IP and MAC and set them up in the ENV. You can see both in the TV set
 Press the ```TURN ON DEVICE``` button and select your ```LGTV (webOS)```. A magic packet will be sent and the TV will turn on. Accept the new connection. This will store the connection details in the container. 
 
 # Troubleshooting
+## Plex
 Issue: Pressing the WATCH button does not show any client.
 
-- Check above Plex and Plex client config. Restart your client.
+- Plex: Check above Plex and Plex client config. Restart your client.
 - If Plex API does not find any players, neither will this App. You can get a list of active clients using:
 ```
 curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN"
 ```
 - (Apple TV) Plex Apple TV is buggy and often it forgets it has the ```Advertise as player``` option active. You will need to deactivate it, force close the app, start the app and activate the option again, restart Plex app.
 - (Apple TV) You will need to deactivate the option, logoff and force close the app. Start the app, skip login and activate the option. Then you can login back. 
+## Jellfin
+- Jellyfin: The client you expect does not support cast.
 
+# General
 Issue: Pressing the WATCH button does nothing. 
 
 - Check the docker logs, if you get an access denied error, check your Plex Token, it might've changed.
@@ -114,4 +118,4 @@ Issue: Apple TV does not turn on
 
 Issue: Browser does not load the poster and background.
 
-- You are probably using RPM with a reverse proxy URL but configured the container with the Plex IP. Change to Plex reverse proxy URL.
+- You are probably using RPM with a reverse proxy URL but configured the container with the Plex/Jellyin IP. Change the ENV to Plex/Jellyfin FQDN.
