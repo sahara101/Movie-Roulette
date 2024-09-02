@@ -41,7 +41,7 @@ How to get the Jellyfin UserID: Profile - check the URL - copy the userId string
 ```
 services:
   plex-random-movie:
-    image: ghcr.io/sahara101/random-plex-movie:latest
+    image: ghcr.io/sahara101/movie-roulette:latest
 
     environment:
       PLEX_URL: "Your-Plex-URL" #FQDN preferred. Do not use if you only want Jellyfin function.
