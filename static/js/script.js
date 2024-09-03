@@ -12,8 +12,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
     await getCurrentService();
     await loadRandomMovie();
-    await loadFilterOptions();
-    setupEventListeners();
+    if (!window.HOMEPAGE_MODE) {
+        await loadFilterOptions();
+        setupEventListeners();
+    }
 });
 
 async function getAvailableServices() {
@@ -33,7 +35,9 @@ async function getCurrentService() {
         if (data.service !== currentService) {
             currentService = data.service;
             console.log("Service changed to:", currentService);
-            await loadFilterOptions();
+            if (!window.HOMEPAGE_MODE) {
+                await loadFilterOptions();
+            }
         }
         updateServiceButton();
     } catch (error) {
@@ -57,6 +61,8 @@ async function loadRandomMovie() {
 }
 
 async function loadFilterOptions() {
+    if (window.HOMEPAGE_MODE) return;
+
     try {
         console.log("Loading filter options for service:", currentService);
         const genresResponse = await fetch(`/get_genres`);
@@ -99,6 +105,8 @@ function populateDropdown(elementId, options) {
 }
 
 function setupEventListeners() {
+    if (window.HOMEPAGE_MODE) return;
+
     const filterButton = document.getElementById("filterButton");
     const filterDropdown = document.getElementById("filterDropdown");
 
@@ -127,6 +135,8 @@ function setupEventListeners() {
 }
 
 async function applyFilter() {
+    if (window.HOMEPAGE_MODE) return;
+
     currentFilters.genre = document.getElementById("genreSelect").value;
     currentFilters.year = document.getElementById("yearSelect").value;
     currentFilters.rating = document.getElementById("ratingFilter").value;
@@ -148,6 +158,8 @@ async function applyFilter() {
 }
 
 function clearFilter() {
+    if (window.HOMEPAGE_MODE) return;
+
     document.getElementById("genreSelect").value = '';
     document.getElementById("yearSelect").value = '';
     document.getElementById("ratingFilter").value = '';
@@ -160,6 +172,8 @@ function clearFilter() {
 }
 
 async function loadNextMovie() {
+    if (window.HOMEPAGE_MODE) return;
+
     try {
         let url = `/next_movie`;
         if (currentFilters.genre || currentFilters.year || currentFilters.rating) {
@@ -196,11 +210,14 @@ function updateMovieDisplay(movieData) {
         "description": document.getElementById("description"),
         "poster_img": document.getElementById("poster_img"),
         "img_background": document.getElementById("img_background"),
-        "tmdb_link": document.getElementById("tmdb_link"),
-        "trakt_link": document.getElementById("trakt_link"),
-        "imdb_link": document.getElementById("imdb_link"),
-        "trailer_link": document.getElementById("trailer_link")
     };
+
+    if (!window.HOMEPAGE_MODE) {
+        elements["tmdb_link"] = document.getElementById("tmdb_link");
+        elements["trakt_link"] = document.getElementById("trakt_link");
+        elements["imdb_link"] = document.getElementById("imdb_link");
+        elements["trailer_link"] = document.getElementById("trailer_link");
+    }
 
     for (const [key, element] of Object.entries(elements)) {
         if (!element) {
@@ -236,26 +253,21 @@ function updateMovieDisplay(movieData) {
             case "img_background":
                 element.style.backgroundImage = `url(${movieData.background})`;
                 break;
-            case "tmdb_link":
-                element.href = movieData.tmdb_url;
-                break;
-            case "trakt_link":
-                element.href = movieData.trakt_url;
-                break;
-            case "imdb_link":
-                element.href = movieData.imdb_url;
-                break;
-            case "trailer_link":
-                if (movieData.trailer_url) {
-                    element.style.display = "block";
-                    element.onclick = function() {
-                        document.getElementById("trailer_iframe").src = movieData.trailer_url;
-                        document.getElementById("trailer_popup").classList.remove("hidden");
-                    };
-                } else {
-                    element.style.display = "none";
-                }
-                break;
+        }
+    }
+
+    if (!window.HOMEPAGE_MODE) {
+        elements["tmdb_link"].href = movieData.tmdb_url;
+        elements["trakt_link"].href = movieData.trakt_url;
+        elements["imdb_link"].href = movieData.imdb_url;
+        if (movieData.trailer_url) {
+            elements["trailer_link"].style.display = "block";
+            elements["trailer_link"].onclick = function() {
+                document.getElementById("trailer_iframe").src = movieData.trailer_url;
+                document.getElementById("trailer_popup").classList.remove("hidden");
+            };
+        } else {
+            elements["trailer_link"].style.display = "none";
         }
     }
 
@@ -303,6 +315,8 @@ function setupDescriptionExpander() {
 }
 
 async function showClients() {
+    if (window.HOMEPAGE_MODE) return;
+
     try {
         document.getElementById("btn_watch").disabled = true;
         const response = await fetch(`/clients`);
@@ -336,6 +350,8 @@ async function showClients() {
 }
 
 async function playMovie(clientId) {
+    if (window.HOMEPAGE_MODE) return;
+
     try {
         const playButton = document.getElementById("btn_watch");
         playButton.disabled = true;
@@ -357,6 +373,8 @@ async function playMovie(clientId) {
 }
 
 async function showDevices() {
+    if (window.HOMEPAGE_MODE) return;
+
     try {
         const response = await fetch('/devices');
         const devices = await response.json();
@@ -382,6 +400,8 @@ async function showDevices() {
 }
 
 async function turnOnDevice(deviceName) {
+    if (window.HOMEPAGE_MODE) return;
+
     try {
         const response = await fetch(`/turn_on_device/${deviceName}`);
         const data = await response.json();
@@ -405,6 +425,8 @@ function closeTrailerPopup() {
 }
 
 function updateServiceButton() {
+    if (window.HOMEPAGE_MODE) return;
+
     const switchButton = document.getElementById("switch_service");
     if (switchButton) {
         if (availableServices.length > 1) {
@@ -418,6 +440,8 @@ function updateServiceButton() {
 }
 
 async function switchService() {
+    if (window.HOMEPAGE_MODE) return;
+
     if (availableServices.length > 1) {
         try {
             const response = await fetch('/switch_service');
@@ -429,8 +453,4 @@ async function switchService() {
                 await loadRandomMovie();
                 await loadFilterOptions();
             }
-        } catch (error) {
-            console.error("Error switching service:", error);
         }
-    }
-}

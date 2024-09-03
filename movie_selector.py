@@ -12,6 +12,7 @@ app.secret_key = 'your_secret_key_here'  # Replace with a real secret key
 # Check which services are available
 PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('MOVIES_LIBRARY_NAME')])
 JELLYFIN_AVAILABLE = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
+HOMEPAGE_MODE = os.getenv('HOMEPAGE_MODE', 'FALSE').upper() == 'TRUE'
 
 if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
     raise EnvironmentError("At least one service (Plex or Jellyfin) must be configured.")
@@ -42,7 +43,7 @@ def get_available_service():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html'), homepage_mode=HOMEPAGE_MODE)
 
 @app.route('/style/<path:filename>')
 def style(filename):
