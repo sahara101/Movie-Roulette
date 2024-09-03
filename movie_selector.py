@@ -43,7 +43,7 @@ def get_available_service():
 
 @app.route('/')
 def index():
-    return render_template('index.html'), homepage_mode=HOMEPAGE_MODE)
+    return render_template('index.html', homepage_mode=HOMEPAGE_MODE)
 
 @app.route('/style/<path:filename>')
 def style(filename):
