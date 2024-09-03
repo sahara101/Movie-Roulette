@@ -12,10 +12,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
     await getCurrentService();
     await loadRandomMovie();
-    if (!window.HOMEPAGE_MODE) {
-        await loadFilterOptions();
-        setupEventListeners();
-    }
+    await loadFilterOptions();
+    setupEventListeners();
 });
 
 async function getAvailableServices() {
@@ -35,9 +33,7 @@ async function getCurrentService() {
         if (data.service !== currentService) {
             currentService = data.service;
             console.log("Service changed to:", currentService);
-            if (!window.HOMEPAGE_MODE) {
-                await loadFilterOptions();
-            }
+            await loadFilterOptions();
         }
         updateServiceButton();
     } catch (error) {
@@ -61,8 +57,6 @@ async function loadRandomMovie() {
 }
 
 async function loadFilterOptions() {
-    if (window.HOMEPAGE_MODE) return;
-
     try {
         console.log("Loading filter options for service:", currentService);
         const genresResponse = await fetch(`/get_genres`);
@@ -105,38 +99,39 @@ function populateDropdown(elementId, options) {
 }
 
 function setupEventListeners() {
-    if (window.HOMEPAGE_MODE) return;
-
     const filterButton = document.getElementById("filterButton");
     const filterDropdown = document.getElementById("filterDropdown");
 
-    filterButton.addEventListener('click', function(event) {
-        event.stopPropagation();
-        filterDropdown.classList.toggle("show");
-    });
+    if (filterButton && filterDropdown) {
+        filterButton.addEventListener('click', function(event) {
+            event.stopPropagation();
+            filterDropdown.classList.toggle("show");
+        });
 
-    document.addEventListener('click', function(event) {
-        if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
-            filterDropdown.classList.remove("show");
-        }
-    });
+        document.addEventListener('click', function(event) {
+            if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
+                filterDropdown.classList.remove("show");
+            }
+        });
 
-    filterDropdown.addEventListener('click', function(event) {
-        event.stopPropagation();
-    });
+        filterDropdown.addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
 
-    document.getElementById("applyFilter").addEventListener('click', applyFilter);
-    document.getElementById("clearFilter").addEventListener('click', clearFilter);
-    document.getElementById("btn_watch").addEventListener('click', showClients);
-    document.getElementById("btn_next_movie").addEventListener('click', loadNextMovie);
-    document.getElementById("btn_power").addEventListener('click', showDevices);
-    document.getElementById("trailer_popup_close").addEventListener('click', closeTrailerPopup);
-    document.getElementById("switch_service").addEventListener('click', switchService);
+        document.getElementById("applyFilter").addEventListener('click', applyFilter);
+        document.getElementById("clearFilter").addEventListener('click', clearFilter);
+    }
+
+    if (!window.HOMEPAGE_MODE) {
+        document.getElementById("btn_watch").addEventListener('click', showClients);
+        document.getElementById("btn_next_movie").addEventListener('click', loadNextMovie);
+        document.getElementById("btn_power").addEventListener('click', showDevices);
+        document.getElementById("trailer_popup_close").addEventListener('click', closeTrailerPopup);
+        document.getElementById("switch_service").addEventListener('click', switchService);
+    }
 }
 
 async function applyFilter() {
-    if (window.HOMEPAGE_MODE) return;
-
     currentFilters.genre = document.getElementById("genreSelect").value;
     currentFilters.year = document.getElementById("yearSelect").value;
     currentFilters.rating = document.getElementById("ratingFilter").value;
@@ -158,8 +153,6 @@ async function applyFilter() {
 }
 
 function clearFilter() {
-    if (window.HOMEPAGE_MODE) return;
-
     document.getElementById("genreSelect").value = '';
     document.getElementById("yearSelect").value = '';
     document.getElementById("ratingFilter").value = '';
@@ -172,8 +165,6 @@ function clearFilter() {
 }
 
 async function loadNextMovie() {
-    if (window.HOMEPAGE_MODE) return;
-
     try {
         let url = `/next_movie`;
         if (currentFilters.genre || currentFilters.year || currentFilters.rating) {
@@ -315,8 +306,6 @@ function setupDescriptionExpander() {
 }
 
 async function showClients() {
-    if (window.HOMEPAGE_MODE) return;
-
     try {
         document.getElementById("btn_watch").disabled = true;
         const response = await fetch(`/clients`);
@@ -350,8 +339,6 @@ async function showClients() {
 }
 
 async function playMovie(clientId) {
-    if (window.HOMEPAGE_MODE) return;
-
     try {
         const playButton = document.getElementById("btn_watch");
         playButton.disabled = true;
@@ -373,8 +360,6 @@ async function playMovie(clientId) {
 }
 
 async function showDevices() {
-    if (window.HOMEPAGE_MODE) return;
-
     try {
         const response = await fetch('/devices');
         const devices = await response.json();
@@ -400,8 +385,6 @@ async function showDevices() {
 }
 
 async function turnOnDevice(deviceName) {
-    if (window.HOMEPAGE_MODE) return;
-
     try {
         const response = await fetch(`/turn_on_device/${deviceName}`);
         const data = await response.json();
@@ -453,4 +436,8 @@ async function switchService() {
                 await loadRandomMovie();
                 await loadFilterOptions();
             }
+        } catch (error) {
+            console.error("Error switching service:", error);
         }
+    }
+}
