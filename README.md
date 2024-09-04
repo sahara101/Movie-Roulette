@@ -14,6 +14,7 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 - All cast capable devices
 
 # Functions
+- NEW Use as a [Homepage](https://gethomepage.dev/main/) widget for simple movie recommandation. 
 - Fetch Random unwatched movies from Plex and/or Jellyfin server.
 - Filter by genre, year, and/or rating. Genre and years display only existing movies.
 - See movie info.
@@ -26,6 +27,10 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 
 <img width="1728" alt="image" src="https://github.com/user-attachments/assets/7181ebc1-b909-4e7a-b7e0-a30472515c82">
 <img width="1727" alt="image" src="https://github.com/user-attachments/assets/ff5b33f4-d632-41e3-a4a2-1dc33ef2eff6">
+
+HOMEPAGE MODE
+
+<img width="935" alt="image" src="https://github.com/user-attachments/assets/022c733b-9d2c-418f-aa4b-dbfa4bfb83c7">
 
 # DISCLAIMER
 I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
@@ -44,6 +49,7 @@ services:
     image: ghcr.io/sahara101/movie-roulette:latest
 
     environment:
+      HOMEPAGE_MODE: "FALSE" #Set to TRUE if you want to use it as a Homeage widget without any buttons (Filter remains active)
       PLEX_URL: "Your-Plex-URL" #FQDN preferred. Do not use if you only want Jellyfin function.
       PLEX_TOKEN: "TOKEN" #Do not use if you only want Jellyfin function.
       MOVIES_LIBRARY_NAME: 'Filme' #Option for Plex. Default 'Movies'. Used for IMDB, Trakt and TMDB links. Do not use if you only want Jellyfin function.
@@ -64,6 +70,32 @@ Default container port is 4000
 The power button displays the devices dynamically, meaning you HAVE to add the ```APPLE_TV_ID``` ENV in order to see the corresponding button and both ```LGTV_IP``` and ```LGTV_MAC``` for LG.
 
 A switch between services is displayed if both ```Jellyfin``` and ```Plex``` are configured. Last used service will be remembered. 
+
+# Homepage Mode
+Added the option to remove all button except Filter. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MPODE: TRUE` Of course you can use the iFrame with full functionality as well, just change the ENV then to `HOMEPAGE_MODE: FALSE`
+
+Add following config to the Homepage services.yml
+```
+- Movie Roulette:
+    - Movie Roulette:
+        icon: /images/icons/movie-roulette.png
+        widget:
+          type: iframe
+          src: "<url>"
+          classes: movie-roulette # optional, use tailwind height classes
+          referrerPolicy: same-origin # optional, no default
+          allowPolicy: autoplay; fullscreen; gamepad # optional, no default
+```
+
+custom.css
+```
+.movie-roulette {
+    width: 100%;
+    height: 380px; /* Set your desired height here */
+    border: none; /* Optional: remove the border */
+  }
+```
+You can configure the widget to your liking, check the Homepage documentation. 
 
 # PWA Support
 Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button.
