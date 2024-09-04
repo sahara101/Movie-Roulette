@@ -1,3 +1,5 @@
+![Logo](https://github.com/user-attachments/assets/344cc196-a0a9-4c7c-ac76-be2bfa1a0c15)
+
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
 # Movie Roulette
