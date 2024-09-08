@@ -24,7 +24,7 @@ class JellyfinService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData',
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating',
                 'IsPlayed': 'false'
             }
             response = requests.get(movies_url, headers=self.headers, params=params)
@@ -41,7 +41,7 @@ class JellyfinService:
             logger.error(f"Error fetching random unwatched movie: {e}")
             return None
 
-    def filter_movies(self, genre=None, year=None, rating=None):
+    def filter_movies(self, genre=None, year=None, pg_rating=None):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -49,27 +49,28 @@ class JellyfinService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData',
+                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating',
                 'IsPlayed': 'false'
             }
             if genre:
                 params['Genres'] = genre
             if year:
                 params['Years'] = year
+            if pg_rating:
+                params['OfficialRatings'] = pg_rating
+
+            logger.debug(f"Jellyfin API request params: {params}")
             
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
             movies = response.json().get('Items', [])
             
-            if movies:
-                movie = movies[0]
-                if rating:
-                    movie_rating = movie.get('CommunityRating')
-                    if movie_rating is None or not (float(rating) <= movie_rating < float(rating) + 1):
-                        return None
-                return self.get_movie_data(movie)
+            logger.debug(f"Jellyfin API returned {len(movies)} movies")
             
-            logger.warning("Could not find an unwatched movie matching the criteria")
+            if movies:
+                return self.get_movie_data(movies[0])
+            
+            logger.warning("No unwatched movies found matching the criteria")
             return None
         except Exception as e:
             logger.error(f"Error filtering movies: {e}")
@@ -93,9 +94,9 @@ class JellyfinService:
             "genres": movie.get('Genres', []),
             "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={self.api_key}",
             "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}",
-            "rating": movie.get('CommunityRating', ''),
             "id": movie.get('Id', ''),
-            "ProviderIds": movie.get('ProviderIds', {})
+            "ProviderIds": movie.get('ProviderIds', {}),
+            "contentRating": movie.get('OfficialRating', '')
         }
 
     def get_genres(self):
@@ -139,6 +140,32 @@ class JellyfinService:
             return year_list
         except Exception as e:
             logger.error(f"Error fetching years: {e}")
+            return []
+
+    def get_pg_ratings(self):
+        try:
+            items_url = f"{self.server_url}/Items"
+            params = {
+                'Recursive': 'true',
+                'Fields': 'OfficialRating',
+                'IncludeItemTypes': 'Movie'
+            }
+
+            response = requests.get(items_url, headers=self.headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            all_ratings = set()
+            for item in data.get('Items', []):
+                rating = item.get('OfficialRating')
+                if rating:
+                    all_ratings.add(rating)
+
+            rating_list = sorted(list(all_ratings))
+            logger.debug(f"Extracted PG rating list: {rating_list}")
+            return rating_list
+        except Exception as e:
+            logger.error(f"Error fetching PG ratings: {e}")
             return []
 
     def get_clients(self):
@@ -203,7 +230,6 @@ if __name__ == "__main__":
         print(f"Writers: {', '.join(movie['writers'])}")
         print(f"Actors: {', '.join(movie['actors'])}")
         print(f"Genres: {', '.join(movie['genres'])}")
-        print(f"Rating: {movie['rating']}")
     else:
         print("No unwatched movie found")
 

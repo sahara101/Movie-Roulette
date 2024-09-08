@@ -1,12 +1,13 @@
 let currentFilters = {
     genre: '',
     year: '',
-    rating: ''
+    pgRating: ''
 };
 
 let currentService = 'plex';
 let currentMovie = null;
 let availableServices = [];
+let socket = io();
 
 document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
@@ -14,6 +15,36 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadRandomMovie();
     await loadFilterOptions();
     setupEventListeners();
+    checkAndLoadCache();
+});
+
+function showLoadingOverlay() {
+    document.getElementById('loading-overlay').classList.remove('hidden');
+}
+
+function hideLoadingOverlay() {
+    document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+function updateLoadingProgress(progress) {
+    const progressBar = document.getElementById('loading-progress');
+    progressBar.style.width = `${progress * 100}%`;
+    console.log(`Loading progress: ${progress * 100}%`);
+}
+
+socket.on('loading_progress', function(data) {
+    console.log('Received loading progress:', data);
+    updateLoadingProgress(data.progress);
+    showLoadingOverlay();
+});
+
+socket.on('loading_complete', function() {
+    console.log('Loading complete');
+    updateLoadingProgress(1.0);  // Ensure we reach 100%
+    setTimeout(() => {
+        hideLoadingOverlay();
+        loadRandomMovie();
+    }, 500);  // Give a moment for 100% to be visible
 });
 
 async function getAvailableServices() {
@@ -44,6 +75,10 @@ async function getCurrentService() {
 async function loadRandomMovie() {
     try {
         const response = await fetch(`/random_movie`);
+        if (response.status === 202) {
+            console.log('Loading in progress, waiting for completion');
+            return;
+        }
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -53,6 +88,8 @@ async function loadRandomMovie() {
         updateMovieDisplay(data.movie);
     } catch (error) {
         console.error("Error fetching random movie:", error);
+    } finally {
+        hideLoadingOverlay();
     }
 }
 
@@ -61,19 +98,23 @@ async function loadFilterOptions() {
         console.log("Loading filter options for service:", currentService);
         const genresResponse = await fetch(`/get_genres`);
         const yearsResponse = await fetch(`/get_years`);
+        const pgRatingsResponse = await fetch(`/get_pg_ratings`);
 
-        if (!genresResponse.ok || !yearsResponse.ok) {
+        if (!genresResponse.ok || !yearsResponse.ok || !pgRatingsResponse.ok) {
             throw new Error('Failed to fetch filter options');
         }
 
         const genres = await genresResponse.json();
         const years = await yearsResponse.json();
+        const pgRatings = await pgRatingsResponse.json();
 
         console.log("Fetched genres:", genres);
         console.log("Fetched years:", years);
+        console.log("Fetched PG ratings:", pgRatings);
 
         populateDropdown('genreSelect', genres);
         populateDropdown('yearSelect', years);
+        populateDropdown('pgRatingSelect', pgRatings);
     } catch (error) {
         console.error("Error loading filter options:", error);
     }
@@ -134,46 +175,93 @@ function setupEventListeners() {
 async function applyFilter() {
     currentFilters.genre = document.getElementById("genreSelect").value;
     currentFilters.year = document.getElementById("yearSelect").value;
-    currentFilters.rating = document.getElementById("ratingFilter").value;
+    currentFilters.pgRating = document.getElementById("pgRatingSelect").value;
 
     try {
-        const response = await fetch(`/filter_movies?genre=${encodeURIComponent(currentFilters.genre)}&year=${currentFilters.year}&rating=${currentFilters.rating}`);
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error);
+        const response = await fetch(`/filter_movies?genre=${encodeURIComponent(currentFilters.genre)}&year=${currentFilters.year}&pg_rating=${encodeURIComponent(currentFilters.pgRating)}`);
+        
+        if (response.status === 204) {
+            showNoMoviesMessage();
+            return;
         }
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
         console.log("Filtered movie from service:", data.service);
         currentMovie = data.movie;
         updateMovieDisplay(data.movie);
+        document.getElementById("filterDropdown").classList.remove("show");
     } catch (error) {
         console.error("Error applying filter:", error);
-        alert(error.message);
+        showErrorMessage(error.message);
     }
+}
+
+
+function showMessage() {
+    document.getElementById("movieContent").classList.add("hidden");
+    document.getElementById("messageContainer").classList.remove("hidden");
+}
+
+function hideMessage() {
+    document.getElementById("movieContent").classList.remove("hidden");
+    document.getElementById("messageContainer").classList.add("hidden");
+}
+
+function showNoMoviesMessage() {
+    const messageContainer = document.getElementById("messageContainer");
+    messageContainer.innerHTML = `
+        <div class="no-movies-message">
+            <h2>No Movies Found</h2>
+            <p>Sorry, we couldn't find any movies matching your current filters.</p>
+            <button onclick="clearFilter()" class="button">Clear Filters</button>
+        </div>
+    `;
+    showMessage();
+}
+
+function showErrorMessage(message) {
+    const messageContainer = document.getElementById("messageContainer");
+    messageContainer.innerHTML = `
+        <div class="error-message">
+            <h2>Oops! Something went wrong</h2>
+            <p>${message}</p>
+            <button onclick="clearFilter()" class="button">Clear Filters and Try Again</button>
+        </div>
+    `;
+    showMessage();
 }
 
 function clearFilter() {
     document.getElementById("genreSelect").value = '';
     document.getElementById("yearSelect").value = '';
-    document.getElementById("ratingFilter").value = '';
+    document.getElementById("pgRatingSelect").value = '';
     currentFilters = {
         genre: '',
         year: '',
-        rating: ''
+        pgRating: ''
     };
+    hideMessage();
     loadRandomMovie();
+    document.getElementById("filterDropdown").classList.remove("show");
 }
 
 async function loadNextMovie() {
     try {
         let url = `/next_movie`;
-        if (currentFilters.genre || currentFilters.year || currentFilters.rating) {
-            url = `/filter_movies?genre=${encodeURIComponent(currentFilters.genre)}&year=${currentFilters.year}&rating=${currentFilters.rating}`;
+        if (currentFilters.genre || currentFilters.year || currentFilters.pgRating) {
+            url += `?genre=${encodeURIComponent(currentFilters.genre || '')}&year=${currentFilters.year || ''}&pg_rating=${encodeURIComponent(currentFilters.pgRating || '')}`;
         }
         const response = await fetch(url);
+        if (response.status === 204) {
+            showNoMoviesMessage();
+            return;
+        }
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error);
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         console.log("Loaded next movie from service:", data.service);
@@ -181,7 +269,7 @@ async function loadNextMovie() {
         updateMovieDisplay(data.movie);
     } catch (error) {
         console.error("Error fetching next movie:", error);
-        alert(error.message);
+        showErrorMessage(error.message);
     }
 }
 
@@ -190,6 +278,10 @@ function updateMovieDisplay(movieData) {
         console.error("No movie data to display");
         return;
     }
+
+    console.log('Movie data:', movieData);
+
+    hideMessage();
 
     const elements = {
         "title": document.getElementById("title"),
@@ -221,7 +313,11 @@ function updateMovieDisplay(movieData) {
                 element.textContent = movieData.title;
                 break;
             case "year_duration":
-                element.textContent = `${movieData.year} | ${movieData.duration_hours}h ${movieData.duration_minutes}m`;
+                let yearDurationText = `${movieData.year} | ${movieData.duration_hours}h ${movieData.duration_minutes}m`;
+                if (movieData.contentRating) {
+                    yearDurationText += ` | ${movieData.contentRating}`;
+                }
+                element.textContent = yearDurationText;
                 break;
             case "directors":
                 element.textContent = `Directed by: ${movieData.directors.join(", ")}`;
@@ -352,7 +448,7 @@ async function playMovie(clientId) {
         }
     } catch (error) {
         console.error("Error playing movie:", error);
-        alert("Failed to play movie. Please try again.");
+	alert("Failed to play movie. Please try again.");
     } finally {
         const playButton = document.getElementById("btn_watch");
         playButton.disabled = false;
@@ -441,3 +537,52 @@ async function switchService() {
         }
     }
 }
+
+// Socket.IO event listeners
+socket.on('movie_added', function(data) {
+    console.log('New movie added:', data.movie);
+});
+
+socket.on('movie_removed', function(data) {
+    console.log('Movie removed:', data.id);
+});
+
+async function refreshMovieCache() {
+    showLoadingOverlay();
+    try {
+        const response = await fetch('/start_loading');
+        const data = await response.json();
+        console.log(data.status);
+        // Wait for the loading_complete event
+        await new Promise((resolve) => {
+            socket.once('loading_complete', resolve);
+        });
+        await loadRandomMovie();
+    } catch (error) {
+        console.error('Error refreshing movie cache:', error);
+    } finally {
+        hideLoadingOverlay();
+    }
+}
+
+function handleError(error) {
+    console.error('An error occurred:', error);
+    alert('An error occurred. Please try again or refresh the page.');
+    hideLoadingOverlay();
+}
+
+async function checkAndLoadCache() {
+    try {
+        const response = await fetch('/debug_plex');
+        const data = await response.json();
+        if (data.cached_movies === 0) {
+            console.log('Cache is empty. Starting to load movies...');
+            await refreshMovieCache();
+        }
+    } catch (error) {
+        console.error('Error checking cache:', error);
+    }
+}
+
+// Call this function when the page loads
+document.addEventListener('DOMContentLoaded', checkAndLoadCache);

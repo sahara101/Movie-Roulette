@@ -3,26 +3,43 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
     <title>Movie Roulette</title>
 
-    <link rel="stylesheet" href="/style/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/icons/favicon.ico" sizes="any">
+    <link rel="icon" href="/static/icons/icon-192x192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    <link rel="stylesheet" href="/static/style/style.css">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
-    <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" sizes="192x192" href="/static/icons/icon-192x192.png">
-    <link rel="icon" sizes="512x512" href="/static/icons/icon-512x512.png">
-    <meta name="theme-color" content="#000000">
+
+    <script src="https://cdn.jsdelivr.net/npm/ios-pwa-splash@1.0.0/cdn.min.js"></script>
+    <script>iosPWASplash('/static/icons/icon.png', '#222222');</script>
 </head>
 
 <body>
 
     <main>
+        <div id="loading-overlay" class="hidden">
+            <div id="loading-content">
+                <h2>Loading Unwatched Movies</h2>
+                <div id="loading-bar-container">
+                    <div id="loading-progress"></div>
+                </div>
+            </div>
+        </div>
 
         <section id="section">
             <div class="filter-container">
-                <button id="filterButton" class="filter-button">Filter &#9662;</button>
+                <button id="filterButton" class="filter-button" aria-label="Filter">
+                    <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                    </svg>
+                </button>
                 <div id="filterDropdown" class="filter-dropdown">
                     <div class="filter-option">
                         <label for="genreSelect">Genre:</label>
@@ -33,29 +50,18 @@
                         <select id="yearSelect"></select>
                     </div>
                     <div class="filter-option">
-                        <label for="ratingFilter">Rating:</label>
-                        <select id="ratingFilter">
-                            <option value="">Any</option>
-                            <option value="0">0</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                        </select>
+                        <label for="pgRatingSelect">PG Rating:</label>
+                        <select id="pgRatingSelect"></select>
                     </div>
                     <button id="applyFilter">Apply Filter</button>
                     <button id="clearFilter">Clear Filter</button>
                 </div>
             </div>
 
-            <div class="movie_poster">
-                <img src="" alt="" id="poster_img">
-            </div>
+            <div id="movieContent">
+                <div class="movie_poster">
+                    <img src="" alt="" id="poster_img">
+                </div>
                 <div class="movie_details">
                     <p id="title"></p>
                     <p id="year_duration"></p>
@@ -64,40 +70,44 @@
                     <p id="actors"></p>
                     <p id="genres"></p>
                     <p id="description"></p>
-		    {% if not homepage_mode %}
+                    {% if not homepage_mode %}
                     <div class="logo-container">
                         <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
                         <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
                         <a href="#" id="imdb_link" target="_blank"><img src="/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
                         <a href="#" id="trailer_link"><img src="/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
                     </div>
-		    {% endif %}
+                    {% endif %}
                 </div>
 
-            {% if not homepage_mode %}
-            <div class="button_container">
-                <button id="btn_watch" class="button">WATCH</button>
-                <button id="btn_next_movie" class="button">
-                  <svg width="24" height="24" viewBox="0 0 24 24">
-                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
-                  </svg>
-                </button>
-                <button id="btn_power" class="button">
-                  <svg width="24" height="24" viewBox="0 0 24 24">
-                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
-                  </svg>
-                </button>
-                <button id="switch_service" class="button">
-                  <span class="service-name"></span>
-                  <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
-                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
-                  </svg>
-                </button>
+                {% if not homepage_mode %}
+                <div class="button_container">
+                    <button id="btn_watch" class="button">WATCH</button>
+                    <button id="btn_next_movie" class="button">
+                      <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    <button id="btn_power" class="button">
+                      <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    <button id="switch_service" class="button">
+                      <span class="service-name"></span>
+                      <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
+                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+                      </svg>
+                    </button>
+                </div>
+                {% endif %}
+
+                <div id="img_background"></div>
             </div>
-	    {% endif %}
 
-            <div id="img_background"></div>
-
+            <div id="messageContainer" class="hidden">
+                <!-- This will be populated by JavaScript when needed -->
+            </div>
         </section>
 
         <div id="client_prompt" class="hidden">
@@ -132,12 +142,13 @@
 
     </main>
 
-     {% if not homepage_mode %}
-     <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-      <div class="version-label">v1.5</div>
+    {% if not homepage_mode %}
+    <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
+     <div class="version-label">v1.6</div>
     </a>
     {% endif %}
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script type="text/javascript" src="/js/script.js"></script>
     <script>
         window.HOMEPAGE_MODE = {{ 'true' if homepage_mode else 'false' }};

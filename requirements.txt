@@ -6,3 +6,5 @@ Flask
 requests
 gunicorn
 pywebostv
+flask-socketio
+eventlet
