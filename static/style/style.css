@@ -573,7 +573,7 @@ main {
   #btn_watch {
     flex-basis: 100%;
     max-width: none;
-    margin-bottom: 10px;
+    margin-bottom: 10px
   }
 
   #btn_next_movie, #btn_power, #switch_service {
@@ -584,7 +584,7 @@ main {
 /* PWA specific styles */
 @media all and (display-mode: standalone) and (max-width: 767px) {
   body {
-    padding-top: 0 
+    padding-top: 0; 
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
@@ -718,8 +718,12 @@ main {
     width: 100vw !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 20px !important;
+    padding: 0 !important;
     box-sizing: border-box !important;
+  }
+
+  #section {
+    padding: 20px !important;
   }
 }
 
@@ -730,5 +734,63 @@ main {
     max-width: 100% !important;
     margin: 0 !important;
     box-sizing: border-box !important;
+  }
+}
+
+/* New landscape mode for non-mobile and non-tablet screens */
+@media screen and (min-width: 1025px) and (orientation: landscape) {
+  body, main, #section {
+    width: 100vw !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  #section {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    grid-gap: 20px;
+    padding: 20px !important;
+  }
+
+  .movie_poster {
+    grid-row: 1 / span 2;
+    max-width: 300px;
+  }
+
+  .movie_details {
+    grid-column: 2;
+    max-width: none;
+  }
+
+  .button_container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  /* Retaining original button styles */
+  #btn_watch {
+    width: 225px;
+    height: 1.5em;
+    flex-grow: 1;
+    max-width: 225px;
+  }
+
+  #btn_next_movie, #btn_power {
+    height: 1.5em;
+    width: 1.5em;
+    flex-grow: 0;
+  }
+
+  #switch_service {
+    width: auto;
+    height: 1.5em;
+    padding: 5px 10px;
+    font-size: 2em;
   }
 }

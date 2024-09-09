@@ -448,7 +448,7 @@ async function playMovie(clientId) {
         }
     } catch (error) {
         console.error("Error playing movie:", error);
-	alert("Failed to play movie. Please try again.");
+        alert("Failed to play movie. Please try again.");
     } finally {
         const playButton = document.getElementById("btn_watch");
         playButton.disabled = false;
