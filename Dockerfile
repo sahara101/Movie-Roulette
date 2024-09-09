@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 4000
 
 # Run the application with Gunicorn
-CMD ["gunicorn", "-b", "0.0.0.0:4000", "--workers", "3", "--log-level", "debug", "movie_selector:app"]
+CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:4000", "movie_selector:app"]

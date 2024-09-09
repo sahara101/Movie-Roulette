@@ -1,13 +1,21 @@
 import os
 import subprocess
 import logging
+import json
+import random
+import traceback
+import threading
+import time
 from flask import Flask, jsonify, render_template, send_from_directory, request, session
+from flask_socketio import SocketIO, emit
+from utils.cache_manager import CacheManager
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='static', template_folder='web')
 app.secret_key = 'your_secret_key_here'  # Replace with a real secret key
+socketio = SocketIO(app)
 
 # Check which services are available
 PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('MOVIES_LIBRARY_NAME')])
@@ -17,12 +25,17 @@ HOMEPAGE_MODE = os.getenv('HOMEPAGE_MODE', 'FALSE').upper() == 'TRUE'
 if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
     raise EnvironmentError("At least one service (Plex or Jellyfin) must be configured.")
 
+cache_file_path = '/app/data/plex_unwatched_movies.json'
+
 # Initialize Plex and Jellyfin services if available
 if PLEX_AVAILABLE:
     from utils.plex_service import PlexService
     plex = PlexService()
+    cache_manager = CacheManager(plex, cache_file_path)
+    cache_manager.start()
 else:
     plex = None
+    cache_manager = None
 
 if JELLYFIN_AVAILABLE:
     from utils.jellyfin_service import JellyfinService
@@ -33,6 +46,11 @@ else:
 from utils.fetch_movie_links import fetch_movie_links
 from utils.youtube_trailer import search_youtube_trailer
 
+# Global variables for Plex caching
+all_plex_unwatched_movies = []
+movies_loaded_from_cache = False
+loading_in_progress = False
+
 def get_available_service():
     if PLEX_AVAILABLE:
         return 'plex'
@@ -41,9 +59,42 @@ def get_available_service():
     else:
         raise EnvironmentError("No media service is available")
 
+def resync_cache():
+    global all_plex_unwatched_movies, movies_loaded_from_cache, loading_in_progress
+    if loading_in_progress:
+        return
+    loading_in_progress = True
+    try:
+        if cache_manager:
+            cache_manager.update_cache()
+            all_plex_unwatched_movies = cache_manager.get_cached_movies()
+        movies_loaded_from_cache = True
+        update_cache_status()
+    except Exception as e:
+        logger.error(f"Error in resync_cache: {str(e)}")
+    finally:
+        loading_in_progress = False
+        socketio.emit('loading_complete')
+
+def initialize_cache():
+    global all_plex_unwatched_movies, movies_loaded_from_cache
+    if PLEX_AVAILABLE and cache_manager:
+        all_plex_unwatched_movies = cache_manager.get_cached_movies()
+        movies_loaded_from_cache = True
+        logger.info(f"Loaded {len(all_plex_unwatched_movies)} movies from cache.")
+    else:
+        logger.info("Cache initialization not required or not available.")
+
 @app.route('/')
 def index():
     return render_template('index.html', homepage_mode=HOMEPAGE_MODE)
+
+@app.route('/start_loading')
+def start_loading():
+    if PLEX_AVAILABLE:
+        socketio.start_background_task(resync_cache)
+        return jsonify({"status": "Loading started for Plex"})
+    return jsonify({"status": "Loading not required"})
 
 @app.route('/style/<path:filename>')
 def style(filename):
@@ -90,10 +141,17 @@ def switch_service():
 
 @app.route('/random_movie')
 def random_movie():
+    global all_plex_unwatched_movies, loading_in_progress, movies_loaded_from_cache
     current_service = session.get('current_service', get_available_service())
     try:
         if current_service == 'plex' and PLEX_AVAILABLE:
-            movie_data = plex.get_random_movie()
+            if not all_plex_unwatched_movies:
+                initialize_cache()
+            if loading_in_progress:
+                return jsonify({"loading_in_progress": True}), 202
+            if not all_plex_unwatched_movies:
+                return jsonify({"error": "No unwatched movies available"}), 404
+            movie_data = random.choice(all_plex_unwatched_movies)
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
             movie_data = jellyfin.get_random_movie()
         else:
@@ -101,7 +159,12 @@ def random_movie():
         
         if movie_data:
             movie_data = enrich_movie_data(movie_data)
-            return jsonify({"service": current_service, "movie": movie_data})
+            return jsonify({
+                "service": current_service, 
+                "movie": movie_data, 
+                "cache_loaded": movies_loaded_from_cache,
+                "loading_in_progress": loading_in_progress
+            })
         else:
             return jsonify({"error": "No movie found"}), 404
     except Exception as e:
@@ -113,41 +176,68 @@ def filter_movies():
     current_service = session.get('current_service', get_available_service())
     genre = request.args.get('genre')
     year = request.args.get('year')
-    rating = request.args.get('rating')
+    pg_rating = request.args.get('pg_rating')
+
+    logger.debug(f"Filtering movies with genre: {genre}, year: {year}, pg_rating: {pg_rating}")
 
     try:
         if current_service == 'plex' and PLEX_AVAILABLE:
-            movie_data = plex.filter_movies(genre, year, rating)
+            movie_data = plex.filter_movies(genre, year, pg_rating)
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-            movie_data = jellyfin.filter_movies(genre, year, rating)
+            movie_data = jellyfin.filter_movies(genre, year, pg_rating)
         else:
             return jsonify({"error": "No available media service"}), 400
         
         if movie_data:
+            logger.debug(f"Filtered movie: {movie_data['title']} ({movie_data['year']}) - PG Rating: {movie_data.get('contentRating', 'N/A')}")
             movie_data = enrich_movie_data(movie_data)
             return jsonify({"service": current_service, "movie": movie_data})
         else:
-            return jsonify({"error": "No movies found matching the filter"}), 404
+            logger.warning("No movies found matching the filter")
+            return jsonify({"error": "No movies found matching the filter"}), 204
     except Exception as e:
         logger.error(f"Error in filter_movies: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/next_movie')
 def next_movie():
+    global all_plex_unwatched_movies
     current_service = session.get('current_service', get_available_service())
+    genre = request.args.get('genre')
+    year = request.args.get('year')
+    pg_rating = request.args.get('pg_rating')
+
+    logger.debug(f"Next movie request with filters - genre: {genre}, year: {year}, pg_rating: {pg_rating}")
+
     try:
         if current_service == 'plex' and PLEX_AVAILABLE:
-            movie_data = plex.get_random_movie()
+            if not all_plex_unwatched_movies:
+                all_plex_unwatched_movies = plex.get_all_unwatched_movies()
+
+            filtered_movies = all_plex_unwatched_movies
+            if genre:
+                filtered_movies = [m for m in filtered_movies if genre in m['genres']]
+            if year:
+                filtered_movies = [m for m in filtered_movies if m['year'] == int(year)]
+            if pg_rating:
+                filtered_movies = [m for m in filtered_movies if m['contentRating'] == pg_rating]
+
+            if filtered_movies:
+                movie_data = random.choice(filtered_movies)
+            else:
+                movie_data = None
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-            movie_data = jellyfin.get_random_movie()
+            movie_data = jellyfin.filter_movies(genre, year, pg_rating)
         else:
             return jsonify({"error": "No available media service"}), 400
         
         if movie_data:
+            logger.debug(f"Next movie selected: {movie_data['title']} ({movie_data['year']}) - PG Rating: {movie_data.get('contentRating', 'N/A')}")
             movie_data = enrich_movie_data(movie_data)
             return jsonify({"service": current_service, "movie": movie_data})
         else:
-            return jsonify({"error": "No movie found"}), 404
+            logger.warning("No movies found matching the criteria")
+            return jsonify({"error": "No movies found matching the criteria"}), 204
     except Exception as e:
         logger.error(f"Error in next_movie: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -172,7 +262,10 @@ def get_genres():
     try:
         logger.debug(f"Fetching genres for service: {current_service}")
         if current_service == 'plex' and PLEX_AVAILABLE:
-            genres = plex.get_genres()
+            genres = set()
+            for movie in all_plex_unwatched_movies:
+                genres.update(movie['genres'])
+            genres = sorted(list(genres))
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
             genres = jellyfin.get_genres()
         else:
@@ -189,7 +282,7 @@ def get_years():
     try:
         logger.debug(f"Fetching years for service: {current_service}")
         if current_service == 'plex' and PLEX_AVAILABLE:
-            years = plex.get_years()
+            years = sorted(set(movie['year'] for movie in all_plex_unwatched_movies if movie['year']), reverse=True)
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
             years = jellyfin.get_years()
         else:
@@ -198,6 +291,21 @@ def get_years():
         return jsonify(years)
     except Exception as e:
         logger.error(f"Error in get_years: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get_pg_ratings')
+def get_pg_ratings():
+    current_service = session.get('current_service', get_available_service())
+    try:
+        if current_service == 'plex' and PLEX_AVAILABLE:
+            ratings = plex.get_pg_ratings()
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
+            ratings = jellyfin.get_pg_ratings()
+        else:
+            return jsonify({"error": "No available media service"}), 400
+        return jsonify(ratings)
+    except Exception as e:
+        logger.error(f"Error in get_pg_ratings: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/clients')
@@ -268,5 +376,49 @@ def turn_on_device(device):
     else:
         return jsonify({"error": "Unknown device"}), 400
 
+def update_cache_status():
+    global movies_loaded_from_cache
+    if os.path.exists(cache_file_path):
+        with open(cache_file_path, 'r') as f:
+            cached_movies = json.load(f)
+        if cached_movies:
+            movies_loaded_from_cache = True
+            logger.info(f"Updated cache status: {len(cached_movies)} movies loaded from cache.")
+        else:
+            movies_loaded_from_cache = False
+            logger.info("Cache file exists but is empty.")
+    else:
+        movies_loaded_from_cache = False
+        logger.info("Cache file does not exist.")
+
+@app.route('/debug_plex')
+def debug_plex():
+    if not PLEX_AVAILABLE:
+        return jsonify({"error": "Plex is not available"}), 400
+
+    try:
+        update_cache_status()
+        total_movies = plex.get_total_unwatched_movies()
+        cached_movies = len(cache_manager.get_cached_movies()) if cache_manager else 0
+        return jsonify({
+            "total_unwatched_movies": total_movies,
+            "cached_movies": cached_movies,
+            "loaded_from_cache": movies_loaded_from_cache,
+            "plex_url": os.getenv('PLEX_URL'),
+            "movies_library_name": os.getenv('MOVIES_LIBRARY_NAME'),
+            "cache_file_exists": os.path.exists(cache_file_path)
+        })
+    except Exception as e:
+        logger.error(f"Error in debug_plex: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/resync_cache')
+def trigger_resync():
+    resync_cache()
+    return jsonify({"status": "Cache resync completed"})
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    logger.info("Application starting")
+    logger.info("Application setup complete")
+    socketio.run(app, host='0.0.0.0', port=4000, debug=True)

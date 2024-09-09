@@ -15,17 +15,17 @@ class PlexService:
         chosen_movie = random.choice(all_unwatched)
         return self.get_movie_data(chosen_movie)
 
-    def filter_movies(self, genre=None, year=None, rating=None):
+    def filter_movies(self, genre=None, year=None, pg_rating=None):
         filters = {'unwatched': True}
         if genre:
             filters['genre'] = genre
         if year:
             filters['year'] = int(year)
+        if pg_rating:
+            filters['contentRating'] = pg_rating
+
         filtered_movies = self.movies.search(**filters)
-        if rating:
-            rating_floor = float(rating)
-            rating_ceiling = rating_floor + 0.9
-            filtered_movies = [movie for movie in filtered_movies if movie.rating and rating_floor <= float(movie.rating) < rating_ceiling]
+
         if filtered_movies:
             chosen_movie = random.choice(filtered_movies)
             return self.get_movie_data(chosen_movie)
@@ -47,7 +47,7 @@ class PlexService:
             "genres": [genre.tag for genre in movie.genres],
             "poster": movie.posterUrl,
             "background": movie.artUrl,
-            "rating": movie.rating
+            "contentRating": movie.contentRating
         }
 
     def get_genres(self):
@@ -61,6 +61,13 @@ class PlexService:
         for movie in self.movies.search(unwatched=True):
             all_years.add(movie.year)
         return sorted(list(all_years), reverse=True)
+
+    def get_pg_ratings(self):
+        ratings = set()
+        for movie in self.movies.search(unwatched=True):
+            if movie.contentRating:
+                ratings.add(movie.contentRating)
+        return sorted(list(ratings))
 
     def get_clients(self):
         return [{"id": client.machineIdentifier, "title": client.title} for client in self.plex.clients()]
@@ -77,3 +84,13 @@ class PlexService:
         except Exception as e:
             return {"error": str(e)}
 
+    # Methods to support caching
+    def get_total_unwatched_movies(self):
+        return len(self.movies.search(unwatched=True))
+
+    def get_all_unwatched_movies(self):
+        return [self.get_movie_data(movie) for movie in self.movies.search(unwatched=True)]
+
+    def get_movie_by_id(self, movie_id):
+        movie = self.movies.fetchItem(int(movie_id))
+        return self.get_movie_data(movie)
