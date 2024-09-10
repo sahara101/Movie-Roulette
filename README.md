@@ -76,7 +76,7 @@ A switch between services is displayed if both ```Jellyfin``` and ```Plex``` are
 # Homepage Mode
 Added the option to remove all buttons except Filter. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MODE: TRUE` Of course you can use the iFrame with full functionality as well, just change the ENV then to `HOMEPAGE_MODE: FALSE`
 
-Add following config to the Homepage services.yml
+Add the following config to the Homepage services.yml
 ```
 - Movie Roulette:
     - Movie Roulette:
@@ -106,6 +106,7 @@ Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to h
 
 # First Use 
 !important! - Your client devices and plex need to be in the same network.
+On the first start a cache file for plex will be created which will make the movies load faster.
 ## Plex Client Config
 
 Navigate to settings and set 'Advertise as player' to 'On'
@@ -144,7 +145,7 @@ Press the ```TURN ON DEVICE``` button and select your ```LGTV (webOS)```. A magi
 ## Plex
 Issue: Pressing the WATCH button does not show any client.
 
-- Plex: Check above Plex and Plex client config. Restart your client.
+- Plex: Check the above Plex and Plex client config. Restart your client.
 - If Plex API does not find any players, neither will this App. You can get a list of active clients using:
 ```
 curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN"
@@ -164,6 +165,6 @@ Issue: Apple TV does not turn on
 
 - You need to re-pair. This needs to be done each time you recreate the container.
 
-Issue: Browser does not load the poster and background.
+Issue: The browser does not load the poster and background.
 
 - You are probably using RPM with a reverse proxy URL but configured the container with the Plex/Jellyin IP. Change the ENV to Plex/Jellyfin FQDN.
