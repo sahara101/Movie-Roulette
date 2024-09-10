@@ -49,7 +49,6 @@ How to get the Jellyfin UserID: Profile - check the URL - copy the userId string
 services:
   plex-random-movie:
     image: ghcr.io/sahara101/movie-roulette:latest
-
     environment:
       HOMEPAGE_MODE: "FALSE" #Set to TRUE if you want to use it as a Homeage widget without any buttons (Filter remains active)
       PLEX_URL: "Your-Plex-URL" #FQDN preferred. Do not use if you only want Jellyfin function.
@@ -61,7 +60,8 @@ services:
       APPLE_TV_ID: "ID" #Optional
       LGTV_IP: "IP" #Optional
       LGTV_MAC: "MAC_Address" #Optional
-      
+    volumes:
+      - ./movie_roulette_data:/app/data  
     network_mode: host
     restart: unless-stopped
 ```
