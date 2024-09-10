@@ -16,9 +16,9 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 - All cast capable devices
 
 # Functions
-- NEW Use as a [Homepage](https://gethomepage.dev/main/) widget for simple movie recommandation. 
+- Use as a [Homepage](https://gethomepage.dev/main/) widget for simple movie recommandation. 
 - Fetch Random unwatched movies from Plex and/or Jellyfin server.
-- Filter by genre, year, and/or rating. Genre and years display only existing movies.
+- Filter by genre, year, and/or PG rating. Filters show data only from existing movies.
 - See movie info.
 - URLs to TMDB, Trakt and IMDB.
 - Trailers on Youtube.
@@ -27,15 +27,15 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 - PWA support.
 - Seamless switch between the two services. 
 
-<img width="1728" alt="image" src="https://github.com/user-attachments/assets/7181ebc1-b909-4e7a-b7e0-a30472515c82">
+<img width="1728" alt="image" src="https://github.com/user-attachments/assets/163936e1-a112-483c-8977-6ac260f94619">
 <img width="1727" alt="image" src="https://github.com/user-attachments/assets/ff5b33f4-d632-41e3-a4a2-1dc33ef2eff6">
 
 HOMEPAGE MODE
 
-<img width="935" alt="image" src="https://github.com/user-attachments/assets/022c733b-9d2c-418f-aa4b-dbfa4bfb83c7">
+<img width="905" alt="image" src="https://github.com/user-attachments/assets/b086dafd-9a4d-4e81-b9ad-9592631b7a90">
 
 # DISCLAIMER
-I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
+I am no programmer! Code is expanded with help of ChatGPT a bit and mostly ClaudeAI. Feel free to modify the code as you please. Also, open to criticism ;)
 
 # docker-compose.yml
 How to get the Plex token: https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
@@ -65,7 +65,7 @@ services:
     network_mode: host
     restart: unless-stopped
 ```
-If you do not have an Apple TV you can  also change network host mode to use other external port.
+If you do not have an Apple TV you can  also change the container network type. 
 
 Default container port is 4000
 
@@ -74,7 +74,7 @@ The power button displays the devices dynamically, meaning you HAVE to add the `
 A switch between services is displayed if both ```Jellyfin``` and ```Plex``` are configured. Last used service will be remembered. 
 
 # Homepage Mode
-Added the option to remove all button except Filter. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MPODE: TRUE` Of course you can use the iFrame with full functionality as well, just change the ENV then to `HOMEPAGE_MODE: FALSE`
+Added the option to remove all buttons except Filter. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MODE: TRUE` Of course you can use the iFrame with full functionality as well, just change the ENV then to `HOMEPAGE_MODE: FALSE`
 
 Add following config to the Homepage services.yml
 ```
@@ -102,7 +102,7 @@ You can configure the widget to your liking, check the Homepage documentation.
 # PWA Support
 Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button.
 
-![image](https://github.com/user-attachments/assets/ffb29414-8886-4376-952c-2949af401b68)
+![image](https://github.com/user-attachments/assets/82bba616-9de0-4098-998e-78b77d2fd931)
 
 # First Use 
 !important! - Your client devices and plex need to be in the same network.
