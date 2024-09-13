@@ -152,7 +152,7 @@ curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN"
 ```
 - (Apple TV) Plex Apple TV is buggy and often it forgets it has the ```Advertise as player``` option active. You will need to deactivate it, force close the app, start the app and activate the option again, restart Plex app.
 - (Apple TV) You will need to deactivate the option, logoff and force close the app. Start the app, skip login and activate the option. Then you can login back. 
-## Jellfin
+## Jellyfin
 - Jellyfin: The client you expect does not support cast.
 
 # General
