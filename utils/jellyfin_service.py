@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import logging
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ class JellyfinService:
             'X-Emby-Token': self.api_key,
             'Content-Type': 'application/json'
         }
+        self.playback_start_times = {}
 
     def get_random_movie(self):
         try:
@@ -30,7 +32,7 @@ class JellyfinService:
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
             movies = response.json()
-            
+
             if movies.get('Items'):
                 movie_data = self.get_movie_data(movies['Items'][0])
                 logger.debug(f"Fetched unwatched movie data: {movie_data}")
@@ -60,16 +62,16 @@ class JellyfinService:
                 params['OfficialRatings'] = pg_rating
 
             logger.debug(f"Jellyfin API request params: {params}")
-            
+
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
             movies = response.json().get('Items', [])
-            
+
             logger.debug(f"Jellyfin API returned {len(movies)} movies")
-            
+
             if movies:
                 return self.get_movie_data(movies[0])
-            
+
             logger.warning("No unwatched movies found matching the criteria")
             return None
         except Exception as e:
@@ -82,7 +84,91 @@ class JellyfinService:
         hours = total_minutes // 60
         minutes = total_minutes % 60
 
+        # Extract video format information
+        video_format = "Unknown"
+        audio_format = "Unknown"
+
+        if 'MediaSources' in movie and movie['MediaSources']:
+            media_sources = movie['MediaSources']
+            if media_sources and isinstance(media_sources, list):
+                media_source = media_sources[0]
+
+                if 'MediaStreams' in media_source:
+                    # Video format extraction
+                    video_streams = [s for s in media_source['MediaStreams'] if s['Type'] == 'Video']
+                    if video_streams:
+                        video_stream = video_streams[0]
+                        height = video_stream.get('Height', 0)
+
+                        if height <= 480:
+                            resolution = "SD"
+                        elif height <= 720:
+                            resolution = "HD"
+                        elif height <= 1080:
+                            resolution = "FHD"
+                        elif height > 1080:
+                            resolution = "4K"
+                        else:
+                            resolution = "Unknown"
+
+                        hdr_types = []
+                        if video_stream.get('VideoRange') == 'HDR':
+                            if 'DV' in video_stream.get('Title', ''):
+                                hdr_types.append('DV')
+                            if video_stream.get('VideoRangeType') == 'HDR10':
+                                hdr_types.append('HDR10')
+                            elif video_stream.get('VideoRangeType') == 'HDR10+':
+                                hdr_types.append('HDR10+')
+                            elif not hdr_types:  # If no specific type is identified, just add HDR
+                                hdr_types.append('HDR')
+
+                        video_format_parts = [resolution]
+                        if hdr_types:
+                            video_format_parts.append('/'.join(hdr_types))
+
+                        video_format = ' '.join(video_format_parts)
+
+                    # Audio format extraction
+                    audio_streams = [s for s in media_source['MediaStreams'] if s['Type'] == 'Audio']
+                    if audio_streams:
+                        audio_stream = audio_streams[0]
+
+                        # Start with the Profile information
+                        profile = audio_stream.get('Profile', '')
+                        if profile:
+                            # Split the profile into its components
+                            profile_parts = [part.strip() for part in profile.split('+')]
+
+                            # Remove redundant "Dolby" from TrueHD if Atmos is present
+                            if "Dolby TrueHD" in profile_parts and "Dolby Atmos" in profile_parts:
+                                profile_parts = ["TrueHD" if part == "Dolby TrueHD" else part for part in profile_parts]
+
+                            audio_format = ' + '.join(profile_parts)
+                        else:
+                            # Fallback to Codec if Profile is not available
+                            codec = audio_stream.get('Codec', '').upper()
+                            codec_map = {
+                                'AC3': 'Dolby Digital',
+                                'EAC3': 'Dolby Digital Plus',
+                                'TRUEHD': 'Dolby TrueHD',
+                                'DTS': 'DTS',
+                                'DTSHD': 'DTS-HD',
+                                'AAC': 'AAC',
+                                'FLAC': 'FLAC'
+                            }
+                            audio_format = codec_map.get(codec, codec)
+
+                        # Add layout if available and not already included
+                        layout = audio_stream.get('Layout', '')
+                        if layout and layout not in audio_format:
+                            audio_format += f" {layout}"
+
+                        # Remove any duplicate words
+                        parts = audio_format.split()
+                        audio_format = ' '.join(dict.fromkeys(parts))
+
         return {
+            "id": movie.get('Id', ''),
             "title": movie.get('Name', ''),
             "year": movie.get('ProductionYear', ''),
             "duration_hours": hours,
@@ -94,9 +180,10 @@ class JellyfinService:
             "genres": movie.get('Genres', []),
             "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={self.api_key}",
             "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}",
-            "id": movie.get('Id', ''),
             "ProviderIds": movie.get('ProviderIds', {}),
-            "contentRating": movie.get('OfficialRating', '')
+            "contentRating": movie.get('OfficialRating', ''),
+            "videoFormat": video_format,
+            "audioFormat": audio_format,
         }
 
     def get_genres(self):
@@ -107,15 +194,15 @@ class JellyfinService:
                 'Fields': 'Genres',
                 'IncludeItemTypes': 'Movie'
             }
-            
+
             response = requests.get(items_url, headers=self.headers, params=params)
             response.raise_for_status()
             data = response.json()
-            
+
             all_genres = set()
             for item in data.get('Items', []):
                 all_genres.update(item.get('Genres', []))
-            
+
             genre_list = sorted(list(all_genres))
             logger.debug(f"Extracted genre list: {genre_list}")
             return genre_list
@@ -168,15 +255,63 @@ class JellyfinService:
             logger.error(f"Error fetching PG ratings: {e}")
             return []
 
+    def get_playback_info(self, item_id):
+        try:
+            sessions_url = f"{self.server_url}/Sessions"
+            response = requests.get(sessions_url, headers=self.headers)
+            response.raise_for_status()
+            sessions = response.json()
+            for session in sessions:
+                if session.get('NowPlayingItem', {}).get('Id') == item_id:
+                    playstate = session.get('PlayState', {})
+                    position_ticks = playstate.get('PositionTicks', 0)
+                    is_paused = playstate.get('IsPaused', False)
+
+                    position_seconds = position_ticks / 10_000_000
+                    total_duration = session['NowPlayingItem']['RunTimeTicks'] / 10_000_000
+
+                    # Use stored start time or current time if not available
+                    if item_id not in self.playback_start_times:
+                        self.playback_start_times[item_id] = datetime.now()
+
+                    start_time = self.playback_start_times[item_id]
+                    end_time = start_time + timedelta(seconds=total_duration)
+
+                    # Check if the session is inactive or if NowPlayingItem is None
+                    is_stopped = session.get('PlayState', {}).get('PlayMethod') is None or session.get('NowPlayingItem') is None
+
+                    return {
+                        'is_playing': not is_paused and not is_stopped,
+                        'IsPaused': is_paused,
+                        'IsStopped': is_stopped,
+                        'position': position_seconds,
+                        'start_time': start_time.isoformat(),
+                        'end_time': end_time.isoformat(),
+                        'duration': total_duration
+                    }
+            # If we didn't find a matching session, the movie is stopped
+            return {
+                'is_playing': False,
+                'IsPaused': False,
+                'IsStopped': True,
+                'position': 0,
+                'start_time': None,
+                'end_time': None,
+                'duration': 0
+            }
+        except requests.RequestException as e:
+            logger.error(f"Error fetching playback info: {e}")
+        return None
+
     def get_clients(self):
         try:
             sessions_url = f"{self.server_url}/Sessions"
             response = requests.get(sessions_url, headers=self.headers)
             response.raise_for_status()
             sessions = response.json()
-            
+
             logger.debug(f"Raw sessions data: {json.dumps(sessions, indent=2)}")
-            
+
             castable_clients = []
             for session in sessions:
                 if session.get('SupportsRemoteControl', False) and session.get('DeviceName') != 'Jellyfin Server':
@@ -189,17 +324,64 @@ class JellyfinService:
                         "supports_media_control": session.get('SupportsMediaControl', False),
                     }
                     castable_clients.append(client)
-            
+
             if not castable_clients:
                 logger.warning("No castable clients found.")
             else:
                 logger.info(f"Found {len(castable_clients)} castable clients")
-            
+
             logger.debug(f"Fetched castable clients: {json.dumps(castable_clients, indent=2)}")
             return castable_clients
         except Exception as e:
             logger.error(f"Error fetching clients: {e}")
             return []
+
+    def get_movie_by_id(self, movie_id):
+        try:
+            item_url = f"{self.server_url}/Users/{self.user_id}/Items/{movie_id}"
+            params = {
+                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating'
+            }
+            response = requests.get(item_url, headers=self.headers, params=params)
+            response.raise_for_status()
+            movie = response.json()
+            return self.get_movie_data(movie)
+        except Exception as e:
+            logger.error(f"Error fetching movie by ID: {e}")
+            return None
+
+    def get_current_playback(self):
+        try:
+            sessions_url = f"{self.server_url}/Sessions"
+            response = requests.get(sessions_url, headers=self.headers)
+            response.raise_for_status()
+            sessions_json = response.json()
+            logger.debug(f"Sessions JSON Response: {json.dumps(sessions_json, indent=2)}")
+
+            # Check if the response is a list
+            if isinstance(sessions_json, list):
+                sessions = sessions_json
+            elif isinstance(sessions_json, dict):
+                sessions = sessions_json.get('Items', [])
+            else:
+                logger.error("Unexpected JSON structure for sessions.")
+                return None
+
+            for session in sessions:
+                if not isinstance(session, dict):
+                    logger.warning("Session item is not a dictionary. Skipping.")
+                    continue
+
+                now_playing = session.get('NowPlayingItem')
+                if now_playing:
+                    return {
+                        'id': now_playing.get('Id'),
+                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000  # Convert ticks to seconds
+                    }
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching current playback: {e}")
+            return None
 
     def play_movie(self, movie_id, session_id):
         try:
@@ -212,47 +394,62 @@ class JellyfinService:
             response.raise_for_status()
             logger.debug(f"Playing movie {movie_id} on session {session_id}")
             logger.debug(f"Response: {response.text}")
-            return {"status": "playing", "response": response.text}
+
+            # Set the start time for the movie
+            self.playback_start_times[movie_id] = datetime.now()
+
+            # Fetch movie data
+            movie_data = self.get_movie_by_id(movie_id)
+            if movie_data:
+                start_time = self.playback_start_times[movie_id]
+                end_time = start_time + timedelta(hours=movie_data['duration_hours'], minutes=movie_data['duration_minutes'])
+
+                from flask import session
+                session['current_movie'] = movie_data
+                session['movie_start_time'] = start_time.isoformat()
+                session['movie_end_time'] = end_time.isoformat()
+                session['current_service'] = 'jellyfin'
+
+            return {
+                "status": "playing",
+                "response": response.text,
+                "movie_id": movie_id,
+                "session_id": session_id,
+                "start_time": self.playback_start_times[movie_id].isoformat(),
+                "movie_data": movie_data
+            }
         except Exception as e:
             logger.error(f"Error playing movie: {e}")
             return {"error": str(e)}
 
-# For testing purposes
-if __name__ == "__main__":
-    jellyfin = JellyfinService()
-    
-    print("\nFetching random unwatched movie:")
-    movie = jellyfin.get_random_movie()
-    if movie:
-        print(f"Title: {movie['title']}")
-        print(f"Year: {movie['year']}")
-        print(f"Directors: {', '.join(movie['directors'])}")
-        print(f"Writers: {', '.join(movie['writers'])}")
-        print(f"Actors: {', '.join(movie['actors'])}")
-        print(f"Genres: {', '.join(movie['genres'])}")
-    else:
-        print("No unwatched movie found")
+    def get_active_sessions(self):
+        try:
+            sessions_url = f"{self.server_url}/Sessions"
+            response = requests.get(sessions_url, headers=self.headers)
+            response.raise_for_status()
+            sessions = response.json()
 
-    # Test clients
-    print("\nFetching castable clients:")
-    clients = jellyfin.get_clients()
-    print(json.dumps(clients, indent=2))
+            active_sessions = []
+            for session in sessions:
+                if session.get('NowPlayingItem'):
+                    active_sessions.append(session)
 
-    # Test playing a movie
-    if clients and movie:
-        print("\nAvailable castable clients:")
-        for i, client in enumerate(clients):
-            print(f"{i+1}. {client['title']} ({client['client']}) - ID: {client['id']}")
-        
-        choice = int(input("Choose a client number to play the movie (or 0 to skip): ")) - 1
-        if 0 <= choice < len(clients):
-            selected_client = clients[choice]
-            print(f"\nAttempting to play movie {movie['title']} on {selected_client['title']} (Session ID: {selected_client['id']})")
-            result = jellyfin.play_movie(movie['id'], selected_client['id'])
-            print(result)
-        elif choice != -1:
-            print("Invalid client selection.")
-    elif not clients:
-        print("No castable clients available to play on.")
-    elif not movie:
-        print("No movie available to play.")
+            logger.debug(f"Found {len(active_sessions)} active Jellyfin sessions")
+            return active_sessions
+        except Exception as e:
+            logger.error(f"Error fetching active Jellyfin sessions: {e}")
+            return []
+
+    def get_current_username(self):
+        try:
+            sessions_url = f"{self.server_url}/Sessions"
+            response = requests.get(sessions_url, headers=self.headers)
+            response.raise_for_status()
+            sessions = response.json()
+            for session in sessions:
+                if session.get('NowPlayingItem'):
+                    return session.get('UserName')
+            return None
+        except Exception as e:
+            logger.error(f"Error getting current Jellyfin username: {e}")
+            return None

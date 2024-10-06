@@ -1,0 +1,147 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    background-color: #000;
+    color: #FFD700;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+.poster-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.info-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+.time-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.time-info.end {
+    align-items: flex-end;
+}
+.time-label {
+    font-size: 0.8em;
+}
+.time {
+    font-size: 1.2em;
+}
+.playback-status {
+    font-size: 1.5em;
+    font-weight: bold;
+    text-align: center;
+    flex-grow: 1;
+}
+.paused { color: #FFA500; }
+.ended { color: #FF4500; }
+.stopped { color: #DC143C; }
+.progress-container {
+    width: 100%;
+    background-color: #333;
+    height: 5px;
+}
+.progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: #FFD700;
+    transition: width 0.5s ease;
+}
+.poster-image {
+    max-width: 100%;
+    max-height: calc(100vh - 120px);
+    object-fit: contain;
+}
+.bottom-info {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    width: 100%;
+    box-sizing: border-box;
+}
+.info-item {
+    text-align: center;
+}
+.info-label {
+    font-size: 0.8em;
+    display: block;
+}
+.info-value {
+    font-size: 1.2em;
+}
+
+/* Custom text styles */
+.custom-text-container {
+    position: absolute;
+    top: 24.475%;    /* Adjusted top% */
+    left: 30.62%;    /* Adjusted left% */
+    width: 38.96%;   /* Adjusted width% */
+    height: 17.04%;  /* Adjusted height% */
+    display: none;   /* Hidden by default; will be shown when needed */
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    overflow: hidden;
+}
+.custom-text {
+    color: white;
+    line-height: 1.2;
+    white-space: pre-wrap;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    word-break: break-word;
+    margin: 0;
+}
+/* Media queries for font size adjustments */
+@media (orientation: portrait) {
+    .custom-text {
+        font-size: 3vw;
+    }
+}
+@media (orientation: landscape) {
+    .custom-text {
+        font-size: 2vw;
+    }
+}
+
+/* New media query for portrait orientation to maintain same dimensions as landscape */
+@media (orientation: portrait) {
+    .custom-text-container {
+        top: 24.475%;    /* Same as landscape */
+        left: 30.62%;    /* Same as landscape */
+        width: 38.96%;    /* Same as landscape */
+        height: 17.04%;   /* Same as landscape */
+    }
+}
+
+/* Additional media queries for smaller screens (e.g., phones) */
+@media (orientation: portrait) and (max-width: 600px) {
+    .custom-text-container {
+        top: 20%;         /* Adjusted for smaller screens */
+        left: 25%;        /* Adjusted for smaller screens */
+        width: 50%;       /* Adjusted for smaller screens */
+        height: 20%;      /* Adjusted for smaller screens */
+    }
+}
+
+.default-poster .info-bar,
+.default-poster .progress-container,
+.default-poster .bottom-info {
+    display: none;
+}
+.default-poster .poster-image {
+    max-height: 100vh;
+}
