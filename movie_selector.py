@@ -6,9 +6,15 @@ import random
 import traceback
 import threading
 import time
+from datetime import datetime, timedelta
+import pytz
 from flask import Flask, jsonify, render_template, send_from_directory, request, session
 from flask_socketio import SocketIO, emit
 from utils.cache_manager import CacheManager
+from utils.poster_view import set_current_movie, poster_bp, init_socket
+from utils.default_poster_manager import init_default_poster_manager, default_poster_manager
+from utils.playback_monitor import PlaybackMonitor
+from utils.fetch_movie_links import fetch_movie_links
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -16,9 +22,16 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='static', template_folder='web')
 app.secret_key = 'your_secret_key_here'  # Replace with a real secret key
 socketio = SocketIO(app)
+init_socket(socketio)
+
+# Initialize the default poster manager
+default_poster_manager = init_default_poster_manager(socketio)
+
+# Add the default_poster_manager to the app config
+app.config['DEFAULT_POSTER_MANAGER'] = default_poster_manager
 
 # Check which services are available
-PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('MOVIES_LIBRARY_NAME')])
+PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('PLEX_MOVIE_LIBRARIES')])
 JELLYFIN_AVAILABLE = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
 HOMEPAGE_MODE = os.getenv('HOMEPAGE_MODE', 'FALSE').upper() == 'TRUE'
 
@@ -33,6 +46,7 @@ if PLEX_AVAILABLE:
     plex = PlexService()
     cache_manager = CacheManager(plex, cache_file_path)
     cache_manager.start()
+    app.config['PLEX_SERVICE'] = plex
 else:
     plex = None
     cache_manager = None
@@ -40,6 +54,7 @@ else:
 if JELLYFIN_AVAILABLE:
     from utils.jellyfin_service import JellyfinService
     jellyfin = JellyfinService()
+    app.config['JELLYFIN_SERVICE'] = jellyfin
 else:
     jellyfin = None
 
@@ -50,6 +65,13 @@ from utils.youtube_trailer import search_youtube_trailer
 all_plex_unwatched_movies = []
 movies_loaded_from_cache = False
 loading_in_progress = False
+
+# Register the poster blueprint
+app.register_blueprint(poster_bp)
+
+# Start the PlaybackMonitor
+playback_monitor = PlaybackMonitor(app, interval=10)
+playback_monitor.start()
 
 def get_available_service():
     if PLEX_AVAILABLE:
@@ -121,12 +143,12 @@ def get_available_services():
 def get_current_service():
     if 'current_service' not in session or session['current_service'] not in ['plex', 'jellyfin']:
         session['current_service'] = get_available_service()
-    
+
     # Check if the current service is still available
     if (session['current_service'] == 'plex' and not PLEX_AVAILABLE) or \
        (session['current_service'] == 'jellyfin' and not JELLYFIN_AVAILABLE):
         session['current_service'] = get_available_service()
-    
+
     return jsonify({"service": session['current_service']})
 
 @app.route('/switch_service')
@@ -156,12 +178,12 @@ def random_movie():
             movie_data = jellyfin.get_random_movie()
         else:
             return jsonify({"error": "No available media service"}), 400
-        
+
         if movie_data:
             movie_data = enrich_movie_data(movie_data)
             return jsonify({
-                "service": current_service, 
-                "movie": movie_data, 
+                "service": current_service,
+                "movie": movie_data,
                 "cache_loaded": movies_loaded_from_cache,
                 "loading_in_progress": loading_in_progress
             })
@@ -187,7 +209,7 @@ def filter_movies():
             movie_data = jellyfin.filter_movies(genre, year, pg_rating)
         else:
             return jsonify({"error": "No available media service"}), 400
-        
+
         if movie_data:
             logger.debug(f"Filtered movie: {movie_data['title']} ({movie_data['year']}) - PG Rating: {movie_data.get('contentRating', 'N/A')}")
             movie_data = enrich_movie_data(movie_data)
@@ -230,7 +252,7 @@ def next_movie():
             movie_data = jellyfin.filter_movies(genre, year, pg_rating)
         else:
             return jsonify({"error": "No available media service"}), 400
-        
+
         if movie_data:
             logger.debug(f"Next movie selected: {movie_data['title']} ({movie_data['year']}) - PG Rating: {movie_data.get('contentRating', 'N/A')}")
             movie_data = enrich_movie_data(movie_data)
@@ -246,14 +268,14 @@ def enrich_movie_data(movie_data):
     current_service = session.get('current_service', get_available_service())
     tmdb_url, trakt_url, imdb_url = fetch_movie_links(movie_data, current_service)
     trailer_url = search_youtube_trailer(movie_data['title'], movie_data['year'])
-    
+
     movie_data.update({
         "tmdb_url": tmdb_url,
         "trakt_url": trakt_url,
         "imdb_url": imdb_url,
         "trailer_url": trailer_url
     })
-    
+
     return movie_data
 
 @app.route('/get_genres')
@@ -335,10 +357,18 @@ def play_movie(client_id):
     try:
         if current_service == 'plex' and PLEX_AVAILABLE:
             result = plex.play_movie(movie_id, client_id)
+            if result.get("status") == "playing":
+                movie_data = plex.get_movie_by_id(movie_id)
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
             result = jellyfin.play_movie(movie_id, client_id)
+            if result.get("status") == "playing":
+                movie_data = jellyfin.get_movie_by_id(movie_id)
         else:
             return jsonify({"error": "No available media service"}), 400
+
+        if result.get("status") == "playing" and movie_data:
+            set_current_movie(movie_data, current_service)
+
         logger.debug(f"Play movie result for {current_service}: {result}")
         return jsonify(result)
     except Exception as e:
@@ -417,6 +447,14 @@ def debug_plex():
 def trigger_resync():
     resync_cache()
     return jsonify({"status": "Cache resync completed"})
+
+@socketio.on('connect', namespace='/poster')
+def poster_connect():
+    print('Client connected to poster namespace')
+
+@socketio.on('disconnect', namespace='/poster')
+def poster_disconnect():
+    print('Client disconnected from poster namespace')
 
 if __name__ == '__main__':
     logger.info("Application starting")

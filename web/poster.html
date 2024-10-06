@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Meta viewport tag included -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Now Playing</title>
+    <!-- Include external CSS file -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style/poster.css') }}">
+    <!-- Include Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <!-- Define template variables for JavaScript -->
+    <script>
+        const defaultPosterUrl = "{{ url_for('static', filename='images/default_poster.png') }}";
+        let movieId = {{ (movie.id | tojson) if movie else 'null' }};
+        let movieDuration = {{ (movie.duration_hours * 3600 + movie.duration_minutes * 60) if movie else 0 }};
+        let isDefaultPoster = {{ 'true' if current_poster == url_for('static', filename='images/default_poster.png') else 'false' }};
+    </script>
+    <!-- Include external JavaScript file -->
+    <script src="{{ url_for('static', filename='js/poster.js') }}" defer></script>
+</head>
+<body>
+    <div class="poster-container" id="posterContainer">
+        <div class="info-bar">
+            <div class="time-info">
+                <span class="time-label">Start Time</span>
+                <span class="time" id="start-time"></span>
+            </div>
+            <div class="playback-status" id="playback-status">NOW PLAYING</div>
+            <div class="time-info end">
+                <span class="time-label">End Time</span>
+                <span class="time" id="end-time"></span>
+            </div>
+        </div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <img src="{{ current_poster }}" alt="{{ movie.title if movie else 'Default' }} Poster" class="poster-image" id="poster-image">
+        <!-- Custom text container added -->
+        <div class="custom-text-container" id="custom-text-container">
+            <div class="custom-text" id="custom-text">{{ custom_text | safe }}</div>
+        </div>
+        <div class="bottom-info">
+            <div class="info-item">
+                <span class="info-label">Rating</span>
+                <span class="info-value" id="content-rating">{{ movie.contentRating if movie else '' }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Video</span>
+                <span class="info-value" id="video-format">{{ movie.videoFormat if movie else '' }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Audio</span>
+                <span class="info-value" id="audio-format">{{ movie.audioFormat if movie else '' }}</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

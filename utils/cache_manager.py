@@ -28,7 +28,7 @@ class CacheManager:
 
     def update_cache(self):
         try:
-            new_unwatched_movies = list(self.plex_service.get_all_unwatched_movies())
+            new_unwatched_movies = self.plex_service.get_all_unwatched_movies()
             
             # Read the current cache
             if os.path.exists(self.cache_file_path):
