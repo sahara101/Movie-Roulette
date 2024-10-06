@@ -3,7 +3,7 @@
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
 # Movie Roulette
-Docker container which chooses a random movie from your Plex and/or Jellyfin movie library. 
+Docker container which chooses a random movie from your Plex and/or Jellyfin movie libraries. Cinema Posters function added.
 
 # Tested Players 
 ## Plex
@@ -25,7 +25,9 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 - Play movie on above tested players.
 - Turn on Apple TV and LGTV ((webOS) directly in Plex or Jellyfin app).
 - PWA support.
-- Seamless switch between the two services. 
+- Seamless switch between the two services.
+- Cinema Posters using the Plex/Jellyfin movie posters with playing status, start/end time, progress bar and PG/Audio/Video information. See info below!!
+- Default poster with configurable text. See info below!!
 
 <img width="1728" alt="image" src="https://github.com/user-attachments/assets/163936e1-a112-483c-8977-6ac260f94619">
 <img width="1727" alt="image" src="https://github.com/user-attachments/assets/ff5b33f4-d632-41e3-a4a2-1dc33ef2eff6">
@@ -33,6 +35,11 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 HOMEPAGE MODE
 
 <img width="905" alt="image" src="https://github.com/user-attachments/assets/b086dafd-9a4d-4e81-b9ad-9592631b7a90">
+
+Cinema Poster
+
+<img width="617" alt="image" src="https://github.com/user-attachments/assets/03abe6d0-ac9d-436a-9025-6c6d24ed92b3">
+<img width="683" alt="image" src="https://github.com/user-attachments/assets/a112eaa6-7e30-47bf-a1c7-b077f808ffb8">
 
 # DISCLAIMER
 I am no programmer! Code is expanded with help of ChatGPT a bit and mostly ClaudeAI. Feel free to modify the code as you please. Also, open to criticism ;)
@@ -47,27 +54,39 @@ How to get the Jellyfin UserID: Profile - check the URL - copy the userId string
 
 ```
 services:
-  plex-random-movie:
+  movie-roulette:
     image: ghcr.io/sahara101/movie-roulette:latest
+    container_name: movie-roulette
     environment:
-      HOMEPAGE_MODE: "FALSE" #Set to TRUE if you want to use it as a Homeage widget without any buttons (Filter remains active)
-      PLEX_URL: "Your-Plex-URL" #FQDN preferred. Do not use if you only want Jellyfin function.
-      PLEX_TOKEN: "TOKEN" #Do not use if you only want Jellyfin function.
-      MOVIES_LIBRARY_NAME: 'Filme' #Option for Plex. Default 'Movies'. Used for IMDB, Trakt and TMDB links. Do not use if you only want Jellyfin function.
-      JELLYFIN_URL: "Your-Jellyfin-URL" #Do not use if you only want Plex function.
-      JELLYFIN_API_KEY: "API" #Do not use if you only want Plex function.
-      JELLYFIN_USER_ID: "USERID" #Do not use if you only want Plex function.
-      APPLE_TV_ID: "ID" #Optional
-      LGTV_IP: "IP" #Optional
-      LGTV_MAC: "MAC_Address" #Optional
-    volumes:
-      - ./movie_roulette_data:/app/data  
+      #Homepage ENV
+      HOMEPAGE_MODE: "FALSE"
+      #Plex ENV
+      PLEX_URL: ""
+      PLEX_TOKEN: ""
+      PLEX_MOVIE_LIBRARIES: "Filme" #Default movies, add more with comma delimiter A,B,C
+      #Poster ENV
+      TZ: "Europe/Bucharest"
+      DEFAULT_POSTER_TEXT: "My Cool Cinema"
+      PLEX_POSTER_USERS: "" #Plex username, add more with comma delimiter A,B,C
+      JELLYFIN_POSTER_USERS: "" #Jellyfin username, add more with comma delimiter A,B,C
+      #Jellyfin ENV
+      JELLYFIN_URL: " "
+      JELLYFIN_API_KEY: " "
+      JELLYFIN_USER_ID: " "
+      #Client ENV
+      APPLE_TV_ID: " " 
+      LGTV_IP: " " 
+      LGTV_MAC: " "      
     network_mode: host
+    volumes:
+      - ./movie_roulette_data:/app/data
     restart: unless-stopped
 ```
 If you do not have an Apple TV you can  also change the container network type. 
 
 Default container port is 4000
+
+Posters are under :4000/poster
 
 The power button displays the devices dynamically, meaning you HAVE to add the ```APPLE_TV_ID``` ENV in order to see the corresponding button and both ```LGTV_IP``` and ```LGTV_MAC``` for LG.
 
@@ -136,10 +155,21 @@ atvremote --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx --protocol companion pair
 Enter PIN on screen: 
 Pairing seems to have succeeded, yey!
 ```
-# LGTV (WebOS
+# LGTV (WebOS)
 Get the TV IP and MAC and set them up in the ENV. You can see both in the TV settings. If you want to copy the MAC just ping the TV followed by the linux command ```ip neigh show```
 
 Press the ```TURN ON DEVICE``` button and select your ```LGTV (webOS)```. A magic packet will be sent and the TV will turn on. Accept the new connection. This will store the connection details in the container. 
+
+# Cinema Posters 
+Playing a movie through movie roulette and also outside movie roulette from Plex/Jellyfin clients will show the movie poster with playing status, start/end time, progress bar and PG/Audio/Video information. Poster is to be found under :4000/poster URL.
+
+Playing statuses are the following: NOW PLAYING, PAUSED, ENDED and STOPPED.
+
+After a 5 minute timeout in STOPPED state a default poster will be shown. You can choose what text is displayed. I tested with max 3 words.
+
+It is recommended to set the browser in full-screen mode.
+
+!!IMPORTANT: I do not have a vertical monitor so could NOT test how the default and movie posters behave. It works for me on my laptop in landscape and on my tablet in landscape and portrait.
 
 # Troubleshooting
 ## Plex
