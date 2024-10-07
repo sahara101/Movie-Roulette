@@ -5,6 +5,8 @@ Forked from https://github.com/Akasiek/Random-Plex-Movie
 # Movie Roulette
 Docker container which chooses a random movie from your Plex and/or Jellyfin movie libraries. Cinema Posters function added.
 
+# Breaking change v1.6.1 - v2.0 check new compose file
+
 # Tested Players 
 ## Plex
 - Apple TV - with turn on function
