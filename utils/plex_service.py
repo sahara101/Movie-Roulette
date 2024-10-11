@@ -6,7 +6,7 @@ from plexapi.server import PlexServer
 from datetime import datetime, timedelta
 from utils.poster_view import set_current_movie
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PlexService:
@@ -27,18 +27,21 @@ class PlexService:
         chosen_movie = random.choice(all_unwatched)
         return self.get_movie_data(chosen_movie)
 
-    def filter_movies(self, genre=None, year=None, pg_rating=None):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None):
         filters = {'unwatched': True}
-        if genre:
-            filters['genre'] = genre
-        if year:
-            filters['year'] = int(year)
-        if pg_rating:
-            filters['contentRating'] = pg_rating
-
+        
         filtered_movies = []
         for library in self.libraries:
-            filtered_movies.extend(library.search(**filters))
+            movies = library.search(unwatched=True)
+            
+            for movie in movies:
+                if genres and not any(genre in [g.tag for g in movie.genres] for genre in genres):
+                    continue
+                if years and str(movie.year) not in years:
+                    continue
+                if pg_ratings and movie.contentRating not in pg_ratings:
+                    continue
+                filtered_movies.append(movie)
 
         if filtered_movies:
             chosen_movie = random.choice(filtered_movies)
@@ -58,63 +61,89 @@ class PlexService:
         headers = {"X-Plex-Token": self.PLEX_TOKEN, "Accept": "application/json"}
         response = requests.get(metadata_url, headers=headers)
         if response.status_code == 200:
-            metadata = response.json()
-            media_info = metadata['MediaContainer']['Metadata'][0]['Media'][0]['Part'][0]['Stream']
+            try:
+                metadata = response.json()
+                media_container = metadata.get('MediaContainer', {})
+                metadata_list = media_container.get('Metadata', [])
+                if metadata_list:
+                    media_info = metadata_list[0]
+                    media_list = media_info.get('Media', [])
+                    if media_list:
+                        media = media_list[0]
+                        part_list = media.get('Part', [])
+                        if part_list:
+                            part = part_list[0]
+                            streams = part.get('Stream', [])
+                            # Now proceed to process streams
+                            media_info = streams
 
-            # Video format extraction
-            video_stream = next((s for s in media_info if s['streamType'] == 1), None)
-            if video_stream:
-                # Determine resolution
-                height = video_stream.get('height', 0)
-                if height <= 480:
-                    resolution = "SD"
-                elif height <= 720:
-                    resolution = "HD"
-                elif height <= 1080:
-                    resolution = "FHD"
-                elif height > 1080:
-                    resolution = "4K"
+                            # Video format extraction
+                            video_stream = next((s for s in media_info if s.get('streamType') == 1), None)
+                            if video_stream:
+                                # Determine resolution
+                                height = video_stream.get('height', 0)
+                                if height <= 480:
+                                    resolution = "SD"
+                                elif height <= 720:
+                                    resolution = "HD"
+                                elif height <= 1080:
+                                    resolution = "FHD"
+                                elif height > 1080:
+                                    resolution = "4K"
+                                else:
+                                    resolution = "Unknown"
+
+                                # Check for HDR and Dolby Vision
+                                hdr_types = []
+                                if video_stream.get('DOVIPresent'):
+                                    hdr_types.append("DV")
+                                if video_stream.get('colorTrc') == 'smpte2084' and video_stream.get('colorSpace') == 'bt2020nc':
+                                    hdr_types.append("HDR10")
+
+                                # Combine resolution and HDR info
+                                video_format = f"{resolution} {'/'.join(hdr_types)}".strip()
+
+                            # Audio format extraction
+                            audio_stream = next((s for s in media_info if s.get('streamType') == 2), None)
+                            if audio_stream:
+                                codec = audio_stream.get('codec', '').lower()
+                                channels = audio_stream.get('channels', 0)
+
+                                codec_map = {
+                                    'ac3': 'Dolby Digital',
+                                    'eac3': 'Dolby Digital Plus',
+                                    'truehd': 'Dolby TrueHD',
+                                    'dca': 'DTS',
+                                    'dts': 'DTS',
+                                    'aac': 'AAC',
+                                    'flac': 'FLAC'
+                                }
+
+                                audio_format = codec_map.get(codec, codec.upper())
+
+                                if audio_stream.get('audioChannelLayout'):
+                                    channel_layout = audio_stream['audioChannelLayout'].split('(')[0]  # Remove (side) or similar
+                                    audio_format += f" {channel_layout}"
+                                elif channels:
+                                    if channels == 8:
+                                        audio_format += ' 7.1'
+                                    elif channels == 6:
+                                        audio_format += ' 5.1'
+                                    elif channels == 2:
+                                        audio_format += ' 2.0'
+                        else:
+                            logger.warning(f"No 'Part' data for movie '{movie.title}' (ID: {movie.ratingKey})")
+                    else:
+                        logger.warning(f"No 'Media' data for movie '{movie.title}' (ID: {movie.ratingKey})")
                 else:
-                    resolution = "Unknown"
-
-                # Check for HDR and Dolby Vision
-                hdr_types = []
-                if video_stream.get('DOVIPresent'):
-                    hdr_types.append("DV")
-                if video_stream.get('colorTrc') == 'smpte2084' and video_stream.get('colorSpace') == 'bt2020nc':
-                    hdr_types.append("HDR10")
-
-                # Combine resolution and HDR info
-                video_format = f"{resolution} {'/'.join(hdr_types)}".strip()
-
-            # Audio format extraction
-            audio_stream = next((s for s in media_info if s['streamType'] == 2), None)
-            if audio_stream:
-                codec = audio_stream.get('codec', '').lower()
-                channels = audio_stream.get('channels', 0)
-
-                codec_map = {
-                    'ac3': 'Dolby Digital',
-                    'eac3': 'Dolby Digital Plus',
-                    'truehd': 'Dolby TrueHD',
-                    'dca': 'DTS',
-                    'dts': 'DTS',
-                    'aac': 'AAC',
-                    'flac': 'FLAC'
-                }
-
-                audio_format = codec_map.get(codec, codec.upper())
-
-                if audio_stream.get('audioChannelLayout'):
-                    channel_layout = audio_stream['audioChannelLayout'].split('(')[0]  # Remove (side) or similar
-                    audio_format += f" {channel_layout}"
-                elif channels:
-                    if channels == 8:
-                        audio_format += ' 7.1'
-                    elif channels == 6:
-                        audio_format += ' 5.1'
-                    elif channels == 2:
-                        audio_format += ' 2.0'
+                    logger.warning(f"No 'Metadata' in MediaContainer for movie '{movie.title}' (ID: {movie.ratingKey})")
+            except Exception as e:
+                logger.error(f"Error processing media info for movie '{movie.title}' (ID: {movie.ratingKey}): {e}")
+                # Optionally, set default formats or continue without setting them
+                video_format = "Unknown"
+                audio_format = "Unknown"
+        else:
+            logger.error(f"Failed to fetch metadata for movie '{movie.title}' (ID: {movie.ratingKey}), status code {response.status_code}")
 
         return {
             "id": movie.ratingKey,
@@ -196,11 +225,31 @@ class PlexService:
     def get_total_unwatched_movies(self):
         return sum(len(library.search(unwatched=True)) for library in self.libraries)
 
-    def get_all_unwatched_movies(self):
+    def get_all_unwatched_movies(self, progress_callback=None):
         all_unwatched = []
+        unwatched_movies = []
+
+        # Collect all unwatched movies from all libraries
         for library in self.libraries:
-            all_unwatched.extend(library.search(unwatched=True))
-        return [self.get_movie_data(movie) for movie in all_unwatched]
+            library_unwatched = library.search(unwatched=True)
+            unwatched_movies.extend(library_unwatched)
+
+        total_movies = len(unwatched_movies)
+        processed_movies = 0
+
+        # Process each movie and call the progress callback
+        for movie in unwatched_movies:
+            movie_data = self.get_movie_data(movie)
+            all_unwatched.append(movie_data)
+            processed_movies += 1
+
+            # Call the progress callback with the current progress
+            if progress_callback and total_movies > 0:
+                progress = processed_movies / total_movies
+                progress_callback(progress)
+
+        return all_unwatched
+
 
     def get_movie_by_id(self, movie_id):
         for library in self.libraries:

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
+
     <title>Movie Roulette</title>
 
     <link rel="manifest" href="/static/manifest.json">
@@ -43,15 +43,15 @@
                 <div id="filterDropdown" class="filter-dropdown">
                     <div class="filter-option">
                         <label for="genreSelect">Genre:</label>
-                        <select id="genreSelect"></select>
+			<select id="genreSelect" multiple></select>
                     </div>
                     <div class="filter-option">
                         <label for="yearSelect">Year:</label>
-                        <select id="yearSelect"></select>
+			<select id="yearSelect" multiple></select>
                     </div>
                     <div class="filter-option">
                         <label for="pgRatingSelect">PG Rating:</label>
-                        <select id="pgRatingSelect"></select>
+			<select id="pgRatingSelect" multiple></select>
                     </div>
                     <button id="applyFilter">Apply Filter</button>
                     <button id="clearFilter">Clear Filter</button>
@@ -144,7 +144,7 @@
 
     {% if not homepage_mode %}
     <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-     <div class="version-label">v2.0</div>
+     <div class="version-label">v2.1</div>
     </a>
     {% endif %}
 

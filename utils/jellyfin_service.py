@@ -2,9 +2,10 @@ import os
 import requests
 import json
 import logging
+import random
 from datetime import datetime, timedelta
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class JellyfinService:
@@ -43,7 +44,7 @@ class JellyfinService:
             logger.error(f"Error fetching random unwatched movie: {e}")
             return None
 
-    def filter_movies(self, genre=None, year=None, pg_rating=None):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -54,12 +55,18 @@ class JellyfinService:
                 'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating',
                 'IsPlayed': 'false'
             }
-            if genre:
-                params['Genres'] = genre
-            if year:
-                params['Years'] = year
-            if pg_rating:
-                params['OfficialRatings'] = pg_rating
+
+            # Handle empty lists as None
+            genres = genres if genres and genres[0] else None
+            years = years if years and years[0] else None
+            pg_ratings = pg_ratings if pg_ratings and pg_ratings[0] else None
+
+            if genres:
+                params['Genres'] = genres
+            if years:
+                params['Years'] = years
+            if pg_ratings:
+                params['OfficialRatings'] = pg_ratings
 
             logger.debug(f"Jellyfin API request params: {params}")
 
@@ -69,14 +76,26 @@ class JellyfinService:
 
             logger.debug(f"Jellyfin API returned {len(movies)} movies")
 
-            if movies:
-                return self.get_movie_data(movies[0])
+            # If no movies are returned, we can't proceed
+            if not movies:
+                logger.warning("No unwatched movies found matching the criteria")
+                return None
 
-            logger.warning("No unwatched movies found matching the criteria")
-            return None
+            # Randomly select a movie from the returned list
+            chosen_movie = random.choice(movies)
+            return self.get_movie_data(chosen_movie)
         except Exception as e:
-            logger.error(f"Error filtering movies: {e}")
+            logger.error(f"Error filtering movies: {str(e)}")
             return None
+
+    def movie_matches_criteria(self, movie, genres, years, pg_ratings):
+        if genres and not any(genre in movie.get('Genres', []) for genre in genres):
+            return False
+        if years and str(movie.get('ProductionYear', '')) not in years:
+            return False
+        if pg_ratings and movie.get('OfficialRating', '') not in pg_ratings:
+            return False
+        return True
 
     def get_movie_data(self, movie):
         run_time_ticks = movie.get('RunTimeTicks', 0)

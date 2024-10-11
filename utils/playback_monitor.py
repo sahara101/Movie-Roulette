@@ -8,17 +8,23 @@ from utils.jellyfin_service import JellyfinService
 from utils.plex_service import PlexService
 from utils.poster_view import set_current_movie
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PlaybackMonitor(threading.Thread):
     def __init__(self, app, interval=10):
         super().__init__()
         self.interval = interval
-        self.jellyfin_service = JellyfinService()
+        self.jellyfin_service = None
         self.plex_service = None
-        if 'PLEX_SERVICE' in app.config:
+        self.jellyfin_available = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
+        self.plex_available = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('PLEX_MOVIE_LIBRARIES')])
+        
+        if self.jellyfin_available:
+            self.jellyfin_service = JellyfinService()
+        if self.plex_available and 'PLEX_SERVICE' in app.config:
             self.plex_service = app.config['PLEX_SERVICE']
+        
         self.current_movie_id = None
         self.running = True
         self.app = app
@@ -26,6 +32,8 @@ class PlaybackMonitor(threading.Thread):
         self.jellyfin_poster_users = os.getenv('JELLYFIN_POSTER_USERS', '').split(',')
         logger.info(f"Initialized PlaybackMonitor with Plex poster users: {self.plex_poster_users}")
         logger.info(f"Initialized PlaybackMonitor with Jellyfin poster users: {self.jellyfin_poster_users}")
+        logger.info(f"Jellyfin available: {self.jellyfin_available}")
+        logger.info(f"Plex available: {self.plex_available}")
 
     def is_poster_user(self, username, service):
         if service == 'plex':
@@ -45,26 +53,28 @@ class PlaybackMonitor(threading.Thread):
                     service = None
                     username = None
 
-                    # Check Jellyfin
-                    jellyfin_sessions = self.jellyfin_service.get_active_sessions()
-                    for session in jellyfin_sessions:
-                        now_playing = session.get('NowPlayingItem', {})
-                        if now_playing.get('Type') == 'Movie':
-                            username = session.get('UserName')
-                            if self.is_poster_user(username, 'jellyfin'):
-                                playback_info = {
-                                    'id': now_playing.get('Id'),
-                                    'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000
-                                }
-                                service = 'jellyfin'
-                                break
+                    # Check Jellyfin if available
+                    if self.jellyfin_available and self.jellyfin_service:
+                        jellyfin_sessions = self.jellyfin_service.get_active_sessions()
+                        for session in jellyfin_sessions:
+                            now_playing = session.get('NowPlayingItem', {})
+                            if now_playing.get('Type') == 'Movie':
+                                username = session.get('UserName')
+                                if self.is_poster_user(username, 'jellyfin'):
+                                    playback_info = {
+                                        'id': now_playing.get('Id'),
+                                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000
+                                    }
+                                    service = 'jellyfin'
+                                    logger.debug(f"Authorized Jellyfin user {username} is playing a movie. Updating poster.")
+                                    break
+                                else:
+                                    logger.debug(f"Jellyfin user {username} is playing a movie but not authorized for poster updates.")
                             else:
-                                logger.info(f"Jellyfin user {username} is playing a movie but not authorized for poster updates.")
-                        else:
-                            logger.debug(f"Jellyfin user is playing non-movie content. Ignoring.")
+                                logger.debug(f"Jellyfin user is playing non-movie content. Ignoring.")
 
-                    # If no authorized Jellyfin playback, check Plex
-                    if not playback_info and self.plex_service:
+                    # Check Plex if available and no Jellyfin playback was found
+                    if not playback_info and self.plex_available and self.plex_service:
                         sessions = self.plex_service.plex.sessions()
                         for session in sessions:
                             if session.type == 'movie':  # Only consider movie sessions
@@ -72,9 +82,10 @@ class PlaybackMonitor(threading.Thread):
                                 if self.is_poster_user(username, 'plex'):
                                     playback_info = self.plex_service.get_playback_info(session.ratingKey)
                                     service = 'plex'
+                                    logger.debug(f"Authorized Plex user {username} is playing a movie. Updating poster.")
                                     break
                                 else:
-                                    logger.info(f"Plex user {username} is playing a movie but not authorized for poster updates.")
+                                    logger.debug(f"Plex user {username} is playing a movie but not authorized for poster updates.")
                             else:
                                 logger.debug(f"Plex user {session.usernames[0] if session.usernames else 'Unknown'} is playing non-movie content. Ignoring.")
 

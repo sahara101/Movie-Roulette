@@ -1,7 +1,7 @@
 let currentFilters = {
-    genre: '',
-    year: '',
-    pgRating: ''
+    genres: [],
+    years: [],
+    pgRatings: []
 };
 
 let currentService = 'plex';
@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadFilterOptions();
     setupEventListeners();
     checkAndLoadCache();
+    checkPowerButtonVisibility();
 });
 
 function showLoadingOverlay() {
@@ -172,14 +173,23 @@ function setupEventListeners() {
     }
 }
 
-async function applyFilter() {
-    currentFilters.genre = document.getElementById("genreSelect").value;
-    currentFilters.year = document.getElementById("yearSelect").value;
-    currentFilters.pgRating = document.getElementById("pgRatingSelect").value;
+function applyFilter() {
+    currentFilters.genres = Array.from(document.getElementById("genreSelect").selectedOptions).map(option => option.value);
+    currentFilters.years = Array.from(document.getElementById("yearSelect").selectedOptions).map(option => option.value);
+    currentFilters.pgRatings = Array.from(document.getElementById("pgRatingSelect").selectedOptions).map(option => option.value);
 
+    fetchFilteredMovies();
+}
+
+async function fetchFilteredMovies() {
     try {
-        const response = await fetch(`/filter_movies?genre=${encodeURIComponent(currentFilters.genre)}&year=${currentFilters.year}&pg_rating=${encodeURIComponent(currentFilters.pgRating)}`);
-        
+        const queryParams = new URLSearchParams();
+        if (currentFilters.genres.length) queryParams.append('genres', currentFilters.genres.join(','));
+        if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
+        if (currentFilters.pgRatings.length) queryParams.append('pg_ratings', currentFilters.pgRatings.join(','));
+
+        const response = await fetch(`/filter_movies?${queryParams}`);
+
         if (response.status === 204) {
             showNoMoviesMessage();
             return;
@@ -200,6 +210,47 @@ async function applyFilter() {
     }
 }
 
+function clearFilter() {
+    document.getElementById("genreSelect").selectedIndex = -1;
+    document.getElementById("yearSelect").selectedIndex = -1;
+    document.getElementById("pgRatingSelect").selectedIndex = -1;
+    currentFilters = {
+        genres: [],
+        years: [],
+        pgRatings: []
+    };
+    hideMessage();
+    loadRandomMovie();
+    document.getElementById("filterDropdown").classList.remove("show");
+}
+
+async function loadNextMovie() {
+    try {
+        const queryParams = new URLSearchParams();
+        if (currentFilters.genres.length) queryParams.append('genres', currentFilters.genres.join(','));
+        if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
+        if (currentFilters.pgRatings.length) queryParams.append('pg_ratings', currentFilters.pgRatings.join(','));
+
+        const url = `/next_movie?${queryParams}`;
+        console.log("Requesting next movie with URL:", url);
+        const response = await fetch(url);
+
+        if (response.status === 204) {
+            showNoMoviesMessage();
+            return;
+        }
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log("Loaded next movie from service:", data.service);
+        currentMovie = data.movie;
+        updateMovieDisplay(data.movie);
+    } catch (error) {
+        console.error("Error fetching next movie:", error);
+        showErrorMessage(error.message);
+    }
+}
 
 function showMessage() {
     document.getElementById("movieContent").classList.add("hidden");
@@ -233,44 +284,6 @@ function showErrorMessage(message) {
         </div>
     `;
     showMessage();
-}
-
-function clearFilter() {
-    document.getElementById("genreSelect").value = '';
-    document.getElementById("yearSelect").value = '';
-    document.getElementById("pgRatingSelect").value = '';
-    currentFilters = {
-        genre: '',
-        year: '',
-        pgRating: ''
-    };
-    hideMessage();
-    loadRandomMovie();
-    document.getElementById("filterDropdown").classList.remove("show");
-}
-
-async function loadNextMovie() {
-    try {
-        let url = `/next_movie`;
-        if (currentFilters.genre || currentFilters.year || currentFilters.pgRating) {
-            url += `?genre=${encodeURIComponent(currentFilters.genre || '')}&year=${currentFilters.year || ''}&pg_rating=${encodeURIComponent(currentFilters.pgRating || '')}`;
-        }
-        const response = await fetch(url);
-        if (response.status === 204) {
-            showNoMoviesMessage();
-            return;
-        }
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        console.log("Loaded next movie from service:", data.service);
-        currentMovie = data.movie;
-        updateMovieDisplay(data.movie);
-    } catch (error) {
-        console.error("Error fetching next movie:", error);
-        showErrorMessage(error.message);
-    }
 }
 
 function updateMovieDisplay(movieData) {
@@ -374,7 +387,7 @@ function setupDescriptionExpander() {
     function checkTruncation() {
         description.style.webkitLineClamp = '4';
         description.style.display = '-webkit-box';
-        
+
         if (description.scrollHeight > description.clientHeight) {
             description.classList.add('truncated');
             description.style.cursor = 'pointer';
@@ -515,6 +528,21 @@ function updateServiceButton() {
         } else {
             switchButton.style.display = 'none';
         }
+    }
+}
+
+function checkPowerButtonVisibility() {
+    const powerButton = document.getElementById("btn_power");
+    if (powerButton) {
+        fetch('/devices')
+            .then(response => response.json())
+            .then(devices => {
+                powerButton.style.display = devices.length > 0 ? 'flex' : 'none';
+            })
+            .catch(error => {
+                console.error("Error checking devices:", error);
+                powerButton.style.display = 'none';
+            });
     }
 }
 
