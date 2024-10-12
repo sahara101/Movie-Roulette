@@ -1,3 +1,4 @@
+static/style/style.css
 body {
   margin: 0;
   padding: 0;
@@ -584,14 +585,14 @@ main {
 /* PWA specific styles */
 @media all and (display-mode: standalone) and (max-width: 767px) {
   body {
-    padding-top: 0; 
+    padding-top: 0;
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
 
   #section {
-    padding-top: env(safe-area-inset-top); 
+    padding-top: env(safe-area-inset-top);
   }
 
   .filter-container {
