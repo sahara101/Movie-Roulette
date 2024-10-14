@@ -36,6 +36,11 @@ PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv(
 JELLYFIN_AVAILABLE = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
 HOMEPAGE_MODE = os.getenv('HOMEPAGE_MODE', 'FALSE').upper() == 'TRUE'
 
+USE_LINKS = os.getenv('USE_LINKS', 'TRUE').upper() == 'TRUE'
+USE_FILTER = os.getenv('USE_FILTER', 'TRUE').upper() == 'TRUE'
+USE_WATCH_BUTTON = os.getenv('USE_WATCH_BUTTON', 'TRUE').upper() == 'TRUE'
+USE_NEXT_BUTTON = os.getenv('USE_NEXT_BUTTON', 'TRUE').upper() == 'TRUE'
+
 if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
     raise EnvironmentError("At least one service (Plex or Jellyfin) must be configured.")
 
@@ -110,7 +115,14 @@ def initialize_cache():
 
 @app.route('/')
 def index():
-    return render_template('index.html', homepage_mode=HOMEPAGE_MODE)
+    return render_template(
+        'index.html',
+        homepage_mode=HOMEPAGE_MODE,
+        use_links=USE_LINKS,
+        use_filter=USE_FILTER,
+        use_watch_button=USE_WATCH_BUTTON,
+        use_next_button=USE_NEXT_BUTTON
+    )
 
 @app.route('/start_loading')
 def start_loading():

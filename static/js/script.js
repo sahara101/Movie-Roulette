@@ -7,13 +7,22 @@ let currentFilters = {
 let currentService = 'plex';
 let currentMovie = null;
 let availableServices = [];
-let socket = io();
+let socket = io({
+    transports: ['polling'],  // Restrict to polling transport
+    // secure: true,          // Optional: Use if serving over HTTPS
+    reconnectionAttempts: 5,  // Optional: Limit reconnection attempts
+});
 
 document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
     await getCurrentService();
     await loadRandomMovie();
-    await loadFilterOptions();
+    if (!window.HOMEPAGE_MODE) {
+        if (window.USE_FILTER) {
+            await loadFilterOptions();
+            setupFilterEventListeners();
+        }
+    }
     setupEventListeners();
     checkAndLoadCache();
     checkPowerButtonVisibility();
@@ -141,6 +150,41 @@ function populateDropdown(elementId, options) {
 }
 
 function setupEventListeners() {
+    if (!window.HOMEPAGE_MODE) {
+        if (window.USE_WATCH_BUTTON) {
+            const watchButton = document.getElementById("btn_watch");
+            if (watchButton) {
+                watchButton.addEventListener('click', showClients);
+            }
+        }
+
+        if (window.USE_NEXT_BUTTON) {
+            const nextButton = document.getElementById("btn_next_movie");
+            if (nextButton) {
+                nextButton.addEventListener('click', loadNextMovie);
+            }
+        }
+
+        const powerButton = document.getElementById("btn_power");
+        if (powerButton) {
+            powerButton.addEventListener('click', showDevices);
+        }
+
+        const trailerClose = document.getElementById("trailer_popup_close");
+        if (trailerClose) {
+            trailerClose.addEventListener('click', closeTrailerPopup);
+        }
+
+        const switchServiceButton = document.getElementById("switch_service");
+        if (switchServiceButton) {
+            switchServiceButton.addEventListener('click', switchService);
+        }
+    }
+}
+
+function setupFilterEventListeners() {
+    if (!window.USE_FILTER) return;
+
     const filterButton = document.getElementById("filterButton");
     const filterDropdown = document.getElementById("filterDropdown");
 
@@ -160,16 +204,15 @@ function setupEventListeners() {
             event.stopPropagation();
         });
 
-        document.getElementById("applyFilter").addEventListener('click', applyFilter);
-        document.getElementById("clearFilter").addEventListener('click', clearFilter);
-    }
+        const applyFilterBtn = document.getElementById("applyFilter");
+        if (applyFilterBtn) {
+            applyFilterBtn.addEventListener('click', applyFilter);
+        }
 
-    if (!window.HOMEPAGE_MODE) {
-        document.getElementById("btn_watch").addEventListener('click', showClients);
-        document.getElementById("btn_next_movie").addEventListener('click', loadNextMovie);
-        document.getElementById("btn_power").addEventListener('click', showDevices);
-        document.getElementById("trailer_popup_close").addEventListener('click', closeTrailerPopup);
-        document.getElementById("switch_service").addEventListener('click', switchService);
+        const clearFilterBtn = document.getElementById("clearFilter");
+        if (clearFilterBtn) {
+            clearFilterBtn.addEventListener('click', clearFilter);
+        }
     }
 }
 
@@ -308,7 +351,7 @@ function updateMovieDisplay(movieData) {
         "img_background": document.getElementById("img_background"),
     };
 
-    if (!window.HOMEPAGE_MODE) {
+    if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
         elements["tmdb_link"] = document.getElementById("tmdb_link");
         elements["trakt_link"] = document.getElementById("trakt_link");
         elements["imdb_link"] = document.getElementById("imdb_link");
@@ -356,7 +399,7 @@ function updateMovieDisplay(movieData) {
         }
     }
 
-    if (!window.HOMEPAGE_MODE) {
+    if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
         elements["tmdb_link"].href = movieData.tmdb_url;
         elements["trakt_link"].href = movieData.trakt_url;
         elements["imdb_link"].href = movieData.imdb_url;
