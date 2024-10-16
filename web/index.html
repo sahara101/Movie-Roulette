@@ -34,6 +34,7 @@
         </div>
 
         <section id="section">
+	    {% if not homepage_mode and use_filter %}
             <div class="filter-container">
                 <button id="filterButton" class="filter-button" aria-label="Filter">
                     <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -57,6 +58,7 @@
                     <button id="clearFilter">Clear Filter</button>
                 </div>
             </div>
+	    {% endif %}
 
             <div id="movieContent">
                 <div class="movie_poster">
@@ -70,7 +72,7 @@
                     <p id="actors"></p>
                     <p id="genres"></p>
                     <p id="description"></p>
-                    {% if not homepage_mode %}
+		    {% if not homepage_mode and use_links %}
                     <div class="logo-container">
                         <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
                         <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
@@ -82,12 +84,17 @@
 
                 {% if not homepage_mode %}
                 <div class="button_container">
+	            {% if use_watch_button %}
                     <button id="btn_watch" class="button">WATCH</button>
+		    {% endif %}
+
+		    {% if use_next_button %}
                     <button id="btn_next_movie" class="button">
                       <svg width="24" height="24" viewBox="0 0 24 24">
                         <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
                       </svg>
                     </button>
+                    {% endif %}
                     <button id="btn_power" class="button">
                       <svg width="24" height="24" viewBox="0 0 24 24">
                         <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
@@ -144,7 +151,7 @@
 
     {% if not homepage_mode %}
     <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-     <div class="version-label">v2.1</div>
+     <div class="version-label">v2.1.1</div>
     </a>
     {% endif %}
 
@@ -152,6 +159,10 @@
     <script type="text/javascript" src="/js/script.js"></script>
     <script>
         window.HOMEPAGE_MODE = {{ 'true' if homepage_mode else 'false' }};
+	window.USE_LINKS = {{ 'true' if use_links else 'false' }};
+    	window.USE_FILTER = {{ 'true' if use_filter else 'false' }};
+    	window.USE_WATCH_BUTTON = {{ 'true' if use_watch_button else 'false' }};
+    	window.USE_NEXT_BUTTON = {{ 'true' if use_next_button else 'false' }};
     </script>
     <script>
       if ('serviceWorker' in navigator) {
