@@ -78,7 +78,12 @@ services:
       #Client ENV
       APPLE_TV_ID: " " 
       LGTV_IP: " " 
-      LGTV_MAC: " "      
+      LGTV_MAC: " "
+      #Miscellaneous
+      USE_LINKS: TRUE
+      USE_FILTER: TRUE
+      USE_WATCH_BUTTON: TRUE
+      USE_NEXT_BUTTON: TRUE
     network_mode: host
     volumes:
       - ./movie_roulette_data:/app/data
@@ -95,7 +100,7 @@ The power button displays the devices dynamically, meaning you HAVE to add the `
 A switch between services is displayed if both ```Jellyfin``` and ```Plex``` are configured. Last used service will be remembered. 
 
 # Homepage Mode
-Added the option to remove all buttons except Filter. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MODE: TRUE` Of course you can use the iFrame with full functionality as well, just change the ENV then to `HOMEPAGE_MODE: FALSE`
+Added the option to remove all buttons. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MODE: TRUE` Of course you can use the iFrame with full functionality as well, or even pick and choose from the miscellaneous part. Just change the ENV to `HOMEPAGE_MODE: FALSE` or modify `#Miscellaneous`.
 
 Add the following config to the Homepage services.yml
 ```
