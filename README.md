@@ -1,11 +1,7 @@
-![Logo](https://github.com/user-attachments/assets/344cc196-a0a9-4c7c-ac76-be2bfa1a0c15)
-
 Forked from https://github.com/Akasiek/Random-Plex-Movie
 
 # Movie Roulette
-Docker container which chooses a random movie from your Plex and/or Jellyfin movie libraries. Cinema Posters function added.
-
-# Breaking change v1.6.1 - v2.0 check new compose file
+Docker container which chooses a random movie from your Plex and/or Jellyfin movie library. 
 
 # Tested Players 
 ## Plex
@@ -18,33 +14,21 @@ Docker container which chooses a random movie from your Plex and/or Jellyfin mov
 - All cast capable devices
 
 # Functions
-- Use as a [Homepage](https://gethomepage.dev/main/) widget for simple movie recommandation. 
 - Fetch Random unwatched movies from Plex and/or Jellyfin server.
-- Filter by genre, year, and/or PG rating. Filters show data only from existing movies.
+- Filter by genre, year, and/or rating. Genre and years display only existing movies.
 - See movie info.
 - URLs to TMDB, Trakt and IMDB.
 - Trailers on Youtube.
 - Play movie on above tested players.
 - Turn on Apple TV and LGTV ((webOS) directly in Plex or Jellyfin app).
 - PWA support.
-- Seamless switch between the two services.
-- Cinema Posters using the Plex/Jellyfin movie posters with playing status, start/end time, progress bar and PG/Audio/Video information. See info below!!
-- Default poster with configurable text. See info below!!
+- Seamless switch between the two services. 
 
-<img width="1728" alt="image" src="https://github.com/user-attachments/assets/163936e1-a112-483c-8977-6ac260f94619">
+<img width="1728" alt="image" src="https://github.com/user-attachments/assets/7181ebc1-b909-4e7a-b7e0-a30472515c82">
 <img width="1727" alt="image" src="https://github.com/user-attachments/assets/ff5b33f4-d632-41e3-a4a2-1dc33ef2eff6">
 
-HOMEPAGE MODE
-
-<img width="905" alt="image" src="https://github.com/user-attachments/assets/b086dafd-9a4d-4e81-b9ad-9592631b7a90">
-
-Cinema Poster
-
-<img width="617" alt="image" src="https://github.com/user-attachments/assets/03abe6d0-ac9d-436a-9025-6c6d24ed92b3">
-<img width="683" alt="image" src="https://github.com/user-attachments/assets/a112eaa6-7e30-47bf-a1c7-b077f808ffb8">
-
 # DISCLAIMER
-I am no programmer! Code is expanded with help of ChatGPT a bit and mostly ClaudeAI. Feel free to modify the code as you please. Also, open to criticism ;)
+I am no programmer! Code is expanded with help of ChatGPT. Feel free to modify the code as you please. Also open to criticism ;)
 
 # docker-compose.yml
 How to get the Plex token: https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
@@ -56,78 +40,38 @@ How to get the Jellyfin UserID: Profile - check the URL - copy the userId string
 
 ```
 services:
-  movie-roulette:
+  plex-random-movie:
     image: ghcr.io/sahara101/movie-roulette:latest
-    container_name: movie-roulette
+
     environment:
-      #Homepage ENV
-      HOMEPAGE_MODE: "FALSE"
-      #Plex ENV
-      PLEX_URL: ""
-      PLEX_TOKEN: ""
-      PLEX_MOVIE_LIBRARIES: "Filme" #Default movies, add more with comma delimiter A,B,C
-      #Poster ENV
-      TZ: "Europe/Bucharest"
-      DEFAULT_POSTER_TEXT: "My Cool Cinema"
-      PLEX_POSTER_USERS: "" #Plex username, add more with comma delimiter A,B,C
-      JELLYFIN_POSTER_USERS: "" #Jellyfin username, add more with comma delimiter A,B,C
-      #Jellyfin ENV
-      JELLYFIN_URL: " "
-      JELLYFIN_API_KEY: " "
-      JELLYFIN_USER_ID: " "
-      #Client ENV
-      APPLE_TV_ID: " " 
-      LGTV_IP: " " 
-      LGTV_MAC: " "      
+      PLEX_URL: "Your-Plex-URL" #FQDN preferred. Do not use if you only want Jellyfin function.
+      PLEX_TOKEN: "TOKEN" #Do not use if you only want Jellyfin function.
+      MOVIES_LIBRARY_NAME: 'Filme' #Option for Plex. Default 'Movies'. Used for IMDB, Trakt and TMDB links. Do not use if you only want Jellyfin function.
+      JELLYFIN_URL: "Your-Jellyfin-URL" #Do not use if you only want Plex function.
+      JELLYFIN_API_KEY: "API" #Do not use if you only want Plex function.
+      JELLYFIN_USER_ID: "USERID" #Do not use if you only want Plex function.
+      APPLE_TV_ID: "ID" #Optional
+      LGTV_IP: "IP" #Optional
+      LGTV_MAC: "MAC_Address" #Optional
+      
     network_mode: host
-    volumes:
-      - ./movie_roulette_data:/app/data
     restart: unless-stopped
 ```
-If you do not have an Apple TV you can  also change the container network type. 
+If you do not have an Apple TV you can  also change network host mode to use other external port.
 
 Default container port is 4000
-
-Posters are under :4000/poster
 
 The power button displays the devices dynamically, meaning you HAVE to add the ```APPLE_TV_ID``` ENV in order to see the corresponding button and both ```LGTV_IP``` and ```LGTV_MAC``` for LG.
 
 A switch between services is displayed if both ```Jellyfin``` and ```Plex``` are configured. Last used service will be remembered. 
 
-# Homepage Mode
-Added the option to remove all buttons except Filter. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MODE: TRUE` Of course you can use the iFrame with full functionality as well, just change the ENV then to `HOMEPAGE_MODE: FALSE`
-
-Add the following config to the Homepage services.yml
-```
-- Movie Roulette:
-    - Movie Roulette:
-        icon: /images/icons/movie-roulette.png
-        widget:
-          type: iframe
-          src: "<url>"
-          classes: movie-roulette # optional, use tailwind height classes
-          referrerPolicy: same-origin # optional, no default
-          allowPolicy: autoplay; fullscreen; gamepad # optional, no default
-```
-
-custom.css
-```
-.movie-roulette {
-    width: 100%;
-    height: 380px; /* Set your desired height here */
-    border: none; /* Optional: remove the border */
-  }
-```
-You can configure the widget to your liking, check the Homepage documentation. 
-
 # PWA Support
 Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button.
 
-![image](https://github.com/user-attachments/assets/82bba616-9de0-4098-998e-78b77d2fd931)
+![image](https://github.com/user-attachments/assets/ffb29414-8886-4376-952c-2949af401b68)
 
 # First Use 
 !important! - Your client devices and plex need to be in the same network.
-On the first start a cache file for plex will be created which will make the movies load faster.
 ## Plex Client Config
 
 Navigate to settings and set 'Advertise as player' to 'On'
@@ -157,34 +101,23 @@ atvremote --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx --protocol companion pair
 Enter PIN on screen: 
 Pairing seems to have succeeded, yey!
 ```
-# LGTV (WebOS)
+# LGTV (WebOS
 Get the TV IP and MAC and set them up in the ENV. You can see both in the TV settings. If you want to copy the MAC just ping the TV followed by the linux command ```ip neigh show```
 
 Press the ```TURN ON DEVICE``` button and select your ```LGTV (webOS)```. A magic packet will be sent and the TV will turn on. Accept the new connection. This will store the connection details in the container. 
-
-# Cinema Posters 
-Playing a movie through movie roulette and also outside movie roulette from Plex/Jellyfin clients will show the movie poster with playing status, start/end time, progress bar and PG/Audio/Video information. Poster is to be found under :4000/poster URL.
-
-Playing statuses are the following: NOW PLAYING, PAUSED, ENDED and STOPPED.
-
-After a 5 minute timeout in STOPPED state a default poster will be shown. You can choose what text is displayed. I tested with max 3 words.
-
-It is recommended to set the browser in full-screen mode.
-
-!!IMPORTANT: I do not have a vertical monitor so could NOT test how the default and movie posters behave. It works for me on my laptop in landscape and on my tablet in landscape and portrait.
 
 # Troubleshooting
 ## Plex
 Issue: Pressing the WATCH button does not show any client.
 
-- Plex: Check the above Plex and Plex client config. Restart your client.
+- Plex: Check above Plex and Plex client config. Restart your client.
 - If Plex API does not find any players, neither will this App. You can get a list of active clients using:
 ```
 curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN"
 ```
 - (Apple TV) Plex Apple TV is buggy and often it forgets it has the ```Advertise as player``` option active. You will need to deactivate it, force close the app, start the app and activate the option again, restart Plex app.
 - (Apple TV) You will need to deactivate the option, logoff and force close the app. Start the app, skip login and activate the option. Then you can login back. 
-## Jellyfin
+## Jellfin
 - Jellyfin: The client you expect does not support cast.
 
 # General
@@ -197,6 +130,6 @@ Issue: Apple TV does not turn on
 
 - You need to re-pair. This needs to be done each time you recreate the container.
 
-Issue: The browser does not load the poster and background.
+Issue: Browser does not load the poster and background.
 
 - You are probably using RPM with a reverse proxy URL but configured the container with the Plex/Jellyin IP. Change the ENV to Plex/Jellyfin FQDN.

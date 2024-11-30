@@ -10,15 +10,19 @@ const audioFormatElement = document.getElementById('audio-format');
 const customTextContainer = document.getElementById('custom-text-container');
 const customText = document.getElementById('custom-text');
 
-let startTime;
-let currentStatus = 'UNKNOWN'; // Track current status
+// Get the initial movie data from the template
+const initialStartTime = startTimeFromServer || null;  // This will be set from the template
+let startTime = initialStartTime;
+let currentStatus = 'UNKNOWN';
 let playbackInterval;
+let configuredTimezone;
 
 // Socket.IO connection
 const socket = io('/poster');
 
 socket.on('connect', function() {
     console.log('Connected to WebSocket');
+    fetchTimezoneConfig();
 });
 
 socket.on('movie_changed', function(data) {
@@ -36,6 +40,37 @@ socket.on('set_default_poster', function(data) {
     clearMovieInfo();
 });
 
+socket.on('settings_updated', function(data) {
+    console.log('Settings updated:', data);
+
+    if (data.timezone !== configuredTimezone) {
+        console.log('Timezone changed from', configuredTimezone, 'to', data.timezone);
+        configuredTimezone = data.timezone;
+
+        // If we have an active movie
+        if (!isDefaultPoster && movieId) {
+            // Refresh playback state which will update all times
+            fetchPlaybackState();
+        } else {
+            // For default poster, just reload the page
+            location.reload();
+        }
+    }
+});
+
+function fetchTimezoneConfig() {
+    fetch('/poster_settings')
+        .then(response => response.json())
+        .then(data => {
+            configuredTimezone = data.timezone;
+            console.log('Configured timezone:', configuredTimezone);
+            if (startTime && !isDefaultPoster) {
+                updateTimes(startTime, 0, currentStatus);
+            }
+        })
+        .catch(error => console.error('Error fetching timezone config:', error));
+}
+
 function updatePosterDisplay() {
     if (isDefaultPoster) {
         posterContainer.classList.add('default-poster');
@@ -50,11 +85,10 @@ function updatePosterDisplay() {
 function adjustCustomText() {
     const container = customTextContainer;
     const textElement = customText;
-    let fontSize = 100; // Start with a large font size
+    let fontSize = 100;
 
     textElement.style.fontSize = fontSize + 'px';
 
-    // Reduce font size until text fits within the container
     while ((textElement.scrollWidth > container.clientWidth || textElement.scrollHeight > container.clientHeight) && fontSize > 10) {
         fontSize -= 1;
         textElement.style.fontSize = fontSize + 'px';
@@ -69,8 +103,12 @@ function updatePoster(movieData) {
     contentRatingElement.textContent = movieData.movie.contentRating;
     videoFormatElement.textContent = movieData.movie.videoFormat;
     audioFormatElement.textContent = movieData.movie.audioFormat;
-    startTime = new Date(movieData.start_time);
-    updateTimes(movieData.start_time, 0, 'PLAYING'); // Assume status is PLAYING initially
+    
+    // Store the original ISO string with timezone
+    startTime = movieData.start_time;
+    console.log('Setting initial start time:', startTime);
+    
+    updateTimes(startTime, 0, 'PLAYING');
     updatePlaybackStatus('playing');
     clearInterval(playbackInterval);
     playbackInterval = setInterval(fetchPlaybackState, 2000);
@@ -87,6 +125,7 @@ function clearMovieInfo() {
     endTimeElement.textContent = '--:--';
     progressBar.style.width = '0%';
     clearInterval(playbackInterval);
+    startTime = null;  // Clear the start time
 }
 
 function updateProgress(position) {
@@ -98,24 +137,56 @@ function updateProgress(position) {
     }
 }
 
+function formatDateToTime(isoString) {
+    if (!configuredTimezone || !isoString) return '--:--';
+    
+    try {
+        const date = new Date(isoString);
+        console.log('Formatting date:', isoString, 'in timezone:', configuredTimezone);
+        
+        return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: configuredTimezone
+        }).replace(/\s*(AM|PM)/, ' $1');
+    } catch (e) {
+        console.error('Error formatting time:', e);
+        return '--:--';
+    }
+}
+
 function updateTimes(start, position, status) {
-    if (status === 'STOPPED') {
+    if (status === 'STOPPED' || !start) {
         startTimeElement.textContent = '--:--';
         endTimeElement.textContent = '--:--';
         return;
     }
 
-    const formatTime = (time) => new Date(time).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit', hour12: true}).replace('am', 'AM').replace('pm', 'PM');
+    // Format start time
+    startTimeElement.textContent = formatDateToTime(start);
 
-    if (!startTime) {
-        startTime = new Date(start);
+    // Calculate and format end time
+    try {
+        const startDate = new Date(start);
+        const remainingDuration = movieDuration - position;
+        const currentTime = new Date();
+        let endDate;
+
+        if (status === 'PAUSED') {
+            // When paused, end time is current time + remaining duration
+            endDate = new Date(currentTime.getTime() + (remainingDuration * 1000));
+        } else {
+            // When playing, end time is current time + remaining duration
+            // This ensures we maintain the adjusted end time after resuming
+            endDate = new Date(currentTime.getTime() + (remainingDuration * 1000));
+        }
+        
+        endTimeElement.textContent = formatDateToTime(endDate.toISOString());
+    } catch (e) {
+        console.error('Error calculating end time:', e);
+        endTimeElement.textContent = '--:--';
     }
-    startTimeElement.textContent = formatTime(startTime);
-
-    const currentTime = new Date();
-    const remainingDuration = movieDuration - position;
-    const newEndTime = new Date(currentTime.getTime() + remainingDuration * 1000);
-    endTimeElement.textContent = formatTime(newEndTime);
 }
 
 function updatePlaybackStatus(status) {
@@ -151,8 +222,8 @@ function updatePlaybackStatus(status) {
             currentStatus = 'UNKNOWN';
     }
 
-    // If status is STOPPED, set times to --:--
-    if (currentStatus === 'STOPPED') {
+    // Only clear times if we don't have a valid start time
+    if (currentStatus === 'STOPPED' && !startTime) {
         startTimeElement.textContent = '--:--';
         endTimeElement.textContent = '--:--';
     }
@@ -169,15 +240,16 @@ function fetchPlaybackState() {
                 console.error('Playback state error:', data.error);
                 return;
             }
+            console.log('Received playback state:', data);
             updateProgress(data.position);
             updatePlaybackStatus(data.status);
 
             if (data.status.toUpperCase() === 'STOPPED') {
-                // Set times to --:--
                 startTimeElement.textContent = '--:--';
                 endTimeElement.textContent = '--:--';
             } else {
-                updateTimes(data.start_time, data.position, data.status.toUpperCase());
+                const timeToUse = startTime || data.start_time;
+                updateTimes(timeToUse, data.position, data.status.toUpperCase());
             }
         })
         .catch(error => {
@@ -188,7 +260,9 @@ function fetchPlaybackState() {
                     posterImage.src = data.poster;
                     isDefaultPoster = data.poster === defaultPosterUrl;
                     updatePosterDisplay();
-                    clearMovieInfo();
+                    if (isDefaultPoster) {
+                        clearMovieInfo();
+                    }
                 })
                 .catch(error => console.error('Error fetching current poster:', error));
         });
@@ -196,6 +270,7 @@ function fetchPlaybackState() {
 
 function initialize() {
     updatePosterDisplay();
+    fetchTimezoneConfig();
     if (!isDefaultPoster && movieId) {
         fetchPlaybackState();
         playbackInterval = setInterval(fetchPlaybackState, 2000);

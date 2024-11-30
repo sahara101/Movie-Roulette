@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="orientation" content="portrait">
+    <meta name="screen-orientation" content="portrait">	
 
     <title>Movie Roulette</title>
 
@@ -21,19 +23,25 @@
     <script>iosPWASplash('/static/icons/icon.png', '#222222');</script>
 </head>
 
-<body>
-
+<body{% if homepage_mode %} class="homepage-mode"{% endif %}>
+<script>
+    if (window !== window.parent) {
+        document.body.classList.add('in-iframe');
+    }
+</script>
     <main>
         <div id="loading-overlay" class="hidden">
-            <div id="loading-content">
-                <h2>Loading Unwatched Movies</h2>
-                <div id="loading-bar-container">
-                    <div id="loading-progress"></div>
+            <div id="loading-content" class="custom-loading">
+		<h2>Building Movie Library Cache</h2>
+		<div class="loading-text">Loading movies: <span class="loading-count">0/0</span></div>
+		<div id="loading-bar-container">
+		    <div id="loading-progress"></div>
                 </div>
             </div>
         </div>
 
         <section id="section">
+            {% if not homepage_mode and use_filter %}
             <div class="filter-container">
                 <button id="filterButton" class="filter-button" aria-label="Filter">
                     <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -43,20 +51,21 @@
                 <div id="filterDropdown" class="filter-dropdown">
                     <div class="filter-option">
                         <label for="genreSelect">Genre:</label>
-			<select id="genreSelect" multiple></select>
+                        <select id="genreSelect" multiple></select>
                     </div>
                     <div class="filter-option">
                         <label for="yearSelect">Year:</label>
-			<select id="yearSelect" multiple></select>
+                        <select id="yearSelect" multiple></select>
                     </div>
                     <div class="filter-option">
                         <label for="pgRatingSelect">PG Rating:</label>
-			<select id="pgRatingSelect" multiple></select>
+                        <select id="pgRatingSelect" multiple></select>
                     </div>
                     <button id="applyFilter">Apply Filter</button>
                     <button id="clearFilter">Clear Filter</button>
                 </div>
             </div>
+            {% endif %}
 
             <div id="movieContent">
                 <div class="movie_poster">
@@ -70,7 +79,7 @@
                     <p id="actors"></p>
                     <p id="genres"></p>
                     <p id="description"></p>
-                    {% if not homepage_mode %}
+                    {% if not homepage_mode and use_links %}
                     <div class="logo-container">
                         <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
                         <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
@@ -82,25 +91,46 @@
 
                 {% if not homepage_mode %}
                 <div class="button_container">
+                    {% if use_watch_button %}
                     <button id="btn_watch" class="button">WATCH</button>
+                    {% endif %}
+
+                    {% if use_next_button %}
                     <button id="btn_next_movie" class="button">
-                      <svg width="24" height="24" viewBox="0 0 24 24">
-                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
-                      </svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
+                        </svg>
                     </button>
+                    {% endif %}
                     <button id="btn_power" class="button">
-                      <svg width="24" height="24" viewBox="0 0 24 24">
-                        <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
-                      </svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
+                        </svg>
                     </button>
                     <button id="switch_service" class="button">
-                      <span class="service-name"></span>
-                      <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
-                        <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
-                      </svg>
+                        <span class="service-name"></span>
+                        <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+                        </svg>
                     </button>
                 </div>
                 {% endif %}
+
+                <div id="movies_overlay" class="hidden">
+                    <div id="movies_overlay_content">
+                        <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                            </svg>
+                        </button>
+			<div id="overlay_title">Movies by Person</div>
+    			<div id="movies_container"></div>
+                    </div>
+                </div>
+
+                <div id="movie_data_overlay" class="hidden">
+                    <div id="movie_data_overlay_content"></div>
+                </div>
 
                 <div id="img_background"></div>
             </div>
@@ -111,58 +141,71 @@
         </section>
 
         <div id="client_prompt" class="hidden">
-            <div id="client_prompt_close" onclick="closeClientPrompt()"><svg xmlns="http://www.w3.org/2000/svg"
-                    width="42" height="42" viewBox="0 0 24 24">
-                    <path
-                        d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg></div>
-
+            <div id="client_prompt_close" onclick="closeClientPrompt()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
+                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                </svg>
+            </div>
             <div id="container_list_of_clients">
                 <div id="list_of_clients"></div>
             </div>
         </div>
 
         <div id="device_prompt" class="hidden">
-            <div id="device_prompt_close" onclick="closeDevicePrompt()"><svg xmlns="http://www.w3.org/2000/svg"
-                    width="42" height="42" viewBox="0 0 24 24">
+            <div id="device_prompt_close" onclick="closeDevicePrompt()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
                     <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg></div>
+                </svg>
+            </div>
             <div id="container_list_of_devices">
                 <div id="list_of_devices"></div>
             </div>
         </div>
 
         <div id="trailer_popup" class="hidden">
-            <div id="trailer_popup_close"><svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
-                    <path
-                        d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg></div>
-                <iframe id="trailer_iframe" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+            <div id="trailer_popup_close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
+                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                </svg>
+            </div>
+            <iframe id="trailer_iframe" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
         </div>
+
+	<div id="person_details_overlay" class="hidden">
+    	    <div class="person-details-content">
+        	<!-- Content will be inserted here dynamically -->
+    	    </div>
+	</div>
 
     </main>
 
-    {% if not homepage_mode %}
-    <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-     <div class="version-label">v2.1</div>
-    </a>
-    {% endif %}
+    <nav class="main-nav">
+        <div class="nav-links">
+            <a href="/" class="nav-link active">Movies</a>
+	    <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
+            <a href="/settings" class="nav-link">Settings</a>
+        </div>
+    </nav>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script type="text/javascript" src="/js/script.js"></script>
     <script>
         window.HOMEPAGE_MODE = {{ 'true' if homepage_mode else 'false' }};
+        window.USE_LINKS = {{ 'true' if use_links else 'false' }};
+        window.USE_FILTER = {{ 'true' if use_filter else 'false' }};
+        window.USE_WATCH_BUTTON = {{ 'true' if use_watch_button else 'false' }};
+        window.USE_NEXT_BUTTON = {{ 'true' if use_next_button else 'false' }};
     </script>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/js/service-worker.js').then((registration) => {
-            console.log('ServiceWorker registration successful with scope: ', registration.scope);
-          }, (error) => {
-            console.log('ServiceWorker registration failed: ', error);
-          });
-        });
-      }
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/service-worker.js').then((registration) => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, (error) => {
+                    console.log('ServiceWorker registration failed: ', error);
+                });
+            });
+        }
     </script>
 </body>
 

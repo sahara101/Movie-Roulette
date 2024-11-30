@@ -17,23 +17,67 @@ class PlaybackMonitor(threading.Thread):
         self.interval = interval
         self.jellyfin_service = None
         self.plex_service = None
-        self.jellyfin_available = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
-        self.plex_available = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('PLEX_MOVIE_LIBRARIES')])
         
+        # Get settings instead of checking ENV directly
+        from utils.settings import settings
+        plex_settings = settings.get('plex', {})
+        jellyfin_settings = settings.get('jellyfin', {})
+
+        # Check for both settings and ENV availability
+        self.plex_available = (
+            bool(plex_settings.get('enabled')) or
+            all([
+                os.getenv('PLEX_URL'),
+                os.getenv('PLEX_TOKEN'),
+                os.getenv('PLEX_MOVIE_LIBRARIES')
+            ])
+        )
+
+        self.jellyfin_available = (
+            bool(jellyfin_settings.get('enabled')) or
+            all([
+                os.getenv('JELLYFIN_URL'),
+                os.getenv('JELLYFIN_API_KEY'),
+                os.getenv('JELLYFIN_USER_ID')
+            ])
+        )
+
+        # Get services from app config
         if self.jellyfin_available:
-            self.jellyfin_service = JellyfinService()
-        if self.plex_available and 'PLEX_SERVICE' in app.config:
-            self.plex_service = app.config['PLEX_SERVICE']
-        
+            self.jellyfin_service = app.config.get('JELLYFIN_SERVICE')
+            if not self.jellyfin_service:
+                logger.warning("Jellyfin marked as available but service not found in app config")
+                self.jellyfin_available = False
+
+        if self.plex_available:
+            self.plex_service = app.config.get('PLEX_SERVICE')
+            if not self.plex_service:
+                logger.warning("Plex marked as available but service not found in app config")
+                self.plex_available = False
+
         self.current_movie_id = None
         self.running = True
         self.app = app
-        self.plex_poster_users = os.getenv('PLEX_POSTER_USERS', '').split(',')
-        self.jellyfin_poster_users = os.getenv('JELLYFIN_POSTER_USERS', '').split(',')
-        logger.info(f"Initialized PlaybackMonitor with Plex poster users: {self.plex_poster_users}")
-        logger.info(f"Initialized PlaybackMonitor with Jellyfin poster users: {self.jellyfin_poster_users}")
-        logger.info(f"Jellyfin available: {self.jellyfin_available}")
+
+        # Get poster users from settings
+        features_settings = settings.get('features', {})
+        poster_users = features_settings.get('poster_users', {})
+        
+        self.plex_poster_users = (
+            poster_users.get('plex', []) if isinstance(poster_users.get('plex'), list)
+            else os.getenv('PLEX_POSTER_USERS', '').split(',')
+        )
+        
+        self.jellyfin_poster_users = (
+            poster_users.get('jellyfin', []) if isinstance(poster_users.get('jellyfin'), list)
+            else os.getenv('JELLYFIN_POSTER_USERS', '').split(',')
+        )
+
+        logger.info(f"Initialized PlaybackMonitor with settings:")
         logger.info(f"Plex available: {self.plex_available}")
+        logger.info(f"Jellyfin available: {self.jellyfin_available}")
+        logger.info(f"Plex poster users: {self.plex_poster_users}")
+        logger.info(f"Jellyfin poster users: {self.jellyfin_poster_users}")
 
     def is_poster_user(self, username, service):
         if service == 'plex':

@@ -15,6 +15,7 @@
         let movieId = {{ (movie.id | tojson) if movie else 'null' }};
         let movieDuration = {{ (movie.duration_hours * 3600 + movie.duration_minutes * 60) if movie else 0 }};
         let isDefaultPoster = {{ 'true' if current_poster == url_for('static', filename='images/default_poster.png') else 'false' }};
+	const startTimeFromServer = {{ start_time | tojson if start_time else 'null' }};
     </script>
     <!-- Include external JavaScript file -->
     <script src="{{ url_for('static', filename='js/poster.js') }}" defer></script>

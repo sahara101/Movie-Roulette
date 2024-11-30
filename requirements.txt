@@ -1,7 +1,7 @@
 eel
 plexapi
 configparser
-pyatv
+pyatv==0.15.1
 Flask
 requests
 gunicorn
@@ -9,3 +9,5 @@ pywebostv
 flask-socketio
 eventlet
 pytz
+python-dotenv
+pexpect

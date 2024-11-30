@@ -1,194 +1,699 @@
 import os
 import random
 import logging
+import json
+import time
 import requests
 from plexapi.server import PlexServer
 from datetime import datetime, timedelta
 from utils.poster_view import set_current_movie
+from .settings import settings
+from functools import lru_cache
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PlexService:
-    def __init__(self):
-        self.PLEX_URL = os.getenv('PLEX_URL')
-        self.PLEX_TOKEN = os.getenv('PLEX_TOKEN')
-        self.PLEX_MOVIE_LIBRARIES = os.getenv('PLEX_MOVIE_LIBRARIES', 'Movies').split(',')
-        self.plex = PlexServer(self.PLEX_URL, self.PLEX_TOKEN)
-        self.libraries = [self.plex.library.section(lib.strip()) for lib in self.PLEX_MOVIE_LIBRARIES]
+    _cache_build_in_progress = False
+
+    def __init__(self, url=None, token=None, libraries=None):
+        logger.info("Initializing PlexService")
+        logger.info(f"Parameters - URL: {bool(url)}, Token: {bool(token)}, Libraries: {libraries}")
+
+        # First try settings (from parameters)
+        self.PLEX_URL = url
+        self.PLEX_TOKEN = token
+        self.PLEX_MOVIE_LIBRARIES = libraries if isinstance(libraries, list) else libraries.split(',') if libraries else []
+
+        # Cache file paths
+        self.MOVIES_CACHE_FILE = '/app/data/plex_unwatched_movies.json'
+        self.METADATA_CACHE_FILE = '/app/data/plex_metadata_cache.json'
+
+        # Fallback to ENV variables if needed
+        if not self.PLEX_URL:
+            self.PLEX_URL = os.getenv('PLEX_URL')
+            logger.info("Using ENV for PLEX_URL")
+        if not self.PLEX_TOKEN:
+            self.PLEX_TOKEN = os.getenv('PLEX_TOKEN')
+            logger.info("Using ENV for PLEX_TOKEN")
+        if not self.PLEX_MOVIE_LIBRARIES:
+            self.PLEX_MOVIE_LIBRARIES = os.getenv('PLEX_MOVIE_LIBRARIES', 'Movies').split(',')
+            logger.info("Using ENV for PLEX_MOVIE_LIBRARIES")
+
+        # Validate required fields
+        if not self.PLEX_URL:
+            raise ValueError("Plex URL is required")
+        if not self.PLEX_TOKEN:
+            raise ValueError("Plex token is required")
+        if not self.PLEX_MOVIE_LIBRARIES:
+            raise ValueError("At least one movie library must be specified")
+
+        logger.info(f"Connecting to Plex server at {self.PLEX_URL}")
+        try:
+            self.plex = PlexServer(self.PLEX_URL, self.PLEX_TOKEN)
+            logger.info("Successfully connected to Plex server")
+        except Exception as e:
+            logger.error(f"Failed to connect to Plex server: {e}")
+            raise
+
+        try:
+            self.libraries = []
+            for lib in self.PLEX_MOVIE_LIBRARIES:
+                try:
+                    library = self.plex.library.section(lib.strip())
+                    self.libraries.append(library)
+                    logger.info(f"Successfully added library: {lib}")
+                except Exception as e:
+                    logger.error(f"Failed to add library {lib}: {e}")
+
+            if not self.libraries:
+                raise ValueError("No valid libraries found")
+
+        except Exception as e:
+            logger.error(f"Error initializing libraries: {e}")
+            raise
+
         self.playback_start_times = {}
+        self._metadata_cache = {}
+        self._movies_cache = []
+        self._cache_loaded = False
+        self._initializing_cache = False
 
-    def get_random_movie(self):
-        all_unwatched = []
-        for library in self.libraries:
-            all_unwatched.extend(library.search(unwatched=True))
-        if not all_unwatched:
-            return None
-        chosen_movie = random.choice(all_unwatched)
-        return self.get_movie_data(chosen_movie)
+        # Try to load from disk cache first
+        start_time = time.time()
+        if self._load_from_disk_cache():
+            logger.info(f"Loaded cache from disk in {time.time() - start_time:.2f} seconds")
+            self._cache_loaded = True
+        else:
+            logger.info("Cache will be built asynchronously")
+            self._movies_cache = []
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None):
-        filters = {'unwatched': True}
-        
-        filtered_movies = []
-        for library in self.libraries:
-            movies = library.search(unwatched=True)
+        logger.info("PlexService initialization completed successfully")
+
+    def initialize_cache_async(self, socketio):
+        """Initialize cache asynchronously with progress updates"""
+        if PlexService._cache_build_in_progress:
+            logger.info("Cache build already in progress, skipping")
+            return
+
+        if self._cache_loaded:
+            logger.info("Cache already loaded, skipping build")
+            return
+
+        PlexService._cache_build_in_progress = True
+        try:
+            all_movies = []
+            for library in self.libraries:
+                all_movies.extend(library.search(unwatched=True))
+
+            total_movies = len(all_movies)
+            self._movies_cache = []
+
+            for i, movie in enumerate(all_movies, 1):
+                try:
+                    metadata = self._fetch_metadata(movie.ratingKey)
+                    if metadata:
+                        self._metadata_cache[str(movie.ratingKey)] = metadata
+
+                    movie_data = self._basic_movie_data(movie)
+                    if metadata:
+                        self._enrich_with_metadata(movie_data, metadata)
+                    self._movies_cache.append(movie_data)
+
+                    # Emit progress
+                    progress = i / total_movies
+                    socketio.emit('loading_progress', {
+                        'progress': progress,
+                        'current': i,
+                        'total': total_movies
+                    })
+
+                except Exception as e:
+                    logger.error(f"Error caching movie {movie.title}: {e}")
+
+            self.save_cache_to_disk()
+            self._cache_loaded = True
+            socketio.emit('loading_complete')
+
+        except Exception as e:
+            logger.error(f"Error in cache initialization: {e}")
+        finally:
+            PlexService._cache_build_in_progress = False
+            self._initializing_cache = False
+
+    def _load_from_disk_cache(self):
+        """Try to load cache from disk"""
+        try:
+            if os.path.exists(self.MOVIES_CACHE_FILE) and os.path.exists(self.METADATA_CACHE_FILE):
+                logger.info("Loading cached data from disk...")
+                
+                # Load movies cache
+                with open(self.MOVIES_CACHE_FILE, 'r') as f:
+                    self._movies_cache = json.load(f)
+                
+                # Load metadata cache
+                with open(self.METADATA_CACHE_FILE, 'r') as f:
+                    self._metadata_cache = json.load(f)
+                
+                # Verify cache is still valid
+                if self._verify_cache_validity():
+                    self._cache_loaded = True
+                    logger.info(f"Successfully loaded {len(self._movies_cache)} movies from disk cache")
+                    return True
+                else:
+                    logger.warning("Cache verification failed, will rebuild cache")
+                    self._movies_cache = []
+                    self._metadata_cache = {}
+                    
+        except Exception as e:
+            logger.error(f"Error loading cache from disk: {e}")
+            self._movies_cache = []
+            self._metadata_cache = {}
             
-            for movie in movies:
-                if genres and not any(genre in [g.tag for g in movie.genres] for genre in genres):
-                    continue
-                if years and str(movie.year) not in years:
-                    continue
-                if pg_ratings and movie.contentRating not in pg_ratings:
-                    continue
-                filtered_movies.append(movie)
+        return False
 
-        if filtered_movies:
-            chosen_movie = random.choice(filtered_movies)
-            return self.get_movie_data(chosen_movie)
+    def _verify_cache_validity(self):
+        """Verify cache is still valid by checking unwatched status"""
+        try:
+            if not self._movies_cache:
+                return False
+                
+            # Check a few random movies
+            sample_size = min(5, len(self._movies_cache))
+            sample_movies = random.sample(self._movies_cache, sample_size)
+            
+            for movie in sample_movies:
+                # Check if movie still exists and unwatched status matches
+                movie_found = False
+                for library in self.libraries:
+                    try:
+                        plex_movie = library.fetchItem(int(movie['id']))
+                        if plex_movie and not plex_movie.isWatched:
+                            movie_found = True
+                            break
+                    except:
+                        continue
+                if not movie_found:
+                    return False
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error verifying cache: {e}")
+            return False
+
+    def save_cache_to_disk(self):
+        """Save current cache state to disk"""
+        try:
+            start_time = time.time()
+            # Save movies cache
+            with open(self.MOVIES_CACHE_FILE, 'w') as f:
+                json.dump(self._movies_cache, f)
+                
+            # Save metadata cache
+            with open(self.METADATA_CACHE_FILE, 'w') as f:
+                json.dump(self._metadata_cache, f)
+                
+            logger.info(f"Cache saved to disk successfully in {time.time() - start_time:.2f} seconds")
+        except Exception as e:
+            logger.error(f"Error saving cache to disk: {e}")
+
+    @lru_cache(maxsize=1024)
+    def _get_guid_tmdb_id(self, rating_key):
+        """Cache TMDb ID lookups"""
+        try:
+            movie = self.plex.fetchItem(int(rating_key))
+            for guid in movie.guids:
+                if 'tmdb://' in guid.id:
+                    return guid.id.split('//')[1]
+        except:
+            pass
         return None
 
-    def get_movie_data(self, movie):
-        movie_duration_hours = (movie.duration / (1000 * 60 * 60)) % 24
-        movie_duration_minutes = (movie.duration / (1000 * 60)) % 60
+    def _basic_movie_data(self, movie):
+        """Get basic movie data with optimized caching and attribute collection"""
+        try:
+            # Fast duration calculations
+            duration_ms = movie.duration or 0
+            movie_duration_hours = (duration_ms / (1000 * 60 * 60)) % 24
+            movie_duration_minutes = (duration_ms / (1000 * 60)) % 60
 
-        # Extract video format information
-        video_format = "Unknown"
-        audio_format = "Unknown"
+            # Cache TMDb ID lookup
+            tmdb_id = self._get_guid_tmdb_id(movie.ratingKey)
 
-        # Make an additional API call to get extended metadata
-        metadata_url = f"{self.PLEX_URL}/library/metadata/{movie.ratingKey}?includeChildren=1"
-        headers = {"X-Plex-Token": self.PLEX_TOKEN, "Accept": "application/json"}
-        response = requests.get(metadata_url, headers=headers)
-        if response.status_code == 200:
+            # Use sets for faster attribute collection
+            directors = {director.tag for director in movie.directors} if hasattr(movie, 'directors') else set()
+            writers = {writer.tag for writer in movie.writers} if hasattr(movie, 'writers') else set()
+            actors = {role.tag for role in movie.roles} if hasattr(movie, 'roles') else set()
+            genres = {genre.tag for genre in movie.genres} if hasattr(movie, 'genres') else set()
+
+            # Base movie data with optimized structure
+            movie_data = {
+                "id": movie.ratingKey,
+                "tmdb_id": tmdb_id,
+                "title": movie.title,
+                "year": movie.year,
+                "duration_hours": int(movie_duration_hours),
+                "duration_minutes": int(movie_duration_minutes),
+                "description": movie.summary,
+                "poster": movie.thumbUrl,
+                "background": movie.artUrl,
+                "contentRating": movie.contentRating,
+                "videoFormat": "Unknown",
+                "audioFormat": "Unknown",
+                "directors": list(directors),
+                "writers": list(writers),
+                "actors": list(actors),
+                "genres": list(genres)
+            }
+
+            # Check enriched cache first
+            enriched_cache_key = f"enriched_{movie.ratingKey}"
+            if enriched_cache_key in self._metadata_cache:
+                # Use cached enrichment data
+                movie_data.update(self._metadata_cache[enriched_cache_key])
+                return movie_data
+
+            # If not in cache, get basic URLs
             try:
-                metadata = response.json()
-                media_container = metadata.get('MediaContainer', {})
-                metadata_list = media_container.get('Metadata', [])
-                if metadata_list:
-                    media_info = metadata_list[0]
-                    media_list = media_info.get('Media', [])
-                    if media_list:
-                        media = media_list[0]
-                        part_list = media.get('Part', [])
-                        if part_list:
-                            part = part_list[0]
-                            streams = part.get('Stream', [])
-                            # Now proceed to process streams
-                            media_info = streams
+                from utils.fetch_movie_links import fetch_movie_links
+                current_service = 'plex'  # Constant for cache
+                tmdb_url, trakt_url, imdb_url = fetch_movie_links(movie_data, current_service)
 
-                            # Video format extraction
-                            video_stream = next((s for s in media_info if s.get('streamType') == 1), None)
-                            if video_stream:
-                                # Determine resolution
-                                height = video_stream.get('height', 0)
-                                if height <= 480:
-                                    resolution = "SD"
-                                elif height <= 720:
-                                    resolution = "HD"
-                                elif height <= 1080:
-                                    resolution = "FHD"
-                                elif height > 1080:
-                                    resolution = "4K"
-                                else:
-                                    resolution = "Unknown"
+                # Create optimized enriched structure
+                enriched_data = {
+                    "tmdb_url": tmdb_url,
+                    "trakt_url": trakt_url,
+                    "imdb_url": imdb_url,
+                    "actors_enriched": [
+                        {
+                            "name": name,
+                            "id": None,
+                            "type": "actor",
+                            "department": "Acting"
+                        }
+                        for name in actors
+                    ],
+                    "directors_enriched": [
+                        {
+                            "name": name,
+                            "id": None,
+                            "type": "director",
+                            "department": "Directing"
+                        }
+                        for name in directors
+                    ],
+                    "writers_enriched": [
+                        {
+                            "name": name,
+                            "id": None,
+                            "type": "writer",
+                            "department": "Writing"
+                        }
+                        for name in writers
+                    ]
+                }
 
-                                # Check for HDR and Dolby Vision
-                                hdr_types = []
-                                if video_stream.get('DOVIPresent'):
-                                    hdr_types.append("DV")
-                                if video_stream.get('colorTrc') == 'smpte2084' and video_stream.get('colorSpace') == 'bt2020nc':
-                                    hdr_types.append("HDR10")
+                # Cache the enriched data
+                self._metadata_cache[enriched_cache_key] = enriched_data
+                movie_data.update(enriched_data)
 
-                                # Combine resolution and HDR info
-                                video_format = f"{resolution} {'/'.join(hdr_types)}".strip()
-
-                            # Audio format extraction
-                            audio_stream = next((s for s in media_info if s.get('streamType') == 2), None)
-                            if audio_stream:
-                                codec = audio_stream.get('codec', '').lower()
-                                channels = audio_stream.get('channels', 0)
-
-                                codec_map = {
-                                    'ac3': 'Dolby Digital',
-                                    'eac3': 'Dolby Digital Plus',
-                                    'truehd': 'Dolby TrueHD',
-                                    'dca': 'DTS',
-                                    'dts': 'DTS',
-                                    'aac': 'AAC',
-                                    'flac': 'FLAC'
-                                }
-
-                                audio_format = codec_map.get(codec, codec.upper())
-
-                                if audio_stream.get('audioChannelLayout'):
-                                    channel_layout = audio_stream['audioChannelLayout'].split('(')[0]  # Remove (side) or similar
-                                    audio_format += f" {channel_layout}"
-                                elif channels:
-                                    if channels == 8:
-                                        audio_format += ' 7.1'
-                                    elif channels == 6:
-                                        audio_format += ' 5.1'
-                                    elif channels == 2:
-                                        audio_format += ' 2.0'
-                        else:
-                            logger.warning(f"No 'Part' data for movie '{movie.title}' (ID: {movie.ratingKey})")
-                    else:
-                        logger.warning(f"No 'Media' data for movie '{movie.title}' (ID: {movie.ratingKey})")
-                else:
-                    logger.warning(f"No 'Metadata' in MediaContainer for movie '{movie.title}' (ID: {movie.ratingKey})")
             except Exception as e:
-                logger.error(f"Error processing media info for movie '{movie.title}' (ID: {movie.ratingKey}): {e}")
-                # Optionally, set default formats or continue without setting them
-                video_format = "Unknown"
-                audio_format = "Unknown"
-        else:
-            logger.error(f"Failed to fetch metadata for movie '{movie.title}' (ID: {movie.ratingKey}), status code {response.status_code}")
+                logger.error(f"Error enriching movie data for {movie.title}: {e}")
+                # Provide basic enriched structure even if enrichment fails
+                movie_data.update({
+                    "tmdb_url": None,
+                    "trakt_url": None,
+                    "imdb_url": None,
+                    "actors_enriched": [{"name": name, "id": None, "type": "actor"} for name in actors],
+                    "directors_enriched": [{"name": name, "id": None, "type": "director"} for name in directors],
+                    "writers_enriched": [{"name": name, "id": None, "type": "writer"} for name in writers]
+                })
 
-        return {
-            "id": movie.ratingKey,
-            "title": movie.title,
-            "year": movie.year,
-            "duration_hours": int(movie_duration_hours),
-            "duration_minutes": int(movie_duration_minutes),
-            "directors": [director.tag for director in movie.directors],
-            "description": movie.summary,
-            "writers": [writer.tag for writer in movie.writers][:3],  # Limit to first 3 writers
-            "actors": [actor.tag for actor in movie.actors][:3],  # Limit to first 3 actors
-            "genres": [genre.tag for genre in movie.genres],
-            "poster": movie.thumbUrl,
-            "background": movie.artUrl,
-            "contentRating": movie.contentRating,
-            "videoFormat": video_format,
-            "audioFormat": audio_format,
-        }
+            return movie_data
+
+        except Exception as e:
+            logger.error(f"Error in _basic_movie_data for movie {getattr(movie, 'title', 'Unknown')}: {e}")
+            # Return minimal movie data if processing fails
+            return {
+                "id": getattr(movie, 'ratingKey', None),
+                "title": getattr(movie, 'title', 'Unknown Movie'),
+                "year": getattr(movie, 'year', None),
+                "duration_hours": 0,
+                "duration_minutes": 0,
+                "description": getattr(movie, 'summary', ''),
+                "poster": getattr(movie, 'thumbUrl', None),
+                "background": getattr(movie, 'artUrl', None),
+                "contentRating": getattr(movie, 'contentRating', None),
+                "videoFormat": "Unknown",
+                "audioFormat": "Unknown",
+                "directors": [],
+                "writers": [],
+                "actors": [],
+                "genres": [],
+                "actors_enriched": [],
+                "directors_enriched": [],
+                "writers_enriched": []
+            }
+
+    @lru_cache(maxsize=512)
+    def _fetch_metadata(self, rating_key):
+        """Fetch extended metadata from Plex API"""
+        metadata_url = f"{self.PLEX_URL}/library/metadata/{rating_key}?includeChildren=1"
+        headers = {"X-Plex-Token": self.PLEX_TOKEN, "Accept": "application/json"}
+        try:
+            response = requests.get(metadata_url, headers=headers)
+            if response.status_code == 200:
+                metadata = response.json()
+                return metadata.get('MediaContainer', {}).get('Metadata', [{}])[0]
+        except Exception as e:
+            logger.error(f"Error fetching metadata: {e}")
+        return None
+
+    def _enrich_with_metadata(self, movie_data, metadata):
+        """Enrich movie data with extended metadata"""
+        try:
+            # Process roles/actors
+            roles = metadata.get('Role', [])
+            actors = []
+            actors_enriched = []
+            for role in roles:
+                actor_name = role.get('tag')
+                actor_id = role.get('id')
+                if actor_name:
+                    actors.append(actor_name)
+                    actors_enriched.append({
+                        "name": actor_name,
+                        "id": actor_id,
+                        "type": "actor",
+                        "department": "Acting",
+                        "thumb": role.get('thumb'),
+                        "role": role.get('role')
+                    })
+
+            # Process directors
+            directors = metadata.get('Director', [])
+            directors_list = []
+            directors_enriched = []
+            for director in directors:
+                director_name = director.get('tag')
+                director_id = director.get('id')
+                if director_name:
+                    directors_list.append(director_name)
+                    directors_enriched.append({
+                        "name": director_name,
+                        "id": director_id,
+                        "type": "director",
+                        "department": "Directing",
+                        "thumb": director.get('thumb'),
+                        "job": director.get('role')
+            })
+
+            # Process writers
+            writers = metadata.get('Writer', [])
+            writers_list = []
+            writers_enriched = []
+            for writer in writers:
+                writer_name = writer.get('tag')
+                writer_id = writer.get('id')
+                if writer_name:
+                    writers_list.append(writer_name)
+                    writers_enriched.append({
+                        "name": writer_name,
+                        "id": writer_id,
+                        "department": "Writing",
+                        "type": "writer",
+                        "thumb": writer.get('thumb'),
+                        "job": writer.get('role')  
+                })
+
+            # Update movie data with both basic and enriched data for all roles
+            if actors:
+                movie_data['actors'] = actors
+                movie_data['actors_enriched'] = actors_enriched
+
+            if directors_list:
+                movie_data['directors'] = directors_list
+                movie_data['directors_enriched'] = directors_enriched
+
+            if writers_list:
+                movie_data['writers'] = writers_list
+                movie_data['writers_enriched'] = writers_enriched
+
+            # Process media info for video/audio format
+            media_list = metadata.get('Media', [])
+            if media_list:
+                media = media_list[0]
+                part_list = media.get('Part', [])
+                if part_list:
+                    part = part_list[0]
+                    streams = part.get('Stream', [])
+
+                    # Video format extraction
+                    video_stream = next((s for s in streams if s.get('streamType') == 1), None)
+                    if video_stream:
+                        height = video_stream.get('height', 0)
+                        if height <= 480:
+                            resolution = "SD"
+                        elif height <= 720:
+                            resolution = "HD"
+                        elif height <= 1080:
+                            resolution = "FHD"
+                        elif height > 1080:
+                            resolution = "4K"
+                        else:
+                            resolution = "Unknown"
+
+                        # Check for HDR and Dolby Vision
+                        hdr_types = []
+                        if video_stream.get('DOVIPresent'):
+                            hdr_types.append("DV")
+                        if video_stream.get('colorTrc') == 'smpte2084' and video_stream.get('colorSpace') == 'bt2020nc':
+                            hdr_types.append("HDR10")
+
+                        # Combine resolution and HDR info
+                        movie_data['videoFormat'] = f"{resolution} {'/'.join(hdr_types)}".strip()
+
+                    # Audio format extraction
+                    audio_stream = next((s for s in streams if s.get('streamType') == 2), None)
+                    if audio_stream:
+                        codec = audio_stream.get('codec', '').lower()
+                        channels = audio_stream.get('channels', 0)
+
+                        codec_map = {
+                            'ac3': 'Dolby Digital',
+                            'eac3': 'Dolby Digital Plus',
+                            'truehd': 'Dolby TrueHD',
+                            'dca': 'DTS',
+                            'dts': 'DTS',
+                            'aac': 'AAC',
+                            'flac': 'FLAC',
+                            'dca-ma': 'DTS-HD MA'
+                        }
+
+                        audio_format = codec_map.get(codec, codec.upper())
+
+                        if audio_stream.get('audioChannelLayout'):
+                            channel_layout = audio_stream['audioChannelLayout'].split('(')[0]
+                            audio_format += f" {channel_layout}"
+                        elif channels:
+                            if channels == 8:
+                                audio_format += ' 7.1'
+                            elif channels == 6:
+                                audio_format += ' 5.1'
+                            elif channels == 2:
+                                audio_format += ' stereo'
+
+                        movie_data['audioFormat'] = audio_format
+
+        except Exception as e:
+            logger.error(f"Error enriching movie data: {e}")
+
+    def _initialize_cache(self):
+        """Load all movies and their metadata at startup"""
+        logger.info("Initializing movie cache...")
+        start_time = time.time()
+        all_movies = []
+        for library in self.libraries:
+            all_movies.extend(library.search(unwatched=True))
+
+        total_movies = len(all_movies)
+        logger.info(f"Found {total_movies} unwatched movies to cache")
+
+        self._movies_cache = []
+
+        # Batch load metadata for all movies
+        for i, movie in enumerate(all_movies, 1):
+            try:
+                # Fetch metadata if not cached
+                metadata = self._fetch_metadata(movie.ratingKey)
+                if metadata:
+                    self._metadata_cache[str(movie.ratingKey)] = metadata
+
+                movie_data = self._basic_movie_data(movie)
+                if metadata:
+                    self._enrich_with_metadata(movie_data, metadata)
+                self._movies_cache.append(movie_data)
+
+                if i % 10 == 0:  # Log progress every 10 movies
+                    progress = (i / total_movies) * 100
+                    elapsed = time.time() - start_time
+                    rate = i / elapsed if elapsed > 0 else 0
+                    logger.info(f"Cached {i}/{total_movies} movies ({progress:.1f}%) - {rate:.1f} movies/sec")
+
+            except Exception as e:
+                logger.error(f"Error caching movie {movie.title}: {e}")
+
+        logger.info(f"Cache initialized with {len(self._movies_cache)} movies in {time.time() - start_time:.2f} seconds")
+
+    def update_watched_status(self, movie_id):
+        """Remove movie from cache when watched"""
+        logger.info(f"Updating watched status for movie {movie_id}")
+    
+        # Remove from unwatched movies cache only
+        self._movies_cache = [m for m in self._movies_cache if str(m['id']) != str(movie_id)]
+
+        # Clean up both regular and enriched metadata
+        base_key = str(movie_id)
+        enriched_key = f"enriched_{movie_id}"
+    
+        if base_key in self._metadata_cache:
+            del self._metadata_cache[base_key]
+        if enriched_key in self._metadata_cache:
+            del self._metadata_cache[enriched_key]
+        
+        self.save_cache_to_disk()
+        logger.info(f"Removed movie {movie_id} from unwatched cache")
+
+    def add_new_movie(self, movie):
+        """Add new unwatched movie to cache"""
+        logger.info(f"Adding new movie to cache: {movie.title}")
+        movie_data = self.get_movie_data(movie)
+        self._movies_cache.append(movie_data)
+        self.save_cache_to_disk()
+
+        if hasattr(self, 'cache_manager'):
+            self.cache_manager.cache_all_plex_movies()
+        
+        logger.info(f"Added movie {movie.title} to cache")
+
+    def get_movie_data(self, movie):
+        """Get complete movie data, using cached metadata if available"""
+        movie_data = self._basic_movie_data(movie)
+
+        # Use cached metadata if available
+        cache_key = str(movie.ratingKey)
+        if cache_key in self._metadata_cache:
+            self._enrich_with_metadata(movie_data, self._metadata_cache[cache_key])
+        else:
+            # Fetch and cache if not available
+            metadata = self._fetch_metadata(movie.ratingKey)
+            if metadata:
+                self._metadata_cache[cache_key] = metadata
+                self._enrich_with_metadata(movie_data, metadata)
+
+        # Enriched structure (will have TMDb IDs if available)
+        if not 'actors_enriched' in movie_data:
+            movie_data['actors_enriched'] = [{"name": name, "id": None, "type": "actor"}
+                                           for name in movie_data.get('actors', [])]
+        if not 'directors_enriched' in movie_data:
+            movie_data['directors_enriched'] = [{"name": name, "id": None, "type": "director"}
+                                              for name in movie_data.get('directors', [])]
+        if not 'writers_enriched' in movie_data:
+            movie_data['writers_enriched'] = [{"name": name, "id": None, "type": "writer"}
+                                            for name in movie_data.get('writers', [])]
+
+        return movie_data
+
+    def get_random_movie(self):
+        """Now uses in-memory cache"""
+        if not self._movies_cache:
+            logger.info("No movies in cache")
+            return None
+        movie = random.choice(self._movies_cache)
+        source = "memory" if self._cache_loaded else "plex"
+        logger.info(f"Movie '{movie['title']}' loaded from {source} cache")
+        return movie
+
+    def filter_movies(self, genres=None, years=None, pg_ratings=None):
+        """Filter movies using in-memory cache"""
+        start_time = time.time()
+        logger.info("Starting to filter movies")
+        filtered_movies = self._movies_cache.copy()
+        logger.info(f"Initial movies count: {len(filtered_movies)}")
+        original_count = len(filtered_movies)
+
+        if genres:
+            filtered_movies = [
+                movie for movie in filtered_movies
+                if any(genre in movie['genres'] for genre in genres)
+            ]
+            logger.info(f"After genre filter: {len(filtered_movies)} movies (from {original_count})")
+
+        if years:
+            filtered_movies = [
+                movie for movie in filtered_movies
+                if str(movie['year']) in years
+            ]
+            logger.info(f"After year filter: {len(filtered_movies)} movies")
+
+        if pg_ratings:
+            filtered_movies = [
+                movie for movie in filtered_movies
+                if movie['contentRating'] in pg_ratings
+            ]
+            logger.info(f"After rating filter: {len(filtered_movies)} movies")
+
+        logger.debug(f"Filtered {len(self._movies_cache)} movies to {len(filtered_movies)} results in {(time.time() - start_time)*1000:.2f}ms")
+
+        if filtered_movies:
+            movie = random.choice(filtered_movies)
+            source = "memory cache" if self._cache_loaded else "plex"
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"Movie '{movie['title']}' loaded from {source} in {duration:.1f}ms")
+            return movie
+        return None
+
+    def get_next_movie(self, genres=None, years=None, pg_ratings=None):
+        """Fast in-memory next movie selection"""
+        start_time = time.time()
+    
+        logger.info("Starting next movie selection")
+        logger.info(f"Current cache size: {len(self._movies_cache)}")
+        logger.info(f"Filter params - genres: {genres}, years: {years}, ratings: {pg_ratings}")
+    
+        result = self.filter_movies(genres, years, pg_ratings)
+    
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"Next movie selection took {duration:.2f}ms")
+        return result
 
     def get_genres(self):
+        """Get genres from cache"""
         all_genres = set()
-        for library in self.libraries:
-            for movie in library.search(unwatched=True):
-                all_genres.update([genre.tag for genre in movie.genres])
+        for movie in self._movies_cache:
+            all_genres.update(movie['genres'])
         return sorted(list(all_genres))
 
     def get_years(self):
-        all_years = set()
-        for library in self.libraries:
-            for movie in library.search(unwatched=True):
-                all_years.add(movie.year)
+        """Get years from cache"""
+        all_years = set(movie['year'] for movie in self._movies_cache)
         return sorted(list(all_years), reverse=True)
 
     def get_pg_ratings(self):
+        """Get ratings from cache"""
         ratings = set()
-        for library in self.libraries:
-            for movie in library.search(unwatched=True):
-                if movie.contentRating:
-                    ratings.add(movie.contentRating)
+        for movie in self._movies_cache:
+            if movie['contentRating']:
+                ratings.add(movie['contentRating'])
         return sorted(list(ratings))
 
     def get_clients(self):
-        return [{"id": client.machineIdentifier, "title": client.title} for client in self.plex.clients()]
+        """Get available Plex clients"""
+        return [{"id": client.machineIdentifier, "title": client.title} 
+                for client in self.plex.clients()]
 
     def play_movie(self, movie_id, client_id):
+        """Play a movie on specified client"""
         try:
             movie = None
             for library in self.libraries:
@@ -198,24 +703,32 @@ class PlexService:
                         break
                 except:
                     continue
-            
+
             if not movie:
                 raise ValueError(f"Movie with id {movie_id} not found in any library")
 
-            client = next((c for c in self.plex.clients() if c.machineIdentifier == client_id), None)
+            client = next((c for c in self.plex.clients() 
+                         if c.machineIdentifier == client_id), None)
             if not client:
                 raise ValueError(f"Unknown client id: {client_id}")
-            
+
             client.proxyThroughServer()
             client.playMedia(movie)
 
             # Set the start time for the movie
             self.playback_start_times[movie_id] = datetime.now()
 
-            # Fetch movie data
-            movie_data = self.get_movie_data(movie)
+            # If movie was watched, update cache
+            if movie.isWatched:
+                self.update_watched_status(movie_id)
+
+            # Use cached movie data if available
+            movie_data = next((m for m in self._movies_cache 
+                             if str(m['id']) == str(movie_id)), None)
+            if not movie_data:
+                movie_data = self.get_movie_data(movie)
+
             if movie_data:
-                # Set current movie
                 set_current_movie(movie_data, service='plex', resume_position=0)
             return {"status": "playing"}
         except Exception as e:
@@ -223,35 +736,24 @@ class PlexService:
             return {"error": str(e)}
 
     def get_total_unwatched_movies(self):
-        return sum(len(library.search(unwatched=True)) for library in self.libraries)
+        """Get total count of unwatched movies from cache"""
+        return len(self._movies_cache)
 
     def get_all_unwatched_movies(self, progress_callback=None):
-        all_unwatched = []
-        unwatched_movies = []
-
-        # Collect all unwatched movies from all libraries
-        for library in self.libraries:
-            library_unwatched = library.search(unwatched=True)
-            unwatched_movies.extend(library_unwatched)
-
-        total_movies = len(unwatched_movies)
-        processed_movies = 0
-
-        # Process each movie and call the progress callback
-        for movie in unwatched_movies:
-            movie_data = self.get_movie_data(movie)
-            all_unwatched.append(movie_data)
-            processed_movies += 1
-
-            # Call the progress callback with the current progress
-            if progress_callback and total_movies > 0:
-                progress = processed_movies / total_movies
-                progress_callback(progress)
-
-        return all_unwatched
-
+        """Get all unwatched movies with metadata"""
+        if progress_callback:
+            progress_callback(1.0)  # Since we're using cache, we're already done
+        return self._movies_cache
 
     def get_movie_by_id(self, movie_id):
+        """Get movie by ID from cache first, then Plex if needed"""
+        # Try cache first
+        cached_movie = next((movie for movie in self._movies_cache 
+                           if str(movie['id']) == str(movie_id)), None)
+        if cached_movie:
+            return cached_movie
+
+        # If not in cache, try Plex
         for library in self.libraries:
             try:
                 movie = library.fetchItem(int(movie_id))
@@ -262,6 +764,7 @@ class PlexService:
         return None
 
     def get_playback_info(self, item_id):
+        """Get playback information for a movie"""
         try:
             for session in self.plex.sessions():
                 if str(session.ratingKey) == str(item_id):
@@ -276,7 +779,7 @@ class PlexService:
                     is_playing = session_state == 'playing'
                     is_buffering = session_state == 'buffering'
 
-                    # Handle buffering state if necessary
+                    # Handle buffering state
                     if is_buffering:
                         is_playing = True
                         is_paused = False
@@ -287,6 +790,11 @@ class PlexService:
 
                     start_time = self.playback_start_times[item_id]
                     end_time = start_time + timedelta(seconds=total_duration_seconds)
+
+                    # Check if movie was just watched and update cache if needed
+                    if session.viewOffset and session.duration:
+                        if (session.viewOffset / session.duration) > 0.9:  # 90% watched
+                            self.update_watched_status(item_id)
 
                     return {
                         'id': str(item_id),
@@ -313,68 +821,172 @@ class PlexService:
             logger.error(f"Error fetching playback info: {e}")
             return None
 
-# You might want to keep this function outside the class if it's used elsewhere
-def get_playback_state(movie_id):
-    from flask import current_app
-    default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
-    current_movie = load_current_movie()
-    service = current_movie['service'] if current_movie else None
+    def refresh_cache(self, force=False):
+        """Force refresh the cache"""
+        if force:
+            self._movies_cache = []
+            self._metadata_cache = {}
+        self._initialize_cache()
+        self.save_cache_to_disk()
+        logger.info("Cache refreshed successfully")
 
-    playback_info = None
+    def cleanup_metadata_cache(self, max_size=1000):
+        """Clean up metadata cache if it gets too large"""
+        if len(self._metadata_cache) > max_size:
+            # Remove oldest entries to get back to max_size
+            items_to_remove = len(self._metadata_cache) - max_size
+            for _ in range(items_to_remove):
+                self._metadata_cache.pop(next(iter(self._metadata_cache)))
+            logger.info(f"Cleaned up metadata cache, removed {items_to_remove} items")
 
-    if service == 'jellyfin':
-        jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
-        if jellyfin_service:
-            playback_info = jellyfin_service.get_playback_info(movie_id)
-    elif service == 'plex':
-        plex_service = current_app.config.get('PLEX_SERVICE')
-        if plex_service:
-            playback_info = plex_service.get_playback_info(movie_id)
-    else:
-        playback_info = None
+    def get_clients(self):
+        """Get available Plex clients"""
+        return [{"id": client.machineIdentifier, "title": client.title}
+                for client in self.plex.clients()]
 
-    if playback_info:
-        current_position = playback_info.get('position', 0)
-        total_duration = playback_info.get('duration', 0)
-        is_playing = playback_info.get('is_playing', False)
-        is_paused = playback_info.get('IsPaused', False)
-        is_stopped = playback_info.get('IsStopped', False)
-        # Determine the current state
-        if is_stopped:
-            current_state = 'STOPPED'
-        elif total_duration > 0 and (total_duration - current_position) <= 10:
-            current_state = 'ENDED'
-        elif is_paused:
-            current_state = 'PAUSED'
-        elif is_playing:
-            current_state = 'PLAYING'
-        else:
-            current_state = 'UNKNOWN'
-        if default_poster_manager:
-            default_poster_manager.handle_playback_state(current_state)
-        playback_info['status'] = current_state
-        return playback_info
-    else:
-        # Fallback to the current movie data if no real-time info is available
-        if current_movie and current_movie['movie']['id'] == movie_id:
-            start_time = datetime.fromisoformat(current_movie['start_time'])
-            duration = timedelta(hours=current_movie['duration_hours'], minutes=current_movie['duration_minutes'])
-            current_time = datetime.now()
-            resume_position = current_movie.get('resume_position', 0)
-            elapsed_time = (current_time - start_time).total_seconds()
-            current_position = min(elapsed_time + resume_position, duration.total_seconds())
-            if current_position >= duration.total_seconds() - 10:
-                current_state = 'ENDED'
-            elif elapsed_time >= 0:
-                current_state = 'PLAYING'
-            else:
-                current_state = 'STOPPED'
-            if default_poster_manager:
-                default_poster_manager.handle_playback_state(current_state)
+    def play_movie(self, movie_id, client_id):
+        """Play a movie on specified client"""
+        try:
+            movie = None
+            for library in self.libraries:
+                try:
+                    movie = library.fetchItem(int(movie_id))
+                    if movie:
+                        break
+                except:
+                    continue
+
+            if not movie:
+                raise ValueError(f"Movie with id {movie_id} not found in any library")
+
+            client = next((c for c in self.plex.clients()
+                         if c.machineIdentifier == client_id), None)
+            if not client:
+                raise ValueError(f"Unknown client id: {client_id}")
+
+            client.proxyThroughServer()
+            client.playMedia(movie)
+
+            # Set the start time for the movie
+            self.playback_start_times[movie_id] = datetime.now()
+
+            # If movie was watched, update cache
+            if movie.isWatched:
+                self.update_watched_status(movie_id)
+
+            # Use cached movie data if available
+            movie_data = next((m for m in self._movies_cache
+                             if str(m['id']) == str(movie_id)), None)
+            if not movie_data:
+                movie_data = self.get_movie_data(movie)
+
+            if movie_data:
+                set_current_movie(movie_data, service='plex', resume_position=0)
+            return {"status": "playing"}
+        except Exception as e:
+            logger.error(f"Error playing movie: {e}")
+            return {"error": str(e)}
+
+    def get_total_unwatched_movies(self):
+        """Get total count of unwatched movies from cache"""
+        return len(self._movies_cache)
+
+    def get_all_unwatched_movies(self, progress_callback=None):
+        """Get all unwatched movies with metadata"""
+        if progress_callback:
+            progress_callback(1.0)  # Since we're using cache, we're already done
+        return self._movies_cache
+
+    def get_movie_by_id(self, movie_id):
+        """Get movie by ID from cache first, then Plex if needed"""
+        # Try cache first
+        cached_movie = next((movie for movie in self._movies_cache
+                           if str(movie['id']) == str(movie_id)), None)
+        if cached_movie:
+            return cached_movie
+
+        # If not in cache, try Plex
+        for library in self.libraries:
+            try:
+                movie = library.fetchItem(int(movie_id))
+                return self.get_movie_data(movie)
+            except:
+                continue
+        logger.error(f"Movie with id {movie_id} not found in any library")
+        return None
+
+    def get_playback_info(self, item_id):
+        """Get playback information for a movie"""
+        try:
+            for session in self.plex.sessions():
+                if str(session.ratingKey) == str(item_id):
+                    position_ms = session.viewOffset or 0
+                    duration_ms = session.duration or 0
+                    position_seconds = position_ms / 1000
+                    total_duration_seconds = duration_ms / 1000
+
+                    # Correctly access the playback state
+                    session_state = session.player.state.lower()
+                    is_paused = session_state == 'paused'
+                    is_playing = session_state == 'playing'
+                    is_buffering = session_state == 'buffering'
+
+                    # Handle buffering state
+                    if is_buffering:
+                        is_playing = True
+                        is_paused = False
+
+                    # Use stored start time or current time if not available
+                    if item_id not in self.playback_start_times:
+                        self.playback_start_times[item_id] = datetime.now()
+
+                    start_time = self.playback_start_times[item_id]
+                    end_time = start_time + timedelta(seconds=total_duration_seconds)
+
+                    # Check if movie was just watched and update cache if needed
+                    if session.viewOffset and session.duration:
+                        if (session.viewOffset / session.duration) > 0.9:  # 90% watched
+                            self.update_watched_status(item_id)
+
+                    return {
+                        'id': str(item_id),
+                        'is_playing': is_playing,
+                        'IsPaused': is_paused,
+                        'IsStopped': False,
+                        'position': position_seconds,
+                        'start_time': start_time.isoformat(),
+                        'end_time': end_time.isoformat(),
+                        'duration': total_duration_seconds
+                    }
+            # If no matching session found, the movie is stopped
             return {
-                'status': current_state,
-                'position': current_position,
-                'start_time': start_time.isoformat(),
-                'duration': duration.total_seconds()
+                'id': str(item_id),
+                'is_playing': False,
+                'IsPaused': False,
+                'IsStopped': True,
+                'position': 0,
+                'start_time': None,
+                'end_time': None,
+                'duration': 0
             }
-    return None
+        except Exception as e:
+            logger.error(f"Error fetching playback info: {e}")
+            return None
+
+    def refresh_cache(self, force=False):
+        """Force refresh the cache"""
+        if force:
+            self._movies_cache = []
+            self._metadata_cache = {}
+        self._initialize_cache()
+        self.save_cache_to_disk()
+        logger.info("Cache refreshed successfully")
+
+    def cleanup_metadata_cache(self, max_size=1000):
+        """Clean up metadata cache if it gets too large"""
+        if len(self._metadata_cache) > max_size:
+            # Remove oldest entries to get back to max_size
+            items_to_remove = len(self._metadata_cache) - max_size
+            for _ in range(items_to_remove):
+                self._metadata_cache.pop(next(iter(self._metadata_cache)))
+            logger.info(f"Cleaned up metadata cache, removed {items_to_remove} items")
