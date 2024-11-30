@@ -3,21 +3,107 @@ import requests
 import json
 import logging
 import random
+import time
+import threading
+from threading import Thread, Lock
 from datetime import datetime, timedelta
+from .settings import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class JellyfinService:
-    def __init__(self):
-        self.server_url = os.getenv('JELLYFIN_URL')
-        self.api_key = os.getenv('JELLYFIN_API_KEY')
-        self.user_id = os.getenv('JELLYFIN_USER_ID')
+    def __init__(self, url=None, api_key=None, user_id=None, update_interval=600):
+        # Try settings first, then fall back to ENV
+        self.server_url = url or settings.get('jellyfin', 'url') or os.getenv('JELLYFIN_URL')
+        self.api_key = api_key or settings.get('jellyfin', 'api_key') or os.getenv('JELLYFIN_API_KEY')
+        self.user_id = user_id or settings.get('jellyfin', 'user_id') or os.getenv('JELLYFIN_USER_ID')
+
+        # Only validate if service is enabled
+        if settings.get('jellyfin', 'enabled'):
+            if not all([self.server_url, self.api_key, self.user_id]):
+                raise ValueError("Jellyfin URL, API key, and user ID are required when enabled")
+
+        # Initialize headers
         self.headers = {
             'X-Emby-Token': self.api_key,
             'Content-Type': 'application/json'
         }
+
+        self.update_interval = update_interval
+        self.last_cache_update = 0
+        self.cache_path = '/app/data/jellyfin_all_movies.json'
+        self.is_updating = False
+        self._cache_lock = threading.Lock()
+        self.running = False
+        self._start_cache_updater()
+
         self.playback_start_times = {}
+
+    def _start_cache_updater(self):
+        """Start the cache updater thread"""
+        self.running = True
+        Thread(target=self._update_loop, daemon=True).start()
+        logger.info("Jellyfin cache updater thread started")
+
+    def stop_cache_updater(self):
+        """Stop the cache updater thread"""
+        self.running = False
+
+    def _update_loop(self):
+        """Background thread that periodically updates the cache"""
+        while self.running:
+            try:
+                current_time = time.time()
+                if current_time - self.last_cache_update >= self.update_interval:
+                    with self._cache_lock:
+                        logger.info("Starting Jellyfin cache update")
+                        self.cache_all_jellyfin_movies()
+                        self.last_cache_update = current_time
+                        logger.info("Jellyfin cache update completed")
+                time.sleep(60)  # Check every minute
+            except Exception as e:
+                logger.error(f"Error in Jellyfin cache update loop: {e}")
+                time.sleep(5)  # Short sleep on error
+
+    def cache_all_jellyfin_movies(self):
+        """Cache all movies for Jellyfin badge checking"""
+        if self.is_updating:
+            logger.info("Jellyfin cache update already in progress, skipping")
+            return
+
+        try:
+            self.is_updating = True
+            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            params = {
+                'IncludeItemTypes': 'Movie',
+                'Recursive': 'true',
+                'Fields': 'ProviderIds'
+            }
+            response = requests.get(movies_url, headers=self.headers, params=params)
+            response.raise_for_status()
+            movies = response.json().get('Items', [])
+
+            all_movies = []
+            for movie in movies:
+                all_movies.append({
+                    "jellyfin_id": movie['Id'],
+                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb')  # This can be None
+                })
+
+            # Save to disk atomically
+            temp_path = f"{self.cache_path}.tmp"
+            with open(temp_path, 'w') as f:
+                json.dump(all_movies, f)
+            os.replace(temp_path, self.cache_path)
+
+            logger.info(f"Cached {len(all_movies)} total Jellyfin movies")
+            return all_movies
+        except Exception as e:
+            logger.error(f"Error caching all Jellyfin movies: {e}")
+            return []
+        finally:
+            self.is_updating = False
 
     def get_random_movie(self):
         try:
@@ -186,16 +272,49 @@ class JellyfinService:
                         parts = audio_format.split()
                         audio_format = ' '.join(dict.fromkeys(parts))
 
+        # Get all people and process them by type
+        all_people = movie.get('People', [])
+    
+        directors = [
+            {
+                "name": p.get('Name', ''),
+                "id": p.get('ProviderIds', {}).get('Tmdb'),
+                "type": "director",
+                "job": p.get('Role', ''),
+                "department": "Directing"
+            }
+            for p in all_people if p.get('Type') == 'Director'
+        ]
+
+        writers = [
+            {
+                "name": p.get('Name', ''),
+                "id": p.get('ProviderIds', {}).get('Tmdb'),
+                "type": "writer",
+                "job": p.get('Role', ''),
+                "department": "Writing"
+            }
+            for p in all_people if p.get('Type') == 'Writer'
+        ]
+
+        actors = [
+            {
+                "name": p.get('Name', ''),
+                "id": p.get('ProviderIds', {}).get('Tmdb'),
+                "type": "actor",
+                "character": p.get('Role', ''),
+                "department": "Acting"
+            }
+            for p in all_people if p.get('Type') == 'Actor'
+        ]
+
         return {
             "id": movie.get('Id', ''),
             "title": movie.get('Name', ''),
             "year": movie.get('ProductionYear', ''),
             "duration_hours": hours,
             "duration_minutes": minutes,
-            "directors": [p.get('Name', '') for p in movie.get('People', []) if p.get('Type') == 'Director'],
             "description": movie.get('Overview', ''),
-            "writers": [p.get('Name', '') for p in movie.get('People', []) if p.get('Type') == 'Writer'][:3],  # Limit to first 3 writers
-            "actors": [p.get('Name', '') for p in movie.get('People', []) if p.get('Type') == 'Actor'][:3],  # Limit to first 3 actors
             "genres": movie.get('Genres', []),
             "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={self.api_key}",
             "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}",
@@ -203,6 +322,15 @@ class JellyfinService:
             "contentRating": movie.get('OfficialRating', ''),
             "videoFormat": video_format,
             "audioFormat": audio_format,
+            "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb'),
+            # Return enriched data for all roles
+            "directors_enriched": directors,
+            "writers_enriched": writers,
+            "actors_enriched": actors,
+            # Keep original arrays for backwards compatibility
+            "directors": [d["name"] for d in directors],
+            "writers": [w["name"] for w in writers],
+            "actors": [a["name"] for a in actors]
         }
 
     def get_genres(self):

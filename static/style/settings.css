@@ -1,0 +1,817 @@
+/* Container and Layout */
+.settings-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header Styles */
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Dropdown Styles */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    background-color: #3A3C41;
+    min-width: 160px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    border-radius: 8px;
+    z-index: 1;
+    margin-top: 0;
+    padding-top: 5px;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown-content a {
+    color: #EAEAEC;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.dropdown-content a:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.dropdown-content a:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.dropdown-content a:hover {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
+/* Header Buttons */
+.donate-button, .back-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 8rem;
+    height: 40px; 
+    padding: 8px 16px;
+    border-radius: 8px; 
+    text-decoration: none;
+    font-weight: 600;
+    gap: 8px;
+    white-space: nowrap;  
+}
+
+.donate-button, .back-button {
+    font-size: 1rem; 
+}
+
+.donate-button i, .back-button svg {
+    width: 20px;
+    height: 20px;
+}
+
+.donate-button {
+    background-color: #238636;
+    color: #ffffff;
+    transition: background-color 0.2s;
+}
+
+.donate-button:hover {
+    background-color: #2ea043;
+}
+
+.donate-button i, .back-button i {
+    font-size: 1.25rem;  
+}
+
+.donate-button i {
+    font-size: 10px !important;  
+    width: auto !important;     
+    height: auto !important;   
+}
+
+.back-button {
+    background-color: #E5A00D;
+    color: #282A2D;
+    transition: background-color 0.2s;
+    padding-left: 8px;
+    padding-right: 12px;
+}
+
+.back-button:hover {
+    background-color: #F8D68B;
+}
+
+.settings-header h1 {
+    margin: 0;
+    color: #EAEAEC;
+    font-size: 2rem;
+}
+
+/* Tabs */
+.settings-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #3A3C41;
+    padding-bottom: 10px;
+}
+
+.tab {
+    background: none;
+    border: none;
+    color: #EAEAEC;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.tab.active {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
+/* Settings Sections */
+.settings-section {
+    background-color: #3A3C41;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.settings-section h2 {
+    color: #EAEAEC;
+    margin: 0 0 24px 0;
+    font-size: 1.5rem;
+}
+
+.setting-field {
+    margin-bottom: 24px;
+}
+
+.setting-field:last-child {
+    margin-bottom: 0;
+}
+
+.setting-field label {
+    display: block;
+    color: #EAEAEC;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+/* Inputs */
+.setting-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #4A4C51;
+    background-color: #282A2D;
+    color: #EAEAEC;
+    border-radius: 4px;
+    transition: border-color 0.2s;
+}
+
+.setting-input,
+.env-override,
+.current-config {
+    width: calc(100% - 2px);  /* Account for borders */
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+}
+
+.setting-input:focus {
+    border-color: #E5A00D;
+    outline: none;
+}
+
+/* Toggle Switch */
+.toggle {
+    width: 50px;
+    height: 24px;
+    background-color: #4A4C51;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.toggle::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: #EAEAEC;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+
+.toggle.active {
+    background-color: #E5A00D;
+}
+
+.toggle.active::after {
+    transform: translateX(26px);
+}
+
+.toggle.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Configuration Buttons */
+.discover-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12rem;
+    gap: 8px;
+    background-color: #E5A00D;
+    color: #282A2D;
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+    height: 35px;
+}
+
+.discover-button:hover {
+    background-color: #F8D68B;
+}
+
+.discover-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Configuration Display */
+.current-config {
+    background: #282A2D;
+    border: 1px solid #4A4C51;
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 16px;
+}
+
+.config-item {
+    color: #9CA3AF;
+    margin: 4px 0;
+}
+
+/* Environment Override Notice */
+.env-override {
+    background-color: rgba(229, 160, 13, 0.1);
+    border-left: 3px solid #E5A00D;
+    padding: 8px 12px;
+    margin-top: 4px;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9em;
+    color: #E5A00D;
+    box-sizing: border-box;
+}
+
+/* Messages */
+.error-message, .success-message, .info-message {
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    color: white;
+}
+
+.error-message {
+    background-color: #B91C1C;
+}
+
+.success-message {
+    background-color: #059669;
+}
+
+.info-message {
+    background-color: #0369A1;
+}
+
+/* Trakt Integration Styles */
+.trakt-connect-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ED1C24;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.trakt-connect-button:hover {
+    background-color: #FF2D35;
+    transform: translateY(-1px);
+}
+
+.trakt-connect-button.connected {
+    background-color: #2ea043;
+}
+
+.trakt-connect-button.connected:hover {
+    background-color: #3fb950;
+}
+
+.trakt-connect-button.loading {
+    opacity: 0.7;
+    cursor: wait;
+    transform: none;
+}
+
+.trakt-connect-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.trakt-connect-button i {
+    font-size: 1.1em;
+}
+
+/* Dialog Styles */
+.trakt-confirm-dialog, .appletv-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog-content {
+    background-color: #3A3C41;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+}
+
+.dialog-content h3 {
+    color: #EAEAEC;
+    margin: 0 0 16px 0;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dialog-content p {
+    color: #EAEAEC;
+    margin: 0 0 24px 0;
+    line-height: 1.5;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.dialog-buttons button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.cancel-button {
+    background-color: #4A4C51;
+    color: #EAEAEC;
+}
+
+.cancel-button:hover {
+    background-color: #5A5C61;
+}
+
+.disconnect-button {
+    background-color: #DC2626;
+    color: white;
+}
+
+.disconnect-button:hover {
+    background-color: #EF4444;
+}
+
+.submit-button {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
+.submit-button:hover {
+    background-color: #F8D68B;
+}
+
+.submit-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Dialog Notes and Steps */
+.dialog-note {
+    background-color: rgba(229, 160, 13, 0.1);
+    border-left: 3px solid #E5A00D;
+    padding: 8px 12px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9em;
+    color: #E5A00D;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dialog-steps .step {
+    transition: opacity 0.3s, color 0.3s;
+}
+
+.dialog-separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 20px 0;
+    color: #9CA3AF;
+}
+
+.dialog-separator::before,
+.dialog-separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #4A4C51;
+}
+
+.dialog-separator span {
+    padding: 0 10px;
+}
+
+/* Device/TV Lists */
+.device-list, .tv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.device-option, .tv-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: #282A2D;
+    border: 1px solid #4A4C51;
+    border-radius: 4px;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.device-option:hover, .tv-option:hover {
+    background: #3A3C41;
+    border-color: #E5A00D;
+}
+
+.device-option i, .tv-option i {
+    font-size: 24px;
+    color: #E5A00D;
+}
+
+.device-details, .tv-details {
+    flex: 1;
+}
+
+.device-name, .tv-name {
+    font-weight: 600;
+    color: #EAEAEC;
+}
+
+.device-info, .tv-info {
+    font-size: 0.9em;
+    color: #9CA3AF;
+}
+
+.device-model {
+    font-size: 0.85em;
+    color: #9CA3AF;
+    margin-top: 2px;
+}
+
+/* Setup Messages */
+.setup-message {
+    background: rgba(229, 160, 13, 0.1);
+    border-radius: 4px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.setup-message i {
+    color: #E5A00D;
+    margin-right: 8px;
+}
+
+.setup-message ul {
+    margin: 8px 0;
+    padding-left: 24px;
+    color: #9CA3AF;
+}
+
+.setup-message p {
+    margin: 8px 0;
+    color: #EAEAEC;
+}
+
+/* PIN Input Styles */
+.pin-input {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pin-code {
+    font-family: monospace;
+    font-size: 24px;
+    letter-spacing: 8px;
+    text-align: center;
+    width: 120px;
+    padding: 8px;
+    background: #282A2D;
+    border: 1px solid #4A4C51;
+    color: #EAEAEC;
+    border-radius: 4px;
+}
+
+/* Spinner Animation */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.trakt-connect-button.loading i {
+    animation: spin 1s linear infinite;
+}
+
+@media (max-width: 640px) {
+   .settings-header {
+       flex-direction: column;
+       align-items: flex-start;
+   }
+
+   .header-controls {
+       width: 100%;
+       display: flex;
+       justify-content: space-between;
+       gap: 16px;
+   }
+   
+   .header-controls .dropdown,
+   .header-controls .dropdown .donate-button,
+   .header-controls .back-button {
+       width: auto !important;
+       min-width: 0 !important;
+       flex: 1 !important;
+   }
+
+   .header-controls .dropdown-content {
+       width: 100% !important;
+       min-width: 0 !important;
+       max-width: none !important;
+   }
+
+   .discover-button {
+       width: 100%;
+   }
+
+   .settings-section {
+       padding: 16px;
+   }
+
+   .dialog-content {
+       width: calc(100% - 32px);
+       margin: 16px;
+   }
+
+    .dropdown:hover .dropdown-content {
+        display: none;
+    }
+
+    .dropdown.active .dropdown-content {
+        display: block;
+    }
+
+    .donate-button i {
+        position: relative;
+        top: 2px; 
+        display: flex;
+        align-items: center;
+    }
+}
+
+/* Utility Classes */
+.hidden {
+    display: none;
+}
+
+.plex-auth-button,
+.fetch-libraries-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12rem;  /* Same as other configure buttons */
+    gap: 8px;
+    background-color: #E5A00D;
+    color: #282A2D;
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+}
+
+.plex-auth-button:hover,
+.fetch-libraries-button:hover {
+    background-color: #F8D68B;
+}
+
+.plex-auth-button:disabled,
+.fetch-libraries-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.library-select {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #282A2D;
+    border: 1px solid #4A4C51;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.library-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    cursor: pointer;
+}
+
+.library-option:hover {
+    background: rgba(229, 160, 13, 0.1);
+    border-radius: 4px;
+}
+
+.library-option input[type="checkbox"] {
+    accent-color: #E5A00D;
+}
+
+.pin-display {
+    background: #282A2D;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.pin-code {
+    font-family: monospace;
+    font-size: 32px;
+    letter-spacing: 4px;
+    color: #E5A00D;
+    font-weight: bold;
+}
+
+.pin-instructions {
+    color: #9CA3AF;
+    font-size: 0.9em;
+    margin-top: 16px;
+}
+
+.jellyfin-auth-wrapper {
+    margin-top: 16px;
+}
+
+.jellyfin-auth-wrapper .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+
+.user-selector-wrapper {
+    margin-top: 8px;
+}
+
+.user-select {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #282A2D;
+    border: 1px solid #4A4C51;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 16px 0;
+}
+
+.user-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    cursor: pointer;
+}
+
+.user-option:hover {
+    background: rgba(229, 160, 13, 0.1);
+    border-radius: 4px;
+}
+
+.user-option input[type="checkbox"] {
+    accent-color: #E5A00D;
+}
+
+/* Timezone Field Wrapper */
+.timezone-field-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Timezone Dialog Styles */
+.timezone-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.timezone-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #282A2D;
+    border: 1px solid #4A4C51;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.timezone-option {
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #EAEAEC;
+}
+
+.timezone-option:hover {
+    background: rgba(229, 160, 13, 0.1);
+}
+
+.timezone-option.selected {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
