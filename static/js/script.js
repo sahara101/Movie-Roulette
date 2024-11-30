@@ -23,7 +23,6 @@ let currentService = 'plex';
 let currentMovie = null;
 let availableServices = [];
 let socket = io({
-<<<<<<< HEAD
     transports: ['polling'],
     reconnectionAttempts: 5,
 });
@@ -32,12 +31,6 @@ let socket = io({
 window.openPersonDetailsOverlay = openPersonDetailsOverlay;
 window.closePersonDetailsOverlay = closePersonDetailsOverlay;
 window.openMovieDataOverlay = openMovieDataOverlay;
-=======
-    transports: ['polling'],  // Restrict to polling transport
-    // secure: true,          // Optional: Use if serving over HTTPS
-    reconnectionAttempts: 5,  // Optional: Limit reconnection attempts
-});
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 
 document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
@@ -104,18 +97,18 @@ socket.on('loading_complete', async function() {
         overlay.classList.add('hidden');
         // Remove the setTimeout - it's not needed and could cause race conditions
         await loadRandomMovie();
-        
+
         // Reinitialize filters if needed
         if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
             console.log('Reinitializing filters after cache build');
             await loadFilterOptions();
             const filterButton = document.getElementById("filterButton");
             const filterDropdown = document.getElementById("filterDropdown");
-            
+
             // Remove existing event listeners
             const newFilterButton = filterButton.cloneNode(true);
             filterButton.parentNode.replaceChild(newFilterButton, filterButton);
-            
+
             // Re-setup filter event listeners
             newFilterButton.addEventListener('click', function(event) {
                 event.stopPropagation();
@@ -268,7 +261,6 @@ function setupEventListeners() {
         if (switchServiceButton) {
             switchServiceButton.addEventListener('click', switchService);
         }
-<<<<<<< HEAD
 
 	const clientPromptClose = document.getElementById('client_prompt_close');
     	if (clientPromptClose) {
@@ -320,28 +312,22 @@ function setupEventListeners() {
     const moviesOverlayClose = document.getElementById('movies_overlay_close');
     if (moviesOverlayClose) {
         moviesOverlayClose.addEventListener('click', closeMoviesOverlay);
-=======
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     }
 }
 
 function setupFilterEventListeners() {
-<<<<<<< HEAD
     console.log('Setting up filter event listeners');
     if (!window.USE_FILTER) {
         console.log('Filters disabled, skipping setup');
         return;
     }
-=======
-    if (!window.USE_FILTER) return;
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 
     const filterButton = document.getElementById("filterButton");
     const filterDropdown = document.getElementById("filterDropdown");
 
     if (filterButton && filterDropdown) {
         console.log('Found filter elements, attaching listeners');
-        
+
         // Remove any existing listeners by cloning and replacing
         const newFilterButton = filterButton.cloneNode(true);
         filterButton.parentNode.replaceChild(newFilterButton, filterButton);
@@ -365,7 +351,6 @@ function setupFilterEventListeners() {
             event.stopPropagation();
         });
 
-<<<<<<< HEAD
         // Setup apply filter button
         const applyFilterBtn = document.getElementById("applyFilter");
         if (applyFilterBtn) {
@@ -389,17 +374,6 @@ function setupFilterEventListeners() {
             filterButton: !!filterButton,
             filterDropdown: !!filterDropdown
         });
-=======
-        const applyFilterBtn = document.getElementById("applyFilter");
-        if (applyFilterBtn) {
-            applyFilterBtn.addEventListener('click', applyFilter);
-        }
-
-        const clearFilterBtn = document.getElementById("clearFilter");
-        if (clearFilterBtn) {
-            clearFilterBtn.addEventListener('click', clearFilter);
-        }
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     }
 }
 
@@ -700,7 +674,6 @@ function updateMovieDisplay(movieData) {
     }
 
     if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
-<<<<<<< HEAD
         if (elements["tmdb_link"]) elements["tmdb_link"].href = movieData.tmdb_url;
         if (elements["trakt_link"]) elements["trakt_link"].href = movieData.trakt_url;
         if (elements["imdb_link"]) elements["imdb_link"].href = movieData.imdb_url;
@@ -715,19 +688,6 @@ function updateMovieDisplay(movieData) {
             } else {
                 elements["trailer_link"].style.display = "none";
             }
-=======
-        elements["tmdb_link"].href = movieData.tmdb_url;
-        elements["trakt_link"].href = movieData.trakt_url;
-        elements["imdb_link"].href = movieData.imdb_url;
-        if (movieData.trailer_url) {
-            elements["trailer_link"].style.display = "block";
-            elements["trailer_link"].onclick = function() {
-                document.getElementById("trailer_iframe").src = movieData.trailer_url;
-                document.getElementById("trailer_popup").classList.remove("hidden");
-            };
-        } else {
-            elements["trailer_link"].style.display = "none";
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
         }
     }
 
@@ -1255,7 +1215,7 @@ async function openPersonDetailsOverlay(personId, personName) {
         // Store current state of movies overlay
         const moviesOverlay = document.getElementById('movies_overlay');
         const wasMoviesOverlayVisible = !moviesOverlay.classList.contains('hidden');
-        
+
         // Get full person details and external IDs
         const response = await fetch(`/api/person_details_with_external_ids/${personId}`);
         if (!response.ok) {
@@ -1611,11 +1571,11 @@ async function getYoutubeTrailer(title, year) {
 function closeMoviesOverlay() {
     const moviesOverlay = document.getElementById('movies_overlay');
     const existingDialog = document.querySelector('.cast-dialog');
-    
+
     if (moviesOverlay) {
         moviesOverlay.classList.add('hidden');
     }
-    
+
     if (existingDialog) {
         existingDialog.style.display = 'flex';
     }
@@ -1908,16 +1868,16 @@ async function checkAndLoadCache() {
         const data = await response.json();
         if (data.cached_movies === 0) {
             console.log('Cache is empty. Starting to load movies...');
-            
+
             // First remove existing event listeners to prevent duplicates
             const filterButton = document.getElementById("filterButton");
             if (filterButton) {
                 const newFilterButton = filterButton.cloneNode(true);
                 filterButton.parentNode.replaceChild(newFilterButton, filterButton);
             }
-            
+
             await refreshMovieCache();
-            
+
             // Re-initialize everything after cache is built
             console.log('Reinitializing after cache build');
             await loadFilterOptions();
