@@ -54,7 +54,50 @@ USE_NEXT_BUTTON = True
 PLEX_AVAILABLE = False
 JELLYFIN_AVAILABLE = False
 
+<<<<<<< HEAD
 # Other globals
+=======
+# Add the default_poster_manager to the app config
+app.config['DEFAULT_POSTER_MANAGER'] = default_poster_manager
+
+# Check which services are available
+PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('PLEX_MOVIE_LIBRARIES')])
+JELLYFIN_AVAILABLE = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
+HOMEPAGE_MODE = os.getenv('HOMEPAGE_MODE', 'FALSE').upper() == 'TRUE'
+
+USE_LINKS = os.getenv('USE_LINKS', 'TRUE').upper() == 'TRUE'
+USE_FILTER = os.getenv('USE_FILTER', 'TRUE').upper() == 'TRUE'
+USE_WATCH_BUTTON = os.getenv('USE_WATCH_BUTTON', 'TRUE').upper() == 'TRUE'
+USE_NEXT_BUTTON = os.getenv('USE_NEXT_BUTTON', 'TRUE').upper() == 'TRUE'
+
+if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
+    raise EnvironmentError("At least one service (Plex or Jellyfin) must be configured.")
+
+cache_file_path = '/app/data/plex_unwatched_movies.json'
+
+# Initialize Plex and Jellyfin services if available
+if PLEX_AVAILABLE:
+    from utils.plex_service import PlexService
+    plex = PlexService()
+    cache_manager = CacheManager(plex, cache_file_path, socketio, app)
+    cache_manager.start()
+    app.config['PLEX_SERVICE'] = plex
+else:
+    plex = None
+    cache_manager = None
+
+if JELLYFIN_AVAILABLE:
+    from utils.jellyfin_service import JellyfinService
+    jellyfin = JellyfinService()
+    app.config['JELLYFIN_SERVICE'] = jellyfin
+else:
+    jellyfin = None
+
+from utils.fetch_movie_links import fetch_movie_links
+from utils.youtube_trailer import search_youtube_trailer
+
+# Global variables for Plex caching
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 all_plex_unwatched_movies = []
 movies_loaded_from_cache = False
 loading_in_progress = False
@@ -488,10 +531,13 @@ playback_monitor.start()
 # Flask Routes
 @app.route('/')
 def index():
+<<<<<<< HEAD
     # Only redirect if no services are configured
     if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
         return redirect('/settings')
 
+=======
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     return render_template(
         'index.html',
         homepage_mode=HOMEPAGE_MODE,

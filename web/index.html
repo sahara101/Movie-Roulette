@@ -41,7 +41,11 @@
         </div>
 
         <section id="section">
+<<<<<<< HEAD
             {% if not homepage_mode and use_filter %}
+=======
+	    {% if not homepage_mode and use_filter %}
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
             <div class="filter-container">
                 <button id="filterButton" class="filter-button" aria-label="Filter">
                     <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -65,7 +69,11 @@
                     <button id="clearFilter">Clear Filter</button>
                 </div>
             </div>
+<<<<<<< HEAD
             {% endif %}
+=======
+	    {% endif %}
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 
             <div id="movieContent">
                 <div class="movie_poster">
@@ -79,7 +87,11 @@
                     <p id="actors"></p>
                     <p id="genres"></p>
                     <p id="description"></p>
+<<<<<<< HEAD
                     {% if not homepage_mode and use_links %}
+=======
+		    {% if not homepage_mode and use_links %}
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
                     <div class="logo-container">
                         <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
                         <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
@@ -91,11 +103,19 @@
 
                 {% if not homepage_mode %}
                 <div class="button_container">
+<<<<<<< HEAD
                     {% if use_watch_button %}
                     <button id="btn_watch" class="button">WATCH</button>
                     {% endif %}
 
                     {% if use_next_button %}
+=======
+	            {% if use_watch_button %}
+                    <button id="btn_watch" class="button">WATCH</button>
+		    {% endif %}
+
+		    {% if use_next_button %}
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
                     <button id="btn_next_movie" class="button">
                         <svg width="24" height="24" viewBox="0 0 24 24">
                             <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
@@ -179,6 +199,7 @@
 
     </main>
 
+<<<<<<< HEAD
     <nav class="main-nav">
         <div class="nav-links">
             <a href="/" class="nav-link active">Movies</a>
@@ -186,15 +207,29 @@
             <a href="/settings" class="nav-link">Settings</a>
         </div>
     </nav>
+=======
+    {% if not homepage_mode %}
+    <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
+     <div class="version-label">v2.1.1</div>
+    </a>
+    {% endif %}
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script type="text/javascript" src="/js/script.js"></script>
     <script>
         window.HOMEPAGE_MODE = {{ 'true' if homepage_mode else 'false' }};
+<<<<<<< HEAD
         window.USE_LINKS = {{ 'true' if use_links else 'false' }};
         window.USE_FILTER = {{ 'true' if use_filter else 'false' }};
         window.USE_WATCH_BUTTON = {{ 'true' if use_watch_button else 'false' }};
         window.USE_NEXT_BUTTON = {{ 'true' if use_next_button else 'false' }};
+=======
+	window.USE_LINKS = {{ 'true' if use_links else 'false' }};
+    	window.USE_FILTER = {{ 'true' if use_filter else 'false' }};
+    	window.USE_WATCH_BUTTON = {{ 'true' if use_watch_button else 'false' }};
+    	window.USE_NEXT_BUTTON = {{ 'true' if use_next_button else 'false' }};
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     </script>
     <script>
         if ('serviceWorker' in navigator) {

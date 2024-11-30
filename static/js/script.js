@@ -23,6 +23,7 @@ let currentService = 'plex';
 let currentMovie = null;
 let availableServices = [];
 let socket = io({
+<<<<<<< HEAD
     transports: ['polling'],
     reconnectionAttempts: 5,
 });
@@ -31,6 +32,12 @@ let socket = io({
 window.openPersonDetailsOverlay = openPersonDetailsOverlay;
 window.closePersonDetailsOverlay = closePersonDetailsOverlay;
 window.openMovieDataOverlay = openMovieDataOverlay;
+=======
+    transports: ['polling'],  // Restrict to polling transport
+    // secure: true,          // Optional: Use if serving over HTTPS
+    reconnectionAttempts: 5,  // Optional: Limit reconnection attempts
+});
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 
 document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
@@ -261,6 +268,7 @@ function setupEventListeners() {
         if (switchServiceButton) {
             switchServiceButton.addEventListener('click', switchService);
         }
+<<<<<<< HEAD
 
 	const clientPromptClose = document.getElementById('client_prompt_close');
     	if (clientPromptClose) {
@@ -312,15 +320,21 @@ function setupEventListeners() {
     const moviesOverlayClose = document.getElementById('movies_overlay_close');
     if (moviesOverlayClose) {
         moviesOverlayClose.addEventListener('click', closeMoviesOverlay);
+=======
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     }
 }
 
 function setupFilterEventListeners() {
+<<<<<<< HEAD
     console.log('Setting up filter event listeners');
     if (!window.USE_FILTER) {
         console.log('Filters disabled, skipping setup');
         return;
     }
+=======
+    if (!window.USE_FILTER) return;
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 
     const filterButton = document.getElementById("filterButton");
     const filterDropdown = document.getElementById("filterDropdown");
@@ -351,6 +365,7 @@ function setupFilterEventListeners() {
             event.stopPropagation();
         });
 
+<<<<<<< HEAD
         // Setup apply filter button
         const applyFilterBtn = document.getElementById("applyFilter");
         if (applyFilterBtn) {
@@ -374,6 +389,17 @@ function setupFilterEventListeners() {
             filterButton: !!filterButton,
             filterDropdown: !!filterDropdown
         });
+=======
+        const applyFilterBtn = document.getElementById("applyFilter");
+        if (applyFilterBtn) {
+            applyFilterBtn.addEventListener('click', applyFilter);
+        }
+
+        const clearFilterBtn = document.getElementById("clearFilter");
+        if (clearFilterBtn) {
+            clearFilterBtn.addEventListener('click', clearFilter);
+        }
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     }
 }
 
@@ -674,6 +700,7 @@ function updateMovieDisplay(movieData) {
     }
 
     if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
+<<<<<<< HEAD
         if (elements["tmdb_link"]) elements["tmdb_link"].href = movieData.tmdb_url;
         if (elements["trakt_link"]) elements["trakt_link"].href = movieData.trakt_url;
         if (elements["imdb_link"]) elements["imdb_link"].href = movieData.imdb_url;
@@ -688,6 +715,19 @@ function updateMovieDisplay(movieData) {
             } else {
                 elements["trailer_link"].style.display = "none";
             }
+=======
+        elements["tmdb_link"].href = movieData.tmdb_url;
+        elements["trakt_link"].href = movieData.trakt_url;
+        elements["imdb_link"].href = movieData.imdb_url;
+        if (movieData.trailer_url) {
+            elements["trailer_link"].style.display = "block";
+            elements["trailer_link"].onclick = function() {
+                document.getElementById("trailer_iframe").src = movieData.trailer_url;
+                document.getElementById("trailer_popup").classList.remove("hidden");
+            };
+        } else {
+            elements["trailer_link"].style.display = "none";
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
         }
     }
 

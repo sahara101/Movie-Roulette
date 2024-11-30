@@ -44,6 +44,7 @@ services:
     image: ghcr.io/sahara101/movie-roulette:latest
 
     environment:
+<<<<<<< HEAD
       PLEX_URL: "Your-Plex-URL" #FQDN preferred. Do not use if you only want Jellyfin function.
       PLEX_TOKEN: "TOKEN" #Do not use if you only want Jellyfin function.
       MOVIES_LIBRARY_NAME: 'Filme' #Option for Plex. Default 'Movies'. Used for IMDB, Trakt and TMDB links. Do not use if you only want Jellyfin function.
@@ -54,6 +55,32 @@ services:
       LGTV_IP: "IP" #Optional
       LGTV_MAC: "MAC_Address" #Optional
       
+=======
+      #Homepage ENV
+      HOMEPAGE_MODE: "FALSE"
+      #Plex ENV
+      PLEX_URL: ""
+      PLEX_TOKEN: ""
+      PLEX_MOVIE_LIBRARIES: "Filme" #Default movies, add more with comma delimiter A,B,C
+      #Poster ENV
+      TZ: "Europe/Bucharest"
+      DEFAULT_POSTER_TEXT: "My Cool Cinema"
+      PLEX_POSTER_USERS: "" #Plex username, add more with comma delimiter A,B,C
+      JELLYFIN_POSTER_USERS: "" #Jellyfin username, add more with comma delimiter A,B,C
+      #Jellyfin ENV
+      JELLYFIN_URL: " "
+      JELLYFIN_API_KEY: " "
+      JELLYFIN_USER_ID: " "
+      #Client ENV
+      APPLE_TV_ID: " " 
+      LGTV_IP: " " 
+      LGTV_MAC: " "
+      #Miscellaneous
+      USE_LINKS: TRUE
+      USE_FILTER: TRUE
+      USE_WATCH_BUTTON: TRUE
+      USE_NEXT_BUTTON: TRUE
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     network_mode: host
     restart: unless-stopped
 ```
@@ -65,6 +92,35 @@ The power button displays the devices dynamically, meaning you HAVE to add the `
 
 A switch between services is displayed if both ```Jellyfin``` and ```Plex``` are configured. Last used service will be remembered. 
 
+<<<<<<< HEAD
+=======
+# Homepage Mode
+Added the option to remove all buttons. This way you can have a more minimalistic Homepage Widget using iFrames. ENV for this is `HOMEPAGE_MODE: TRUE` Of course you can use the iFrame with full functionality as well, or even pick and choose from the miscellaneous part. Just change the ENV to `HOMEPAGE_MODE: FALSE` or modify `#Miscellaneous`.
+
+Add the following config to the Homepage services.yml
+```
+- Movie Roulette:
+    - Movie Roulette:
+        icon: /images/icons/movie-roulette.png
+        widget:
+          type: iframe
+          src: "<url>"
+          classes: movie-roulette # optional, use tailwind height classes
+          referrerPolicy: same-origin # optional, no default
+          allowPolicy: autoplay; fullscreen; gamepad # optional, no default
+```
+
+custom.css
+```
+.movie-roulette {
+    width: 100%;
+    height: 380px; /* Set your desired height here */
+    border: none; /* Optional: remove the border */
+  }
+```
+You can configure the widget to your liking, check the Homepage documentation. 
+
+>>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 # PWA Support
 Since version 1.3.1 you can 'install' as a webapp. On iOS go to share - add to homescreen. On Mac go to Safari File - add to dock. In Chrome you will see an install button.
 
