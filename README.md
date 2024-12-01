@@ -37,6 +37,8 @@ This project was extended with the assistance of AI tools. The core functionalit
   - Overseerr for requests
   - YouTube for trailers
  
+> **Note**: Ensure your client devices and Plex server are on the same network. On the first run, a Plex cache file will be created to enhance movie loading speeds.
+ 
 ## Tested Players
 ### Plex
 - Apple TV - with turn on function and app start
@@ -61,7 +63,7 @@ services:
     restart: unless-stopped
 ```
 
-Visit `http://your-server:4000` and follow the setup wizard.
+Visit `http://your-server:4000` and configure your services.
 
 > **Note**: For device control (Apple TV/LG TV), use `network_mode: host` instead of port mapping.
 
@@ -178,6 +180,14 @@ Movie Roulette offers two ways to configure the application:
 | `TRAKT_ACCESS_TOKEN` | Custom access token | - | ✅ Built-in auth |
 | `TRAKT_REFRESH_TOKEN` | Custom refresh token | - | ✅ Built-in auth |
 
+## Plex Configuration
+### Plex Client
+
+Navigate to settings and enable Advertise as Player.
+###Plex Server
+
+Go to settings → Network and activate Enable Local Network Discovery (GDM).
+
 ## Advanced Configuration
 
 ### Apple TV Setup with ENV
@@ -211,6 +221,24 @@ Add to <a href="http://gethomepage.dev" target="_blank" rel="noopener noreferrer
           classes: h-96 w-full
           referrerPolicy: same-origin
 ```
+
+## Troubleshooting
+
+### Plex
+Issue: Pressing the "WATCH" button doesn’t show any client.
+
+- Verify Advertise as Player is enabled on the Plex client and restart the app.
+- Check for active clients using:
+```curl -X GET "http://PLEXIP:32400/clients?X-Plex-Token=PLEXTOKEN"```
+- (Apple TV) Disable and re-enable Advertise as Player, force close the app, and restart.
+  
+Issue: Apple TV doesn’t turn on.
+
+- You need to re-pair the Apple TV after recreating the container.
+  
+Issue: Browser doesn’t load the poster or background.
+
+- Use the FQDN (Fully Qualified Domain Name) for Plex/Jellyfin in the environment variables instead of the IP address.
 
 ## Support
 
