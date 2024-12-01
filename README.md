@@ -2,36 +2,29 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Latest Release](https://img.shields.io/github/v/release/sahara101/Random-Plex-Movie)](https://github.com/sahara101/Random-Plex-Movie/releases)
-[![GHCR Downloads](https://img.shields.io/github/downloads/sahara101/Random-Plex-Movie/total?label=GHCR%20Pulls)](https://github.com/sahara101/Random-Plex-Movie/pkgs/container/movie-roulette)
+[![Release](https://img.shields.io/badge/release-v3.0-blue)]()
+[![GHCR Downloads](https://img.shields.io/github/downloads/sahara101/movie-roulette/total?label=GHCR%20Downloads&logo=docker)](https://github.com/sahara101/movie-roulette/pkgs/container/movie-roulette)
 
+## Main Interface
 <div align="center">
-  <table>
-    <tr>
-      <td align="center">
-        <a href=".github/screenshots/main-interface.png">
-          <img src=".github/screenshots/standard-mode.png" width="200" alt="Main Interface">
-          <br>
-          <sub>Main Interface</sub>
-        </a>
-      </td>
-      <td align="center">
-        <a href=".github/screenshots/poster-mode.png">
-          <img src=".github/screenshots/poster-mode.png" width="200" alt="Poster Mode">
-          <br>
-          <sub>Cinema Poster</sub>
-        </a>
-      </td>
-      <td align="center">
-        <a href=".github/screenshots/homepage-mode-iframe.png">
-          <img src=".github/screenshots/homepage-mode.png" width="200" alt="Homepage Mode">
-          <br>
-          <sub>Homepage Widget</sub>
-        </a>
-      </td>
-    </tr>
-  </table>
+  <a href=".github/screenshots/main-interface.png">
+    <img src=".github/screenshots/main-interface.png" width="800" alt="Main Interface">
+  </a>
 </div>
+
+## Additional Views
+- [Cinema Poster Mode](.github/screenshots/poster-mode.png)
+- [Homepage Widget](.github/screenshots/homepage-mode-iframe.png)
+- [PWA on Mobile](.github/screenshots/pwa-interface-mobile.png)
+
+## Rich Information
+- [Cast & Crew Details](.github/screenshots/cast-example.png)
+- [Movie Details](.github/screenshots/movie-details-example.png)
+- [Filmography View](.github/screenshots/filmography-example.png)
+
+## Contributing
+
+This project was extended with the assistance of AI tools. The core functionality is based on [Random-Plex-Movie](https://github.com/Akasiek/Random-Plex-Movie) and has been expanded with additional features and integrations.
 
 ## Features
 
@@ -181,11 +174,43 @@ Movie Roulette offers two ways to configure the application:
 | `TRAKT_ACCESS_TOKEN` | Custom access token | - | ✅ Built-in auth |
 | `TRAKT_REFRESH_TOKEN` | Custom refresh token | - | ✅ Built-in auth |
 
+## Advanced Configuration
+
+### Apple TV Setup with ENV
+1. Get Apple TV ID:
+   ```
+   docker exec -ti movie-roulette /bin/sh
+   atvremote scan
+   ```
+
+2. Note the Apple TV Identifier (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+3. Add to environment:
+  environment:
+  APPLE_TV_ID: "your-apple-tv-identifier"
+
+4. Pair with Apple TV:
+   ```
+   docker exec -ti movie-roulette /bin/sh
+   atvremote --id YOUR-ID --protocol companion pair
+   ```
+5. Enter PIN shown on Apple TV
+
+### Homepage Integration
+Add to Homepage's services.yaml:
+```
+- Movie Roulette:
+    - Movie Roulette:
+        icon: /images/icons/movie-roulette.png
+        widget:
+          type: iframe
+          src: "http://your-server:4000"
+          classes: h-96 w-full
+          referrerPolicy: same-origin
+```
+
 ## Support
 
 If you find Movie Roulette useful, consider supporting development:
 
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Development-yellow?logo=ko-fi)](https://ko-fi.com/sahara101/donate)
-
-[Add License Information]
