@@ -3,6 +3,8 @@
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
 [![Release](https://img.shields.io/badge/release-v3.0-blue)]()
+[![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
+[![GHCR Downloads](https://img.shields.io/endpoint?url=https://ipitio.github.io/backage/sahara101/Random-Plex-Movie/movie-roulette.json&label=GHCR%20Downloads)](https://github.com/sahara101/Random-Plex-Movie/pkgs/container/movie-roulette)
 
 ## Main Interface
 <div align="center">
@@ -51,10 +53,14 @@ This project was extended with the assistance of AI tools. The core functionalit
 
 ## Quick Start
 
+## Container Images
+- GitHub Container Registry: `ghcr.io/sahara101/movie-roulette:latest`
+- Docker Hub: `sahara101/movie-roulette:latest`
+
 ```yaml
 services:
   movie-roulette:
-    image: ghcr.io/sahara101/movie-roulette:latest
+    image: #See above
     container_name: movie-roulette
     ports:
       - "4000:4000"
