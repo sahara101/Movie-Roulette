@@ -47,6 +47,8 @@ This project was extended with the assistance of AI tools. The core functionalit
 ### Jellyfin
 - All cast capable devices
 
+## Quick Start
+
 ```yaml
 services:
   movie-roulette:
