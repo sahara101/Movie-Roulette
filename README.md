@@ -3,7 +3,6 @@
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
 [![Release](https://img.shields.io/badge/release-v3.0-blue)]()
-[![GHCR Downloads](https://img.shields.io/github/downloads/sahara101/movie-roulette/total?label=GHCR%20Downloads&logo=docker)](https://github.com/sahara101/movie-roulette/pkgs/container/movie-roulette)
 
 ## Main Interface
 <div align="center">
