@@ -36,8 +36,16 @@ This project was extended with the assistance of AI tools. The core functionalit
   - Trakt for watch status
   - Overseerr for requests
   - YouTube for trailers
-
-## Quick Start
+ 
+## Tested Players
+### Plex
+- Apple TV - with turn on function and app start
+- Plex HTPC MacOS Client
+- iPhone
+- Plex for LGTV (WebOS) - with turn on function and app start
+- Xiaomi MI TV Box S (Android)
+### Jellyfin
+- All cast capable devices
 
 ```yaml
 services:
