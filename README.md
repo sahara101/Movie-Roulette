@@ -134,7 +134,7 @@ services:
       - ./movie_roulette_data:/app/data
     restart: unless-stopped
 ```
-If you do not have an Apple TV you can  also change the container network type. 
+If you do not want to use the power on feature you can change the container network type. 
 
 Default container port is 4000
 
