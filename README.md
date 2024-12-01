@@ -104,9 +104,6 @@ See [sample-compose.yml](sample-compose.yml) for full configuration options.
 
 3. **Homepage Mode**
    - Minimalist widget
-   - Basic controls
-   - Quick selection
-
 
 ## Setup
 
@@ -123,8 +120,6 @@ Movie Roulette offers two ways to configure the application:
 2. **Environment Variables**
    - Override UI settings
    - Lock settings in UI
-   - Container-level configuration
-   - CI/CD friendly
 
 > ⚠️ **Important**: When a setting is configured through ENV variables, it will:
 > - Take precedence over UI settings
@@ -196,7 +191,7 @@ Movie Roulette offers two ways to configure the application:
 5. Enter PIN shown on Apple TV
 
 ### Homepage Integration
-Add to Homepage's services.yaml:
+Add to <a href="http://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a>'s services.yaml:
 ```
 - Movie Roulette:
     - Movie Roulette:
