@@ -4,7 +4,7 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 
 [![Release](https://img.shields.io/badge/release-v3.0-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
-[![GHCR Downloads](https://img.shields.io/endpoint?url=https://ipitio.github.io/backage/sahara101/Random-Plex-Movie/movie-roulette.json&label=GHCR%20Downloads)](https://github.com/sahara101/Random-Plex-Movie/pkgs/container/movie-roulette)
+[![GHCR Downloads](https://img.shields.io/endpoint?url=https://ipitio.github.io/backage/sahara101/Movie-Roulette/movie-roulette.json&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 
 ## Main Interface
 <div align="center">
