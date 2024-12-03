@@ -1,30 +1,30 @@
 FROM python:3.9-slim-bullseye AS builder
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    build-essential python3-dev gcc libffi-dev \
-    curl libssl-dev rustc cargo pkg-config \
-    portaudio19-dev libasound2-dev cmake
+   apt-get install -y --no-install-recommends \
+   build-essential python3-dev gcc libffi-dev \
+   curl libssl-dev rustc cargo pkg-config \
+   portaudio19-dev libasound2-dev cmake
 
 WORKDIR /build
 COPY requirements.txt .
-RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt 
-RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels miniaudio>=1.45
-RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels "aiohttp<5"
+RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
+   pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
+   miniaudio>=1.45 "aiohttp<5" "async-timeout>=4.0.2" "ifaddr>=0.1.7"
 
 FROM python:3.9-slim-bullseye
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    arp-scan iputils-ping netcat-openbsd \
-    portaudio19-dev libasound2-dev \
-    && rm -rf /var/lib/apt/lists/*
+   apt-get install -y --no-install-recommends \
+   arp-scan iputils-ping netcat-openbsd \
+   portaudio19-dev libasound2-dev \
+   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /wheels /wheels
 COPY . .
 RUN pip install --no-index --find-links=/wheels -r requirements.txt \
-    && rm -rf /wheels
+   && rm -rf /wheels
 
 EXPOSE 4000
 VOLUME /app/data
