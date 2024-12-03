@@ -10,7 +10,8 @@ WORKDIR /build
 COPY requirements.txt .
 RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-   miniaudio>=1.45 "aiohttp<5" "async-timeout>=4.0.2" "ifaddr>=0.1.7"
+   miniaudio>=1.45 "aiohttp<5" "async-timeout>=4.0.2" "ifaddr>=0.1.7" \
+   "chacha20poly1305-reuseable>=0.13.2" "pycparser" "cffi"
 
 FROM python:3.9-slim-bullseye
 
