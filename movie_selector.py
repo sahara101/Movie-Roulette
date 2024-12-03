@@ -54,50 +54,7 @@ USE_NEXT_BUTTON = True
 PLEX_AVAILABLE = False
 JELLYFIN_AVAILABLE = False
 
-<<<<<<< HEAD
 # Other globals
-=======
-# Add the default_poster_manager to the app config
-app.config['DEFAULT_POSTER_MANAGER'] = default_poster_manager
-
-# Check which services are available
-PLEX_AVAILABLE = all([os.getenv('PLEX_URL'), os.getenv('PLEX_TOKEN'), os.getenv('PLEX_MOVIE_LIBRARIES')])
-JELLYFIN_AVAILABLE = all([os.getenv('JELLYFIN_URL'), os.getenv('JELLYFIN_API_KEY')])
-HOMEPAGE_MODE = os.getenv('HOMEPAGE_MODE', 'FALSE').upper() == 'TRUE'
-
-USE_LINKS = os.getenv('USE_LINKS', 'TRUE').upper() == 'TRUE'
-USE_FILTER = os.getenv('USE_FILTER', 'TRUE').upper() == 'TRUE'
-USE_WATCH_BUTTON = os.getenv('USE_WATCH_BUTTON', 'TRUE').upper() == 'TRUE'
-USE_NEXT_BUTTON = os.getenv('USE_NEXT_BUTTON', 'TRUE').upper() == 'TRUE'
-
-if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
-    raise EnvironmentError("At least one service (Plex or Jellyfin) must be configured.")
-
-cache_file_path = '/app/data/plex_unwatched_movies.json'
-
-# Initialize Plex and Jellyfin services if available
-if PLEX_AVAILABLE:
-    from utils.plex_service import PlexService
-    plex = PlexService()
-    cache_manager = CacheManager(plex, cache_file_path, socketio, app)
-    cache_manager.start()
-    app.config['PLEX_SERVICE'] = plex
-else:
-    plex = None
-    cache_manager = None
-
-if JELLYFIN_AVAILABLE:
-    from utils.jellyfin_service import JellyfinService
-    jellyfin = JellyfinService()
-    app.config['JELLYFIN_SERVICE'] = jellyfin
-else:
-    jellyfin = None
-
-from utils.fetch_movie_links import fetch_movie_links
-from utils.youtube_trailer import search_youtube_trailer
-
-# Global variables for Plex caching
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
 all_plex_unwatched_movies = []
 movies_loaded_from_cache = False
 loading_in_progress = False
@@ -409,7 +366,7 @@ def enrich_movie_data(movie_data):
 
             # Sort directors so primary directors come first
             movie_data['directors_enriched'] = sorted(
-                list(directors_map.values()), 
+                list(directors_map.values()),
                 key=lambda x: (not x['is_primary'], x['name'])
             )
 
@@ -430,7 +387,7 @@ def enrich_movie_data(movie_data):
                         }
 
             movie_data['writers_enriched'] = sorted(
-                list(writers_map.values()), 
+                list(writers_map.values()),
                 key=lambda x: (not x['is_primary'], x['name'])
             )
     else:
@@ -531,13 +488,10 @@ playback_monitor.start()
 # Flask Routes
 @app.route('/')
 def index():
-<<<<<<< HEAD
     # Only redirect if no services are configured
     if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
         return redirect('/settings')
 
-=======
->>>>>>> 433d0b5c56739089905058eaa15c3c7c7888d3a7
     return render_template(
         'index.html',
         homepage_mode=HOMEPAGE_MODE,
@@ -667,7 +621,7 @@ def filter_movies():
             # Enrich the movie data with TMDb information
             movie_data = enrich_movie_data(movie_data)
             return jsonify({
-                "service": current_service, 
+                "service": current_service,
                 "movie": movie_data
             })
         else:
@@ -821,7 +775,7 @@ def devices():
     # Check LG TV
     env_lg_ip = os.getenv('LGTV_IP')
     env_lg_mac = os.getenv('LGTV_MAC')
-    
+
     if env_lg_ip and env_lg_mac:
         # If ENV is set, show it and mark as ENV controlled
         devices.append({
@@ -829,8 +783,8 @@ def devices():
             "displayName": "LG TV (webOS)",
             "env_controlled": True
         })
-    elif (LG_TV_SETTINGS.get('enabled') and 
-          LG_TV_SETTINGS.get('ip') and 
+    elif (LG_TV_SETTINGS.get('enabled') and
+          LG_TV_SETTINGS.get('ip') and
           LG_TV_SETTINGS.get('mac')):
         # If no ENV but settings are enabled and have all required fields
         devices.append({
@@ -860,12 +814,12 @@ def turn_on_device(device):
         try:
             from utils.lgtv_control import get_tv_config, send_wol
             tv_ip, tv_mac = get_tv_config()
-            
+
             if not tv_mac:
                 return jsonify({"error": "LG TV MAC address not configured"}), 400
 
             current_service = session.get('current_service', get_available_service())
-                
+
             if send_wol(tv_mac):
                 # Start a background task to launch the app after TV wakes up
                 def delayed_app_launch(service):
@@ -876,11 +830,11 @@ def turn_on_device(device):
                         main(app_to_launch)
                     except Exception as e:
                         logger.error(f"Failed to launch app: {e}")
-                
+
                 thread = threading.Thread(target=delayed_app_launch, args=(current_service,))
                 thread.daemon = True
                 thread.start()
-                
+
                 return jsonify({"status": "LG TV wake-on-LAN sent successfully"})
             else:
                 return jsonify({"error": "Failed to send wake-on-LAN packet"}), 500
@@ -899,15 +853,15 @@ def debug_plex():
         total_movies = plex.get_total_unwatched_movies() if plex else 0
         all_movies_count = len(cache_manager.get_all_plex_movies()) if cache_manager else 0
         cached_movies = len(cache_manager.get_cached_movies()) if cache_manager else 0
-        
+
         # Get settings-based URL and libraries
         plex_url = PLEX_SETTINGS.get('url') or os.getenv('PLEX_URL')
         movie_libraries = PLEX_SETTINGS.get('movie_libraries') or os.getenv('PLEX_MOVIE_LIBRARIES', '')
-        
+
         # If movie_libraries is a list, join it
         if isinstance(movie_libraries, list):
             movie_libraries = ','.join(movie_libraries)
-        
+
         return jsonify({
             "total_movies": all_movies_count,
             "total_unwatched_movies": total_movies,
@@ -1024,7 +978,7 @@ def scan_for_lgtvs():
                 'scan_successful': True
             }
         })
-        
+
     except subprocess.CalledProcessError as e:
         logger.error(f"arp-scan execution failed: {str(e)}")
         return jsonify({
@@ -1053,7 +1007,7 @@ def validate_tv():
     """Validate TV connection and configuration"""
     ip = request.args.get('ip')
     mac = request.args.get('mac')
-    
+
     if not ip or not mac:
         return jsonify({
             'error': 'Both IP and MAC address are required',
@@ -1062,10 +1016,10 @@ def validate_tv():
                 'mac': bool(mac)
             }
         }), 400
-        
+
     # Get just the prefix part for comparison
     mac_prefix = ':'.join(mac.upper().split(':')[:3])
-        
+
     validation_results = {
         'ip': {
             'valid': is_valid_ip(ip),
@@ -1082,11 +1036,11 @@ def validate_tv():
             'tested_at': datetime.now().isoformat()
         }
     }
-    
+
     # Only test connection if IP and MAC are valid
     if validation_results['ip']['valid'] and validation_results['mac']['valid']:
         validation_results['connection']['reachable'] = test_tv_connection(ip)
-    
+
     if validation_results['connection']['reachable']:
         return jsonify({
             'status': 'valid',
@@ -1150,7 +1104,7 @@ def submit_appletv_pin(device_id):
                 'status': 'error',
                 'message': 'PIN is required'
             }), 400
-        
+
         result = submit_pin(device_id, pin)
         return jsonify(result)
     except Exception as e:
@@ -1188,15 +1142,15 @@ def check_appletv_credentials():
     try:
         data = request.get_json()
         device_id = data.get('device_id')
-        
+
         if not device_id:
             return jsonify({"error": "No device ID provided"}), 400
-            
+
         from utils.appletv_discovery import check_credentials
         has_credentials = check_credentials(device_id)
-        
+
         return jsonify({"has_credentials": has_credentials})
-        
+
     except Exception as e:
         logger.error(f"Error checking Apple TV credentials: {e}")
         return jsonify({"error": str(e)}), 500
@@ -1238,10 +1192,10 @@ def get_plex_token():
 
         # Initialize the PIN login
         pin_login = MyPlexPinLogin(headers=headers)
-        
+
         # Store in global dict
         _plex_pin_logins[client_id] = pin_login
-        
+
         logger.info(f"Plex auth initiated with PIN: {pin_login.pin}")
 
         return jsonify({
@@ -1259,7 +1213,7 @@ def check_plex_auth(client_id):
     try:
         # Get the pin_login instance from global dict
         pin_login = _plex_pin_logins.get(client_id)
-        
+
         if not pin_login:
             logger.warning("No PIN login instance found for this client")
             return jsonify({"token": None})
@@ -1270,9 +1224,9 @@ def check_plex_auth(client_id):
             # Clean up
             del _plex_pin_logins[client_id]
             return jsonify({"token": token})
-        
+
         return jsonify({"token": None})
-            
+
     except Exception as e:
         logger.error(f"Error in check_plex_auth: {str(e)}")
         logger.error(traceback.format_exc())
@@ -1284,19 +1238,19 @@ def get_plex_libraries():
         data = request.json
         plex_url = data.get('plex_url')
         plex_token = data.get('plex_token')
-        
+
         if not plex_url or not plex_token:
             return jsonify({"error": "Missing Plex URL or token"}), 400
 
         from plexapi.server import PlexServer
         server = PlexServer(plex_url, plex_token)
-        
+
         libraries = [
             section.title
             for section in server.library.sections()
             if section.type == 'movie'
         ]
-        
+
         return jsonify({"libraries": libraries})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1335,7 +1289,7 @@ def jellyfin_auth():
             return jsonify({"error": "Invalid credentials"}), 401
 
         auth_result = auth_response.json()
-        
+
         return jsonify({
             "api_key": auth_result['AccessToken'],
             "user_id": auth_result['User']['Id']
@@ -1358,7 +1312,7 @@ def get_plex_users():
 
         from plexapi.server import PlexServer
         server = PlexServer(plex_url, plex_token)
-        
+
         # Get all users who have access to the server
         users = [user.title for user in server.myPlexAccount().users()]
         # Add the admin user
@@ -1412,7 +1366,7 @@ def search_person_api():
         if person:
             # Get the TMDb and IMDb links
             tmdb_url, imdb_url = tmdb_service.get_person_links(person['id'])
-            
+
             return jsonify({
                 **person,
                 'links': {
@@ -1476,7 +1430,7 @@ def movie_details(movie_id):
     try:
         # Import at the top of the file with other imports
         from utils.tmdb_service import tmdb_service
-        
+
         movie_data = tmdb_service.get_movie_details(movie_id)
         if not movie_data:
             return jsonify({"error": "Movie not found"}), 404
@@ -1552,7 +1506,7 @@ def is_movie_in_jellyfin(tmdb_id):
         if os.path.exists(cache_path):
             with open(cache_path, 'r') as f:
                 all_jellyfin_movies = json.load(f)
-            
+
             is_available = any(
                 str(movie.get('tmdb_id')) == str(tmdb_id)
                 for movie in all_jellyfin_movies
