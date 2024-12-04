@@ -20,18 +20,33 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cffi setuptools-rust && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    cryptography==43.0.0 --no-binary cryptography
+    cryptography==44.0.0 --no-binary cryptography
 
-RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    aiohttp aiohappyeyeballs aiosignal annotated-types async-timeout attrs \
-    bidict blinker bottle bottle-websocket certifi chacha20poly1305-reuseable \
-    charset-normalizer click dnspython filetype frozenlist future gevent \
-    gevent-websocket greenlet h11 idna ifaddr importlib-metadata itsdangerous \
-    Jinja2 MarkupSafe mediafile miniaudio multidict mutagen packaging protobuf \
-    propcache pydantic pydantic-core pyparsing python-engineio python-socketio \
-    simple-websocket six srptools tabulate typing_extensions urllib3 \
-    wsproto yarl zeroconf zope.event zope.interface "Werkzeug>=3.1"
+# Build all dependencies from the complete list
+RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
+    aiohappyeyeballs==2.4.4 aiohttp==3.11.9 aiosignal==1.3.1 \
+    annotated-types==0.7.0 async-timeout==5.0.1 attrs==24.2.0 \
+    bidict==0.23.1 blinker==1.9.0 bottle==0.13.2 \
+    bottle-websocket==0.2.9 certifi==2024.8.30 cffi==1.17.1 \
+    chacha20poly1305-reuseable==0.13.2 charset-normalizer==3.4.0 \
+    click==8.1.7 configparser==7.1.0 dnspython==2.7.0 \
+    Eel==0.18.1 eventlet==0.38.0 filetype==1.2.0 \
+    Flask==3.1.0 Flask-SocketIO==5.4.1 frozenlist==1.5.0 \
+    future==1.0.0 gevent==24.11.1 gevent-websocket==0.10.1 \
+    greenlet==3.1.1 gunicorn==23.0.0 h11==0.14.0 \
+    idna==3.10 ifaddr==0.2.0 itsdangerous==2.2.0 \
+    Jinja2==3.1.4 MarkupSafe==3.0.2 mediafile==0.13.0 \
+    miniaudio==1.61 multidict==6.1.0 mutagen==1.47.0 \
+    packaging==24.2 pexpect==4.9.0 PlexAPI==4.16.0 \
+    propcache==0.2.1 protobuf==5.29.0 ptyprocess==0.7.0 \
+    pyatv==0.15.1 pycparser==2.22 pydantic==2.10.3 \
+    pydantic_core==2.27.1 pyparsing==3.2.0 python-dotenv==1.0.1 \
+    python-engineio==4.10.1 python-socketio==5.11.4 pytz==2024.2 \
+    pywebostv==0.8.9 requests==2.32.3 simple-websocket==1.1.0 \
+    six==1.16.0 srptools==1.0.1 tabulate==0.9.0 \
+    typing_extensions==4.12.2 urllib3==2.2.3 Werkzeug==3.1.3 \
+    ws4py==0.5.1 wsproto==1.2.0 yarl==1.18.3 zeroconf==0.136.2 \
+    zope.event==5.0 zope.interface==7.2
 
 FROM python:3.9-slim-bullseye
 
