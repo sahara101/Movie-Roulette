@@ -3,18 +3,18 @@ FROM python:3.9-slim-bullseye AS builder
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential python3-dev gcc libffi-dev \
-    curl libssl-dev rustc cargo pkg-config \
+    curl libssl-dev pkg-config \
     portaudio19-dev libasound2-dev cmake
+
+# Install Rust
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 WORKDIR /build
 COPY requirements.txt .
-
-# Build with specific versions and dependencies
 RUN pip install --upgrade pip setuptools wheel && \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    cffi pycparser && \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    "cryptography==43.0.0" && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     aiohttp aiohappyeyeballs aiosignal annotated-types async-timeout attrs \
