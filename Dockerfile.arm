@@ -8,6 +8,11 @@ RUN apt-get update && \
 
 WORKDIR /build
 COPY requirements.txt .
+
+# First build cryptography
+RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels cryptography>=43.0.0
+
+# Then build other dependencies
 RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     aiohttp aiohappyeyeballs aiosignal annotated-types async-timeout attrs \
