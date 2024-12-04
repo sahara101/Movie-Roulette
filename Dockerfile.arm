@@ -14,8 +14,16 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 WORKDIR /build
 COPY requirements.txt .
+
+# First build cryptography explicitly with all its dependencies
 RUN pip install --upgrade pip setuptools wheel && \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
+    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
+    cffi setuptools-rust && \
+    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
+    cryptography==43.0.0 --no-binary cryptography
+
+# Then build everything else
+RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     aiohttp aiohappyeyeballs aiosignal annotated-types async-timeout attrs \
     bidict blinker bottle bottle-websocket certifi chacha20poly1305-reuseable \
