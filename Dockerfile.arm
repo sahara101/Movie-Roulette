@@ -22,7 +22,7 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cryptography==43.0.0 --no-binary cryptography
 
-# Then build everything else
+# Then build everything else including Werkzeug
 RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     aiohttp aiohappyeyeballs aiosignal annotated-types async-timeout attrs \
@@ -32,7 +32,7 @@ RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt &
     mediafile miniaudio multidict mutagen packaging protobuf propcache \
     pydantic pydantic-core pyparsing python-engineio python-socketio \
     simple-websocket six srptools tabulate typing_extensions urllib3 \
-    wsproto yarl zeroconf zope.event zope.interface
+    wsproto yarl zeroconf zope.event zope.interface "Werkzeug>=3.1"
 
 FROM python:3.9-slim-bullseye
 
