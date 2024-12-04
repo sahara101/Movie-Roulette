@@ -22,15 +22,14 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cryptography==43.0.0 --no-binary cryptography
 
-# Then build everything else including Werkzeug
 RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt && \
     pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     aiohttp aiohappyeyeballs aiosignal annotated-types async-timeout attrs \
     bidict blinker bottle bottle-websocket certifi chacha20poly1305-reuseable \
     charset-normalizer click dnspython filetype frozenlist future gevent \
-    gevent-websocket greenlet h11 idna ifaddr itsdangerous Jinja2 MarkupSafe \
-    mediafile miniaudio multidict mutagen packaging protobuf propcache \
-    pydantic pydantic-core pyparsing python-engineio python-socketio \
+    gevent-websocket greenlet h11 idna ifaddr importlib-metadata itsdangerous \
+    Jinja2 MarkupSafe mediafile miniaudio multidict mutagen packaging protobuf \
+    propcache pydantic pydantic-core pyparsing python-engineio python-socketio \
     simple-websocket six srptools tabulate typing_extensions urllib3 \
     wsproto yarl zeroconf zope.event zope.interface "Werkzeug>=3.1"
 
