@@ -2345,3 +2345,105 @@ body.homepage-mode #description {
 body.homepage-mode #description.truncated::after {
     display: none !important;
 }
+
+.trakt-confirm-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(40, 42, 45, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+}
+
+.dialog-content {
+    background-color: #3A3C41;
+    border-radius: 15px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    margin: auto;
+    position: relative;
+}
+
+.dialog-content h3 {
+    color: #E5A00D;
+    margin: 0 0 20px 0;
+    font-size: 24px;
+}
+
+.changelog {
+    background-color: #282A2D;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.changelog h4 {
+    color: #E5A00D;
+    margin: 0 0 12px 0;
+    font-size: 1.1em;
+}
+
+.changelog-content {
+    color: #EAEAEC;
+    white-space: pre-line;
+    line-height: 1.6;
+}
+
+.version-info {
+    color: #EAEAEC;
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+.dialog-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+.dialog-buttons .cancel-button,
+.dialog-buttons .submit-button {
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    border: none;
+    text-decoration: none;
+}
+
+.dialog-buttons .cancel-button {
+    background-color: #282A2D;
+    color: #EAEAEC;
+}
+
+.dialog-buttons .submit-button {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
+.dialog-buttons .cancel-button:hover {
+    background-color: #3A3C41;
+}
+
+.dialog-buttons .submit-button:hover {
+    background-color: #F8D68B;
+}
+
+.trakt-confirm-dialog .dialog-content p,
+.trakt-confirm-dialog .version-info {
+    color: #EAEAEC;
+    font-weight: 300; 
+}
+
+.trakt-confirm-dialog .changelog-content {
+    color: #EAEAEC;
+    font-weight: 300;  
+    white-space: pre-line;
+    line-height: 1.6;
+}

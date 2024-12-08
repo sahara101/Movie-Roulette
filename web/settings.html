@@ -9,13 +9,52 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <div id="settings-root"></div>
-    <script src="/static/js/settings.js"></script>
-</body>
+    {% if settings_disabled %}
+        {% if no_services_configured %}
+        <div class="settings-disabled">
+            <h1>Service Configuration Required</h1>
+            <p>Settings disabled. No media services are configured. Movie Roulette requires either Plex or Jellyfin to be configured through environment variables:</p>
+            
+            <div class="config-help">
+                <p>Required environment variables for Plex:</p>
+                <pre>
+PLEX_URL=http://your-plex-server:32400
+PLEX_TOKEN=your-plex-token
+PLEX_MOVIE_LIBRARIES=Movies,Other Movies</pre>
+                
+                <p>Required environment variables for Jellyfin:</p>
+                <pre>
+JELLYFIN_URL=http://your-jellyfin-server:8096
+JELLYFIN_API_KEY=your-api-key
+JELLYFIN_USER_ID=your-user-id</pre>
+            </div>
+        </div>
+        {% else %}
+        <div class="settings-disabled">
+            <h1>Settings Disabled</h1>
+            <p>The settings page has been disabled by the administrator.</p>
+            <p>System configuration can only be modified through environment variables.</p>
+            
+            <a href="/" class="back-button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                Back to Movies
+            </a>
+        </div>
+        {% endif %}
+    {% else %}
+        <div id="settings-root"></div>
+        <script src="/static/js/settings.js"></script>
+    {% endif %}
+
     <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-    	<div class="version-label">
-             <i class="fab fa-github"></i>
-             <span>v3.0</span>
-    	</div>
+        <div class="version-label">
+            <i class="fab fa-github"></i>
+            <span>v{{ version }}</span>
+        </div>
     </a>
+</body>
 </html>

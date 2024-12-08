@@ -488,17 +488,20 @@ playback_monitor.start()
 # Flask Routes
 @app.route('/')
 def index():
-    # Only redirect if no services are configured
+    # If no services are configured, always redirect to settings
+    # The settings page will handle showing the appropriate message
     if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
         return redirect('/settings')
 
+    # If we have services configured, show the normal page
     return render_template(
         'index.html',
         homepage_mode=HOMEPAGE_MODE,
         use_links=USE_LINKS,
         use_filter=USE_FILTER,
         use_watch_button=USE_WATCH_BUTTON,
-        use_next_button=USE_NEXT_BUTTON
+        use_next_button=USE_NEXT_BUTTON,
+        settings_disabled=settings.get('system', {}).get('disable_settings', False)
     )
 
 @app.route('/start_loading')
@@ -1515,6 +1518,73 @@ def is_movie_in_jellyfin(tmdb_id):
     except Exception as e:
         logger.error(f"Error checking Jellyfin availability: {str(e)}")
         return jsonify({"available": False})
+
+from utils.version import VERSION
+
+VERSION_FILE = '/app/data/version_info.json'
+
+def get_version_info():
+    if os.path.exists(VERSION_FILE):
+        try:
+            with open(VERSION_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {"last_version_seen": VERSION}
+
+def save_version_info(info):
+    os.makedirs(os.path.dirname(VERSION_FILE), exist_ok=True)
+    with open(VERSION_FILE, 'w') as f:
+        json.dump(info, f)
+
+@app.route('/api/check_version')
+def check_version():
+    try:
+        version_info = get_version_info()
+        manual_check = request.args.get('manual', 'false') == 'true'
+
+        response = requests.get(
+            "https://api.github.com/repos/sahara101/Random-Plex-Movie/releases/latest",
+            headers={'Accept': 'application/vnd.github.v3+json'}
+        )
+        if response.ok:
+            release = response.json()
+            latest_version = release['tag_name'].lstrip('v')
+            
+            # Compare version numbers properly
+            current_parts = [int(x) for x in VERSION.split('.')]
+            latest_parts = [int(x) for x in latest_version.split('.')]
+            
+            is_newer = latest_parts > current_parts
+            show_popup = is_newer and latest_version != version_info["last_version_seen"]
+            
+            if manual_check or show_popup:
+                version_info["last_version_seen"] = latest_version
+                save_version_info(version_info)
+
+            return jsonify({
+                'update_available': is_newer,
+                'current_version': VERSION,
+                'latest_version': latest_version,
+                'changelog': release['body'],
+                'download_url': release['html_url'],
+                'show_popup': show_popup or manual_check
+            })
+    except Exception as e:
+        print(f"Error checking version: {e}")
+        return jsonify({'error': 'Failed to check version'}), 500
+
+@app.route('/api/dismiss_update')
+def dismiss_update():
+    try:
+        with open('/app/data/last_update_check.json', 'w') as f:
+            json.dump({
+                'last_checked': datetime.now().isoformat(),
+                'dismissed': True
+            }, f)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @socketio.on('connect', namespace='/poster')
 def poster_connect():

@@ -183,7 +183,9 @@
         <div class="nav-links">
             <a href="/" class="nav-link active">Movies</a>
             <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
+	    {% if not settings_disabled %}
             <a href="/settings" class="nav-link">Settings</a>
+	    {% endif %}
         </div>
     </nav>
 
