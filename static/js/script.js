@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
     await syncTraktWatched(false);
+    startVersionChecker();
 });
 
 document.addEventListener('visibilitychange', function() {
@@ -95,9 +96,9 @@ socket.on('loading_complete', async function() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) {
         overlay.classList.add('hidden');
-        // Remove the setTimeout - it's not needed and could cause race conditions
         await loadRandomMovie();
-        
+	// Check for updates after cache is built
+        checkVersion(false);
         // Reinitialize filters if needed
         if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
             console.log('Reinitializing filters after cache build');
@@ -1518,27 +1519,45 @@ async function openMovieDataOverlay(movieId) {
                 <a href="${movieData.imdb_url}" target="_blank">IMDb</a>
             </div>`;
 
+        // Create action button based on movie status
         if (isInPlex) {
-            overlayContent.innerHTML += '<button id="watch_movie_button" class="action-button">Watch Movie</button>';
-            document.getElementById('watch_movie_button').addEventListener('click', () => showClientsForPoster(movieId));
+            const watchButton = document.createElement('button');
+            watchButton.id = 'watch_movie_button';
+            watchButton.className = 'action-button';
+            watchButton.textContent = 'Watch Movie';
+            watchButton.addEventListener('click', () => showClientsForPoster(movieId));
+            overlayContent.appendChild(watchButton);
         } else if (overseerrAvailable) {
+            const requestButton = document.createElement('button');
+            requestButton.className = 'action-button';
             if (isRequested) {
-                overlayContent.innerHTML += '<button class="action-button requested" disabled>Requested</button>';
+                requestButton.textContent = 'Requested';
+                requestButton.disabled = true;
+                requestButton.classList.add('requested');
             } else {
-                overlayContent.innerHTML += '<button id="request_movie_button" class="action-button">Request Movie</button>';
-                document.getElementById('request_movie_button').addEventListener('click', () => requestMovie(movieId));
+                requestButton.id = 'request_movie_button';
+                requestButton.textContent = 'Request Movie';
+                requestButton.addEventListener('click', () => requestMovie(movieId));
             }
+            overlayContent.appendChild(requestButton);
         } else {
-            overlayContent.innerHTML += '<button class="action-button" disabled title="Overseerr is not configured or disabled">Request Movie</button>';
+            const disabledButton = document.createElement('button');
+            disabledButton.className = 'action-button';
+            disabledButton.textContent = 'Request Movie';
+            disabledButton.disabled = true;
+            disabledButton.title = 'Overseerr is not configured or disabled';
+            overlayContent.appendChild(disabledButton);
         }
 
-        overlayContent.innerHTML += '<div id="trailer_container"></div>';
+        // Add trailer container
+        const trailerContainer = document.createElement('div');
+        trailerContainer.id = 'trailer_container';
+        overlayContent.appendChild(trailerContainer);
 
         document.getElementById('movie_data_overlay_close').addEventListener('click', closeMovieDataOverlay);
 
         // Load and display the trailer
         const trailerUrl = await getYoutubeTrailer(movieData.title, movieData.year);
-        const trailerContainer = document.getElementById('trailer_container');
         if (trailerUrl !== "Trailer not found on YouTube.") {
             trailerContainer.innerHTML = `<iframe width="560" height="315" src="${trailerUrl}" frameborder="0" allowfullscreen></iframe>`;
         } else {
@@ -2402,5 +2421,58 @@ async function syncTraktWatched(showLoading = false) {
         if (showLoading) {
             hideLoadingOverlay();
         }
+    }
+}
+
+function startVersionChecker() {
+    // Check on page load
+    checkVersion(false);
+
+    // Then check every hour
+    setInterval(() => {
+        checkVersion(false);
+    }, 60 * 60 * 1000);
+}
+
+function showUpdateDialog(updateInfo) {
+    const dialog = document.createElement('div');
+    dialog.className = 'trakt-confirm-dialog';
+    dialog.innerHTML = `
+        <div class="dialog-content">
+            <h3>Update Available!</h3>
+            <p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
+            <div class="changelog">
+                <h4>Changelog:</h4>
+                <div class="changelog-content">${updateInfo.changelog}</div>
+            </div>
+            <div class="dialog-buttons">
+                <button class="cancel-button">Dismiss</button>
+                <a href="${updateInfo.download_url}" 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   class="submit-button">View Release</a>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    // Only handle the Dismiss button click
+    dialog.querySelector('.cancel-button').addEventListener('click', () => {
+        dialog.remove();
+        fetch('/api/dismiss_update').catch(console.error);
+    });
+}
+
+async function checkVersion() {
+    try {
+        const response = await fetch('/api/check_version');
+        const data = await response.json();
+
+        if (data.update_available && data.show_popup) {
+            showUpdateDialog(data);
+        }
+    } catch (error) {
+        console.error('Error checking version:', error);
     }
 }

@@ -699,6 +699,90 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add the container to the root
     settingsRoot.appendChild(container);
 
+    async function checkVersion(manual = false) {
+    	try {
+            const response = await fetch('/api/check_version');
+            const data = await response.json();
+        
+            if (data.update_available && (data.show_popup || manual)) {
+            	showUpdateDialog(data);
+            } else if (manual) {
+            	showSuccess('You are running the latest version!');
+            }
+    	} catch (error) {
+            console.error('Error checking version:', error);
+            if (manual) {
+            	showError('Failed to check for updates');
+            }
+    	}
+    }
+
+    function showUpdateDialog(updateInfo) {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Update Available!</h3>
+            	<p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
+            	<div class="changelog">
+                    <h4>Changelog:</h4>
+                    <div class="changelog-content">${updateInfo.changelog}</div>
+            	</div>
+            	<div class="dialog-buttons">
+                    <button class="cancel-button">Dismiss</button>
+                    <a href="${updateInfo.download_url}" 
+                   	class="submit-button" 
+                   	target="_blank" 
+                   	rel="noopener noreferrer">View Release</a>
+            	</div>
+            </div>
+    	`;
+
+   	 document.body.appendChild(dialog);
+
+    	// Handle close/dismiss
+    	const closeDialog = () => {
+            dialog.remove();
+            fetch('/api/dismiss_update').catch(console.error);
+    	};
+
+    	dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
+    	dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) closeDialog();
+    	});
+    }
+
+    function renderVersionCheckButton(container) {
+    	const wrapper = document.createElement('div');
+    	wrapper.className = 'version-check-wrapper';
+
+    	const button = document.createElement('button');
+    	button.className = 'discover-button';
+    	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
+    
+    	button.addEventListener('click', async () => {
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+        
+            try {
+            	await checkVersion(true);  // Manual check
+            } finally {
+            	button.disabled = false;
+            	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
+            }
+    	});
+    
+    	wrapper.appendChild(button);
+    	container.appendChild(wrapper);
+    }
+
+    // Add automatic version check on page load
+    document.addEventListener('DOMContentLoaded', () => {
+    	setTimeout(() => {
+            checkVersion(false);  // Automatic check
+    	}, 2000);  // Small delay to not interfere with initial page load
+    });
+
     // Define sections configuration
     const sections = {
         media: {
@@ -799,6 +883,17 @@ document.addEventListener('DOMContentLoaded', function() {
         integrations: {
             title: 'Integrations',
             sections: [
+		{
+                    title: 'System',
+                    fields: [
+                    	{
+                            key: 'version_check',
+                            label: 'Version Check',
+                            type: 'custom',
+                            render: renderVersionCheckButton
+                    	}
+		    ]
+		},
 		{
             	    title: 'TMDB',
             	    fields: [
