@@ -167,10 +167,16 @@ Movie Roulette offers two ways to configure the application:
 ### Optional Features
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
+| `DISABLE_SETTINGS` | Lock Settings page | FALSE | - |
 | `HOMEPAGE_MODE` | Homepage widget mode | FALSE | ✅ Settings |
 | `TMDB_API_KEY` | Custom TMDb key | Built-in key | ✅ Settings |
 | `OVERSEERR_URL` | Overseerr URL | - | ✅ Settings |
 | `OVERSEERR_API_KEY` | Overseerr API key | - | ✅ Settings |
+| `USE_LINKS` | Show links buttons | TRUE | ✅ Settings |
+| `USE_FILTER` | Show filter button | TRUE | ✅ Settings |
+| `USE_WATCH_BUTTON` | Show Watch button | TRUE | ✅ Settings |
+| `USE_NEXT_BUTTON` | Show next button | TRUE | ✅ Settings |
+
 
 ### Device Control (Optional)
 | Variable | Description | Default | UI Alternative |
