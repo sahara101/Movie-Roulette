@@ -7,7 +7,7 @@ on:
       - 'Dockerfile'
       - 'Dockerfile.arm'
       - 'requirements.txt'
-      - 'movie_selector/**'
+      - 'movie_selector.py'
       - '.github/workflows/**'
   workflow_dispatch:
 
@@ -58,9 +58,9 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:latest
-            sahara101/movie-roulette:v3.0
+            sahara101/movie-roulette:v3.1
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:v3.0
+            ghcr.io/${{ github.repository }}:v3.1
 
       # Build ARM image
       - name: Build and push ARM
@@ -72,6 +72,6 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:arm-latest
-            sahara101/movie-roulette:arm-v3.0
+            sahara101/movie-roulette:arm-v3.1
             ghcr.io/${{ github.repository }}:arm-latest
-            ghcr.io/${{ github.repository }}:arm-v3.0
+            ghcr.io/${{ github.repository }}:arm-v3.1
