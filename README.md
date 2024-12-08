@@ -56,8 +56,15 @@ This project was extended with the assistance of AI tools. The core functionalit
 ## Quick Start
 
 ## Container Images
-- GitHub Container Registry: `ghcr.io/sahara101/movie-roulette:latest`
-- Docker Hub: `sahara101/movie-roulette:latest`
+
+| Registry | Architecture | Version | Image Path |
+|----------|--------------|----------|------------|
+| Docker Hub | AMD64 | Latest | `sahara101/movie-roulette:latest` |
+| Docker Hub | ARM64/ARMv7 | Latest | `sahara101/movie-roulette:arm-latest` |
+| GHCR | AMD64 | Latest | `ghcr.io/sahara101/movie-roulette:latest` |
+| GHCR | ARM64/ARMv7 | Latest | `ghcr.io/sahara101/movie-roulette:arm-latest` |
+
+Instead of latest you can also use the version number. 
 
 ```yaml
 services:
