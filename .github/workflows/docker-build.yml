@@ -59,8 +59,8 @@ jobs:
           tags: |
             sahara101/movie-roulette:latest
             sahara101/movie-roulette:v3.1
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:v3.1
+            ghcr.io/sahara101/movie-roulette:latest
+            ghcr.io/sahara101/movie-roulette:v3.1
 
       # Build ARM image
       - name: Build and push ARM
@@ -73,5 +73,5 @@ jobs:
           tags: |
             sahara101/movie-roulette:arm-latest
             sahara101/movie-roulette:arm-v3.1
-            ghcr.io/${{ github.repository }}:arm-latest
-            ghcr.io/${{ github.repository }}:arm-v3.1
+            ghcr.io/sahara101/movie-roulette:arm-latest
+            ghcr.io/sahara101/movie-roulette:arm-v3.1
