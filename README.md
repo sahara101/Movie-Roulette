@@ -82,6 +82,10 @@ Visit `http://your-server:4000` and configure your services.
 
 > **Note**: For device control (Apple TV/LG TV), use `network_mode: host` instead of port mapping.
 
+## Native Clients
+
+For MacOS non-docker application please check [here](https://github.com/sahara101/Movie-Roulette/tree/macOS)
+
 ## First Run
 
 1. Automatically redirects to settings if no services configured
