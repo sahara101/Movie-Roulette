@@ -210,7 +210,7 @@ Movie Roulette offers two ways to configure the application:
 
 Navigate to settings and enable Advertise as Player.
 
-###Plex Server
+### Plex Server
 
 Go to settings → Network and activate Enable Local Network Discovery (GDM).
 
