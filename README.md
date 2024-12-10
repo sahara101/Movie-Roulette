@@ -263,7 +263,7 @@ Issue: Apple TV doesn’t turn on.
   
 Issue: Browser doesn’t load the poster or background.
 
-- Use the FQDN (Fully Qualified Domain Name) for Plex/Jellyfin in the environment variables instead of the IP address.
+- Use the FQDN (Fully Qualified Domain Name) for Plex/Jellyfin in the environment variables/settings instead of the IP address.
 
 ## Support
 
