@@ -96,8 +96,9 @@ socket.on('loading_complete', async function() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) {
         overlay.classList.add('hidden');
+        // Remove the setTimeout - it's not needed and could cause race conditions
         await loadRandomMovie();
-	// Check for updates after cache is built
+
         checkVersion(false);
         // Reinitialize filters if needed
         if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
@@ -1519,7 +1520,6 @@ async function openMovieDataOverlay(movieId) {
                 <a href="${movieData.imdb_url}" target="_blank">IMDb</a>
             </div>`;
 
-        // Create action button based on movie status
         if (isInPlex) {
             const watchButton = document.createElement('button');
             watchButton.id = 'watch_movie_button';
@@ -1539,7 +1539,6 @@ async function openMovieDataOverlay(movieId) {
                 requestButton.textContent = 'Request Movie';
                 requestButton.addEventListener('click', () => requestMovie(movieId));
             }
-            overlayContent.appendChild(requestButton);
         } else {
             const disabledButton = document.createElement('button');
             disabledButton.className = 'action-button';
@@ -2447,9 +2446,9 @@ function showUpdateDialog(updateInfo) {
             </div>
             <div class="dialog-buttons">
                 <button class="cancel-button">Dismiss</button>
-                <a href="${updateInfo.download_url}" 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
+                <a href="${updateInfo.download_url}"
+                   target="_blank"
+                   rel="noopener noreferrer"
                    class="submit-button">View Release</a>
             </div>
         </div>

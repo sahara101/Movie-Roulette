@@ -6,6 +6,7 @@ from datetime import datetime
 import logging
 from utils.settings import settings
 
+from utils.path_manager import path_manager
 logger = logging.getLogger(__name__)
 
 trakt_bp = Blueprint('trakt_bp', __name__)
@@ -14,7 +15,7 @@ trakt_bp = Blueprint('trakt_bp', __name__)
 HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
 HARDCODED_CLIENT_SECRET = '3e5c2b9163264d8e9b50b8727c827b49a5ea8cc6cf0331bca931a697c243f508'
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'  # Using OOB flow for portability
-TRAKT_TOKENS_FILE = '/app/data/trakt_tokens.json'
+TRAKT_TOKENS_FILE = path_manager.get_path('trakt_tokens')
 
 CLIENT_ID = os.getenv('TRAKT_CLIENT_ID') or HARDCODED_CLIENT_ID
 CLIENT_SECRET = os.getenv('TRAKT_CLIENT_SECRET') or HARDCODED_CLIENT_SECRET
@@ -162,18 +163,20 @@ def status():
 def authorize():
     """Start the Trakt authorization flow"""
     auth_url = 'https://trakt.tv/oauth/authorize'
-    params = {
-        'response_type': 'code',
-        'client_id': CLIENT_ID,
-        'redirect_uri': REDIRECT_URI
-    }
-    
     full_auth_url = f"{auth_url}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
     logger.info(f"Authorization URL: {full_auth_url}")
     
+    # Check if this is a native app request
+    is_native = request.args.get('native') == 'true'
+    
+    if is_native:
+        from movie_selector import trakt_auth_handler
+        trakt_auth_handler.show_dialog.emit(full_auth_url)
+        
     return jsonify({
         'auth_url': full_auth_url,
-        'oob': True
+        'oob': True,
+        'native': is_native
     })
 
 @trakt_bp.route('/trakt/token', methods=['POST'])
@@ -185,13 +188,20 @@ def get_token():
         return jsonify({'error': 'No code provided'}), 400
 
     try:
-        response = requests.post('https://api.trakt.tv/oauth/token', json={
+        # Log the request data
+        request_data = {
             'code': code,
             'client_id': CLIENT_ID,
             'client_secret': CLIENT_SECRET,
             'redirect_uri': REDIRECT_URI,
             'grant_type': 'authorization_code'
-        })
+        }
+        logger.info(f"Making token request with data: {request_data}")
+        
+        response = requests.post('https://api.trakt.tv/oauth/token', json=request_data)
+
+        logger.info(f"Token response status: {response.status_code}")
+        logger.info(f"Token response text: {response.text}")
 
         if response.ok:
             token_data = response.json()

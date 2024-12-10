@@ -3,7 +3,8 @@ import json
 from copy import deepcopy
 from .config import DEFAULT_SETTINGS, ENV_MAPPINGS
 
-SETTINGS_FILE = '/app/data/settings.json'
+from utils.path_manager import path_manager
+SETTINGS_FILE = path_manager.get_path('settings')
 
 class Settings:
     def __init__(self):

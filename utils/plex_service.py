@@ -10,6 +10,7 @@ from utils.poster_view import set_current_movie
 from .settings import settings
 from functools import lru_cache
 
+from utils.path_manager import path_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,8 @@ class PlexService:
         self.PLEX_MOVIE_LIBRARIES = libraries if isinstance(libraries, list) else libraries.split(',') if libraries else []
 
         # Cache file paths
-        self.MOVIES_CACHE_FILE = '/app/data/plex_unwatched_movies.json'
-        self.METADATA_CACHE_FILE = '/app/data/plex_metadata_cache.json'
+        self.MOVIES_CACHE_FILE = path_manager.get_path('plex_unwatched')
+        self.METADATA_CACHE_FILE = path_manager.get_path('plex_metadata')
 
         # Fallback to ENV variables if needed
         if not self.PLEX_URL:
@@ -990,3 +991,114 @@ class PlexService:
             for _ in range(items_to_remove):
                 self._metadata_cache.pop(next(iter(self._metadata_cache)))
             logger.info(f"Cleaned up metadata cache, removed {items_to_remove} items")
+
+    def create_auth_window(auth_url, pin):
+        """Create a Plex authentication window using PyQt6"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QLineEdit
+        from PyQt6.QtCore import Qt, QUrl
+        from PyQt6.QtGui import QDesktopServices, QFont
+
+        class PlexAuthDialog(QDialog):
+            def __init__(self):
+            	super().__init__()
+            	self.setWindowTitle("Plex Authentication")
+            	self.setFixedSize(400, 500)
+            
+            	# Set up the layout
+            	layout = QVBoxLayout()
+            	layout.setSpacing(20)
+            	layout.setContentsMargins(30, 30, 30, 30)
+            
+            	# Title
+            	title = QLabel("Plex Authentication")
+            	title.setFont(QFont('', 24, QFont.Weight.Bold))
+            	title.setStyleSheet("color: white;")
+            	layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+            
+            	# PIN instructions
+            	pin_instructions = QLabel("Your PIN code is:")
+            	pin_instructions.setStyleSheet("color: white; font-size: 16px;")
+            	layout.addWidget(pin_instructions, alignment=Qt.AlignmentFlag.AlignCenter)
+            
+            	# PIN display
+            	pin_display = QLineEdit(pin)
+            	pin_display.setReadOnly(True)
+            	pin_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            	pin_display.setFont(QFont('', 24, QFont.Weight.Bold))
+            	pin_display.setStyleSheet("""
+                    QLineEdit {
+                    	background-color: #282A2D;
+                    	color: white;
+                    	border: 2px solid #E5A00D;
+                    	border-radius: 5px;
+                    	padding: 10px;
+                    	margin: 10px 0;
+                    	selection-background-color: #E5A00D;
+                    }
+            	""")
+            	layout.addWidget(pin_display)
+            
+            	# Copy button
+            	copy_button = QPushButton("Copy PIN")
+            	copy_button.setStyleSheet("""
+                    QPushButton {
+                    	background-color: #282A2D;
+                    	color: white;
+                    	border: 2px solid #E5A00D;
+                    	border-radius: 5px;
+                    	padding: 10px;
+                    	font-size: 14px;
+                    }
+                    QPushButton:hover {
+                    	background-color: #3A3C41;
+                    }
+            	""")
+            	copy_button.clicked.connect(lambda: self.copy_to_clipboard(pin))
+            	layout.addWidget(copy_button)
+            
+            	# Instructions
+            	instructions = QLabel("Click the button below to authenticate with Plex")
+            	instructions.setStyleSheet("color: white; font-size: 14px;")
+            	instructions.setWordWrap(True)
+            	layout.addWidget(instructions, alignment=Qt.AlignmentFlag.AlignCenter)
+            
+            	# Auth button
+            	auth_button = QPushButton("Link Plex Account")
+            	auth_button.setStyleSheet("""
+                    QPushButton {
+                    	background-color: #E5A00D;
+                    	color: #282A2D;
+                    	border: none;
+                    	border-radius: 5px;
+                    	padding: 15px;
+                    	font-size: 16px;
+                    	font-weight: bold;
+                    }
+                    QPushButton:hover {
+                    	background-color: #F8D68B;
+                    }
+            	""")
+            	auth_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(auth_url)))
+            	layout.addWidget(auth_button)
+            
+            	# Add some spacing at the bottom
+            	layout.addStretch()
+            
+            	# Set dialog style
+            	self.setLayout(layout)
+            	self.setStyleSheet("""
+                    QDialog {
+                    	background-color: #3A3C41;
+                    }
+            	""")
+
+            def copy_to_clipboard(self, text):
+            	from PyQt6.QtWidgets import QApplication
+            	QApplication.clipboard().setText(text)
+            
+            	# Could show a temporary message that the PIN was copied
+            	# but for now we'll just print to console
+            	print("PIN copied to clipboard")
+
+    	# Create and return the dialog
+        return PlexAuthDialog()

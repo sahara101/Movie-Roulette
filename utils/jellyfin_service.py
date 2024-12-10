@@ -9,6 +9,7 @@ from threading import Thread, Lock
 from datetime import datetime, timedelta
 from .settings import settings
 
+from utils.path_manager import path_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class JellyfinService:
 
         self.update_interval = update_interval
         self.last_cache_update = 0
-        self.cache_path = '/app/data/jellyfin_all_movies.json'
+        self.cache_path = path_manager.get_path('jellyfin_movies')
         self.is_updating = False
         self._cache_lock = threading.Lock()
         self.running = False

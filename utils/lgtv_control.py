@@ -8,7 +8,8 @@ import os
 import sys
 from utils.settings import settings
 
-STORE_PATH = '/app/data/lgtv_store.json'
+from utils.path_manager import path_manager
+STORE_PATH = path_manager.get_path('lgtv_store')
 
 def get_tv_config():
     """Get TV configuration from ENV or settings"""

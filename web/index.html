@@ -81,10 +81,10 @@
                     <p id="description"></p>
                     {% if not homepage_mode and use_links %}
                     <div class="logo-container">
-                        <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
-                        <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
-                        <a href="#" id="imdb_link" target="_blank"><img src="/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
-                        <a href="#" id="trailer_link"><img src="/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
+                        <a href="#" id="tmdb_link" target="_blank"><img src="/static/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
+                        <a href="#" id="trakt_link" target="_blank"><img src="/static/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
+                        <a href="#" id="imdb_link" target="_blank"><img src="/static/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
+                        <a href="#" id="trailer_link"><img src="/static/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
                     </div>
                     {% endif %}
                 </div>
@@ -183,14 +183,12 @@
         <div class="nav-links">
             <a href="/" class="nav-link active">Movies</a>
             <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
-	    {% if not settings_disabled %}
             <a href="/settings" class="nav-link">Settings</a>
-	    {% endif %}
         </div>
     </nav>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script type="text/javascript" src="/js/script.js"></script>
+    <script type="text/javascript" src="/static/js/script.js"></script>
     <script>
         window.HOMEPAGE_MODE = {{ 'true' if homepage_mode else 'false' }};
         window.USE_LINKS = {{ 'true' if use_links else 'false' }};
@@ -207,6 +205,12 @@
                     console.log('ServiceWorker registration failed: ', error);
                 });
             });
+        }
+    </script>
+    <script>
+        // Add this right after your existing scripts
+        if (window.isNative) {
+            document.documentElement.classList.add('native-app');
         }
     </script>
 </body>

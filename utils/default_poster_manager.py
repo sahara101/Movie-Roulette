@@ -5,6 +5,7 @@ import os
 import logging
 from flask_socketio import SocketIO
 
+from utils.path_manager import path_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class DefaultPosterManager:
         self.last_state = None
         self.state_change_time = None
         self.lock = threading.Lock()
-        self.current_movie_file = '/app/data/current_movie.json'
+        self.current_movie_file = path_manager.get_path('current_movie')
         self.default_poster = '/static/images/default_poster.png'
         self.is_default_poster_active = False
         logger.info("DefaultPosterManager initialized")

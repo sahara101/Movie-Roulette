@@ -6,10 +6,12 @@ import json
 import pexpect
 from flask import session
 
+from utils.path_manager import path_manager
 logger = logging.getLogger(__name__)
 
-PERSISTENT_PATH = '/app/data/pyatv.conf'
-ROOT_CONFIG_PATH = '/root/.pyatv.conf'
+HOME_DIR = os.path.expanduser('~')
+ROOT_CONFIG_PATH = os.path.join(HOME_DIR, '.pyatv.conf')
+PERSISTENT_PATH = path_manager.get_path('pyatv_config')
 
 def get_available_service():
     """Helper function to determine which service to use"""

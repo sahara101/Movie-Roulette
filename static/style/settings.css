@@ -275,6 +275,14 @@
     cursor: not-allowed;
 }
 
+button.discover-button {
+    width: 12rem !important;         
+    height: 35px !important;         
+    white-space: nowrap !important;  
+    overflow: hidden;                
+    text-overflow: ellipsis;         
+}
+
 /* Configuration Display */
 .current-config {
     background: #282A2D;
@@ -813,120 +821,4 @@
 .timezone-option.selected {
     background-color: #E5A00D;
     color: #282A2D;
-}
-
-/* Settings Disabled State */
-.settings-disabled {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 40px);
-    text-align: center;
-    padding: 20px;
-    color: #EAEAEC;
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.settings-disabled h1 {
-    color: #E5A00D;
-    margin-bottom: 20px;
-    font-size: 2rem;
-}
-
-.settings-disabled p {
-    margin-bottom: 20px;
-    line-height: 1.6;
-    font-size: 1.1rem;
-}
-
-.settings-disabled .back-button {
-    margin-top: 32px;
-}
-
-/* Configuration Help Styles */
-.config-help {
-    width: 100%;
-    text-align: left;
-    background: #282A2D;
-    padding: 24px;
-    border-radius: 8px;
-    margin: 24px 0;
-    border: 1px solid #4A4C51;
-}
-
-.config-help p {
-    color: #E5A00D;
-    margin: 16px 0 8px 0;
-    font-size: 1rem;
-    text-align: left;
-}
-
-.config-help p:first-child {
-    margin-top: 0;
-}
-
-.config-help pre {
-    background: #3A3C41;
-    padding: 16px;
-    border-radius: 4px;
-    margin: 8px 0;
-    overflow-x: auto;
-    color: #EAEAEC;
-    font-family: monospace;
-    font-size: 0.9rem;
-    border: 1px solid #4A4C51;
-}
-
-/* Mobile Adjustments */
-@media (max-width: 640px) {
-    .settings-disabled {
-        min-height: calc(100vh - 80px);
-        padding: 16px;
-    }
-
-    .settings-disabled h1 {
-        font-size: 1.75rem;
-    }
-
-    .settings-disabled p {
-        font-size: 1rem;
-    }
-
-    .config-help {
-        padding: 16px;
-        margin: 16px 0;
-    }
-
-    .config-help pre {
-        padding: 12px;
-        font-size: 0.8rem;
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-    }
-}
-
-/* Make back button consistent with other buttons in settings */
-.settings-disabled .back-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background-color: #E5A00D;
-    color: #282A2D;
-    text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 600;
-    transition: background-color 0.3s;
-}
-
-.settings-disabled .back-button:hover {
-    background-color: #F8D68B;
-}
-
-.settings-disabled .back-button svg {
-    width: 20px;
-    height: 20px;
 }

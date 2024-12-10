@@ -6,6 +6,7 @@ from threading import Thread, Lock
 from datetime import datetime, timedelta
 from utils.settings import settings
 
+from utils.path_manager import path_manager
 # Get settings
 TRAKT_SETTINGS = settings.get('trakt', {})
 TMDB_SETTINGS = settings.get('tmdb', {})
@@ -31,8 +32,8 @@ TRAKT_ENABLED = (
     ]))
 )
 
-TRAKT_TOKEN_FILE = '/app/data/trakt_tokens.json'
-TRAKT_WATCHED_FILE = '/app/data/trakt_watched_movies.json'
+TRAKT_TOKEN_FILE = path_manager.get_path('trakt_tokens')
+TRAKT_WATCHED_FILE = path_manager.get_path('trakt_watched')
 UPDATE_INTERVAL = 600  # 600 seconds = 10 minutes
 TRAKT_API_URL = 'https://api.trakt.tv'
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')

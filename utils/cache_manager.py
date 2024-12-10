@@ -5,6 +5,7 @@ import logging
 from threading import Thread, Lock
 from functools import lru_cache
 
+from utils.path_manager import path_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class CacheManager:
     def __init__(self, plex_service, cache_file_path, socketio, app, update_interval=600):
         self.plex_service = plex_service
         self.cache_file_path = cache_file_path
-        self.all_movies_cache_path = '/app/data/plex_all_movies.json'
+        self.all_movies_cache_path = path_manager.get_path('plex_all_movies')
         self.socketio = socketio
         self.app = app
         self.update_interval = update_interval

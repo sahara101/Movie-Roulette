@@ -5,7 +5,7 @@ import re
 
 logger = logging.getLogger(__name__)
 
-# Comprehensive list of LG Electronics MAC prefixes
+# Keep your existing comprehensive MAC prefixes
 LG_MAC_PREFIXES = {
     # LG Electronics Main
     '00:E0:70': 'LG Electronics',
@@ -22,7 +22,7 @@ LG_MAC_PREFIXES = {
     '00:50:BA': 'LG Electronics',
     '00:52:A1': 'LG Electronics',
     '00:AA:70': 'LG Electronics',
-    
+
     # LG TV/Display Specific
     '00:5A:13': 'LG WebOS TV',
     '00:C0:38': 'LG TV',
@@ -79,46 +79,104 @@ LG_MAC_PREFIXES = {
 }
 
 def scan_network():
-    """Scan network for LG TVs"""
+    """Scan for LG TVs using SSDP discovery"""
+    logger.info("Starting LG TV network scan")
+    
+    devices = {}  # Use dict to track unique IPs
+    SSDP_ADDR = '239.255.255.250'  # This is the standard multicast address for SSDP/UPnP
+    SSDP_PORT = 1900
+    
+    # SSDP M-SEARCH message targeting LG TV services
+    msearch_msg = '\r\n'.join([
+        'M-SEARCH * HTTP/1.1',
+        f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
+        'MAN: "ssdp:discover"',
+        'MX: 2',
+        'ST: urn:schemas-upnp-org:device:MediaRenderer:1',
+        '', ''
+    ])
+
     try:
-        result = subprocess.run(
-            ['arp-scan', '--localnet'], 
-            capture_output=True, 
-            text=True
-        )
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(3)
         
-        devices = []
-        if result.returncode == 0:
-            logger.info("arp-scan output:")
-            logger.info(result.stdout)
-            
-            for line in result.stdout.splitlines():
-                # Skip header/footer lines
-                if any(x in line for x in ['Interface:', 'Starting', 'Ending', 'packets received']):
-                    continue
-                    
-                parts = line.split()
-                if len(parts) >= 2:
-                    ip = parts[0]
-                    mac = parts[1].upper()
-                    desc = ' '.join(parts[2:]) if len(parts) > 2 else ''
-                    
-                    # Check MAC prefix
-                    mac_prefix = ':'.join(mac.split(':')[:3])
-                    if mac_prefix in LG_MAC_PREFIXES or 'LG Electronics' in desc:
-                        devices.append({
-                            'ip': ip,
-                            'mac': mac,
-                            'description': desc or LG_MAC_PREFIXES.get(mac_prefix, 'LG Device'),
-                            'device_type': LG_MAC_PREFIXES.get(mac_prefix, 'Unknown LG Model')
-                        })
-                        logger.info(f"Found LG device: {ip} ({mac}) - {desc}")
+        logger.info("Sending SSDP discovery message")
+        sock.sendto(msearch_msg.encode(), (SSDP_ADDR, SSDP_PORT))
         
-        return devices
+        while True:
+            try:
+                data, addr = sock.recvfrom(4096)
+                response = data.decode('utf-8')
+                
+                # Check if it's an LG TV and we haven't seen this IP
+                if ('LG' in response or 'WebOS' in response) and addr[0] not in devices:
+                    logger.info(f"Found potential LG device at {addr[0]}")
+                    
+                    # Test if it's really a TV
+                    if test_tv_connection(addr[0]):
+                        device = {
+                            'ip': addr[0],
+                            'mac': 'Unknown',
+                            'name': 'LG TV',
+                            'device_type': 'LG Device'
+                        }
+
+                        # Get MAC address
+                        mac = get_mac_from_ip(addr[0])
+                        if mac:
+                            device['mac'] = mac
+                        
+                        # Try to extract friendly name
+                        name_match = re.search(r'friendlyName.?:.*?([^\r\n]+)', response)
+                        if name_match:
+                            device['name'] = name_match.group(1).strip()
+                        
+                        devices[addr[0]] = device  # Store by IP to ensure uniqueness
+                        logger.info(f"Added device: {device}")
+                    
+            except socket.timeout:
+                break
+                
+    except Exception as e:
+        logger.error(f"Error during SSDP scan: {e}")
+    finally:
+        try:
+            sock.close()
+        except:
+            pass
+    
+    # Convert dict values to list for return
+    unique_devices = list(devices.values())
+    logger.info(f"Scan complete. Found {len(unique_devices)} LG devices")
+    return unique_devices
+
+def get_mac_from_ip(ip):
+    """Get MAC address for a known IP using arp"""
+    logger.info(f"Getting MAC address for IP {ip}")
+    try:
+        # First ping the IP to ensure it's in the ARP table
+        subprocess.run(['ping', '-c', '1', ip], 
+                     stdout=subprocess.DEVNULL, 
+                     stderr=subprocess.DEVNULL)
+                     
+        # Now check the ARP table
+        arp_result = subprocess.run(['arp', '-n', ip], capture_output=True, text=True)
+        mac_matches = re.findall(r'(([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))', arp_result.stdout)
+        
+        if mac_matches:
+            mac = mac_matches[0][0].upper()
+            # Verify it's an LG MAC
+            if any(mac.startswith(prefix) for prefix in LG_MAC_PREFIXES):
+                logger.info(f"Found LG MAC address: {mac}")
+                return mac
+                
+        logger.info(f"No valid LG MAC address found for {ip}")
+        return None
         
     except Exception as e:
-        logger.error(f"Error scanning network: {str(e)}")
-        return []
+        logger.error(f"Error getting MAC address: {e}")
+        return None
 
 def is_valid_mac(mac):
     """Validate MAC address format"""

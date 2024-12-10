@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from plexapi.myplex import MyPlexPinLogin
 import uuid
 import pytz
+import platform
 from flask import Flask, jsonify, render_template, send_from_directory, request, session, redirect
 from flask_socketio import SocketIO, emit
 from utils.poster_view import set_current_movie, poster_bp, init_socket
@@ -27,12 +28,41 @@ from utils.lgtv_discovery import scan_network, test_tv_connection, is_valid_ip, 
 from utils.appletv_discovery import scan_for_appletv, pair_appletv, submit_pin, clear_pairing, ROOT_CONFIG_PATH, turn_on_apple_tv, fix_config_format, check_credentials
 from utils.tmdb_service import tmdb_service
 from routes.trakt_routes import trakt_bp
+from PyQt6.QtWidgets import (
+    QDialog, 
+    QVBoxLayout, 
+    QLabel, 
+    QPushButton, 
+    QLineEdit, 
+    QApplication,
+    QWidget
+)
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal, QObject, QTimer
+from PyQt6.QtGui import QDesktopServices, QFont
 
+from utils.path_manager import path_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app first
-app = Flask(__name__, static_folder='static', template_folder='web')
+def get_resource_path():
+    if getattr(sys, 'frozen', False):
+        # Running in a bundle
+        return os.path.join(os.path.dirname(sys.executable), '..', 'Resources')
+    # Running in development
+    return os.path.dirname(os.path.abspath(__file__))
+
+resource_path = get_resource_path()
+template_path = os.path.join(resource_path, 'web')
+static_path = os.path.join(resource_path, 'static')
+
+print(f"Resource path: {resource_path}")   # Debug print
+print(f"Template path: {template_path}")   # Debug print
+print(f"Static path: {static_path}")       # Debug print
+
+app = Flask(__name__,
+           static_folder=static_path,
+           static_url_path='/static',
+           template_folder=template_path)
 app.secret_key = 'your_secret_key_here'
 socketio = SocketIO(app)
 init_socket(socketio)
@@ -58,7 +88,7 @@ JELLYFIN_AVAILABLE = False
 all_plex_unwatched_movies = []
 movies_loaded_from_cache = False
 loading_in_progress = False
-cache_file_path = '/app/data/plex_unwatched_movies.json'
+cache_file_path = path_manager.get_path('plex_unwatched')
 plex = None
 jellyfin = None
 cache_manager = None
@@ -250,7 +280,7 @@ def initialize_services():
             os.getenv('TRAKT_REFRESH_TOKEN')
         ])) or
         # Check if tokens file exists and 'enabled' is True in settings
-        (bool(trakt_settings.get('enabled')) and os.path.exists('/app/data/trakt_tokens.json'))
+        (bool(trakt_settings.get('enabled')) and os.path.exists(path_manager.get_path('trakt_tokens')))
     )
 
     if trakt_enabled:
@@ -282,6 +312,200 @@ def get_available_service():
         return 'jellyfin'
     else:
         raise EnvironmentError("No media service is available")
+
+class AuthWindowHandler(QObject):
+    show_dialog = pyqtSignal(str, str)
+    
+    def __init__(self):
+        super().__init__()
+        self.show_dialog.connect(self._create_dialog)
+        self.current_dialog = None
+    
+    def _create_dialog(self, auth_url, pin):
+        if self.current_dialog:
+            self.current_dialog.close()
+        self.current_dialog = PlexAuthDialog(auth_url, pin)
+        self.current_dialog.show()
+        return self.current_dialog
+    
+    def close_dialog(self):
+        if self.current_dialog:
+            self.current_dialog.close()
+            self.current_dialog = None
+
+class PlexAuthDialog(QDialog):
+    def __init__(self, auth_url, pin):
+        super().__init__()
+        self.setWindowTitle("Plex Authentication")
+        self.setFixedSize(400, 500)
+        
+        # Set up the layout
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        # Title
+        title = QLabel("Plex Authentication")
+        title.setFont(QFont('', 24, QFont.Weight.Bold))
+        title.setStyleSheet("color: white;")
+        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # PIN instructions
+        pin_instructions = QLabel("Your PIN code is:")
+        pin_instructions.setStyleSheet("color: white; font-size: 16px;")
+        layout.addWidget(pin_instructions, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # PIN display with container
+        pin_container = QWidget()
+        pin_layout = QVBoxLayout(pin_container)
+        pin_layout.setContentsMargins(20, 10, 20, 10)
+        
+        pin_display = QLineEdit(pin)
+        pin_display.setReadOnly(True)
+        pin_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pin_display.setFont(QFont('', 24, QFont.Weight.Bold))
+        pin_display.setStyleSheet("""
+            QLineEdit {
+                background-color: #282A2D;
+                color: white;
+                border: 2px solid #E5A00D;
+                border-radius: 5px;
+                padding: 10px;
+                selection-background-color: #E5A00D;
+            }
+        """)
+        pin_layout.addWidget(pin_display)
+        layout.addWidget(pin_container)
+        
+        # Copy button and notification container
+        copy_container = QWidget()
+        copy_layout = QVBoxLayout(copy_container)
+        copy_layout.setSpacing(5)
+        
+        # Copy button
+        copy_button = QPushButton("Copy PIN")
+        copy_button.setStyleSheet("""
+            QPushButton {
+                background-color: #282A2D;
+                color: white;
+                border: 2px solid #E5A00D;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #3A3C41;
+            }
+        """)
+        copy_layout.addWidget(copy_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # Copy notification label (hidden by default)
+        self.copy_notification = QLabel("PIN copied to clipboard!")
+        self.copy_notification.setStyleSheet("""
+            QLabel {
+                color: #4CAF50;
+                font-size: 12px;
+                font-weight: bold;
+            }
+        """)
+        self.copy_notification.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.copy_notification.hide()
+        copy_layout.addWidget(self.copy_notification, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        layout.addWidget(copy_container)
+        
+        # Connect copy button
+        copy_button.clicked.connect(lambda: self.copy_to_clipboard(pin))
+        
+        # Instructions
+        instructions = QLabel("Click the button below to authenticate with Plex")
+        instructions.setStyleSheet("""
+            QLabel {
+                color: white;
+                font-size: 14px;
+                padding: 10px;
+                qproperty-wordWrap: true;
+            }
+        """)
+        instructions.setFixedWidth(340)
+        instructions.setWordWrap(True)
+        layout.addWidget(instructions, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # Auth button
+        auth_button = QPushButton("Link Plex Account")
+        auth_button.setStyleSheet("""
+            QPushButton {
+                background-color: #E5A00D;
+                color: #282A2D;
+                border: none;
+                border-radius: 5px;
+                padding: 15px;
+                font-size: 16px;
+                font-weight: bold;
+                min-width: 200px;
+            }
+            QPushButton:hover {
+                background-color: #F8D68B;
+            }
+        """)
+        auth_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(auth_url)))
+        layout.addWidget(auth_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # Add some spacing at the bottom
+        layout.addStretch()
+        
+        # Set dialog style
+        self.setLayout(layout)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #3A3C41;
+            }
+        """)
+
+    def copy_to_clipboard(self, text):
+        QApplication.clipboard().setText(text)
+        print("PIN copied to clipboard")
+        
+        # Show the notification
+        self.copy_notification.show()
+        
+        # Hide the notification after 2 seconds
+        QTimer.singleShot(2000, self.copy_notification.hide)
+
+    def closeEvent(self, event):
+        """Handle window close event"""
+        self.deleteLater()
+        event.accept()
+
+main_window = None
+
+def register_main_window(window):
+    global main_window
+    main_window = window
+
+auth_handler = AuthWindowHandler()
+
+class TraktAuthHandler(QObject):
+    show_dialog = pyqtSignal(str)  # Signal for auth_url
+    
+    def __init__(self, main_window):
+        super().__init__()
+        self.current_dialog = None
+        self.main_window = main_window
+        self.show_dialog.connect(self._create_dialog)
+    
+    def _create_dialog(self, auth_url):
+        from utils.trakt_auth import TraktAuthDialog
+        if self.current_dialog:
+            self.current_dialog.close()
+        self.current_dialog = TraktAuthDialog(auth_url, self.main_window)
+        self.current_dialog.show()
+        return self.current_dialog
+
+# Create a global instance
+main_window = ...
+trakt_auth_handler = TraktAuthHandler(main_window)
 
 def resync_cache():
     global all_plex_unwatched_movies, movies_loaded_from_cache, loading_in_progress
@@ -488,20 +712,17 @@ playback_monitor.start()
 # Flask Routes
 @app.route('/')
 def index():
-    # If no services are configured, always redirect to settings
-    # The settings page will handle showing the appropriate message
+    # Only redirect if no services are configured
     if not (PLEX_AVAILABLE or JELLYFIN_AVAILABLE):
         return redirect('/settings')
 
-    # If we have services configured, show the normal page
     return render_template(
         'index.html',
         homepage_mode=HOMEPAGE_MODE,
         use_links=USE_LINKS,
         use_filter=USE_FILTER,
         use_watch_button=USE_WATCH_BUTTON,
-        use_next_button=USE_NEXT_BUTTON,
-        settings_disabled=settings.get('system', {}).get('disable_settings', False)
+        use_next_button=USE_NEXT_BUTTON
     )
 
 @app.route('/start_loading')
@@ -1187,20 +1408,23 @@ def get_plex_token():
             'X-Plex-Client-Identifier': client_id,
             'X-Plex-Product': 'Movie Roulette',
             'X-Plex-Version': '1.0',
-            'X-Plex-Device': 'Web',
-            'X-Plex-Device-Name': 'Movie Roulette Web Client',
-            'X-Plex-Platform': 'Web',
-            'X-Plex-Platform-Version': '1.0'
+            'X-Plex-Device': 'macOS',
+            'X-Plex-Device-Name': 'Movie Roulette for Mac',
+            'X-Plex-Platform': 'macOS',
+            'X-Plex-Platform-Version': platform.mac_ver()[0]
         }
-
-        # Initialize the PIN login
         pin_login = MyPlexPinLogin(headers=headers)
-
-        # Store in global dict
-        _plex_pin_logins[client_id] = pin_login
-
+        
+        # Show the auth dialog using the handler
+        auth_handler.show_dialog.emit("https://plex.tv/link", pin_login.pin)
+        
+        # Store the pin login
+        _plex_pin_logins[client_id] = {
+            'pin_login': pin_login,
+            'window': auth_handler.current_dialog
+        }
+        
         logger.info(f"Plex auth initiated with PIN: {pin_login.pin}")
-
         return jsonify({
             "auth_url": "https://plex.tv/link",
             "pin": pin_login.pin,
@@ -1214,22 +1438,22 @@ def get_plex_token():
 @app.route('/api/plex/check_auth/<client_id>')
 def check_plex_auth(client_id):
     try:
-        # Get the pin_login instance from global dict
-        pin_login = _plex_pin_logins.get(client_id)
-
-        if not pin_login:
+        login_data = _plex_pin_logins.get(client_id)
+        if not login_data:
             logger.warning("No PIN login instance found for this client")
             return jsonify({"token": None})
 
+        pin_login = login_data['pin_login']
         if pin_login.checkLogin():
             token = pin_login.token
             logger.info("Successfully retrieved Plex token")
             # Clean up
             del _plex_pin_logins[client_id]
+            # Close the dialog using the handler
+            auth_handler.close_dialog()
             return jsonify({"token": token})
-
+            
         return jsonify({"token": None})
-
     except Exception as e:
         logger.error(f"Error in check_plex_auth: {str(e)}")
         logger.error(traceback.format_exc())
@@ -1505,7 +1729,7 @@ def is_movie_in_jellyfin(tmdb_id):
         return jsonify({"available": False})
 
     try:
-        cache_path = '/app/data/jellyfin_all_movies.json'
+        cache_path = path_manager.get_path('jellyfin_movies')
         if os.path.exists(cache_path):
             with open(cache_path, 'r') as f:
                 all_jellyfin_movies = json.load(f)
@@ -1521,7 +1745,7 @@ def is_movie_in_jellyfin(tmdb_id):
 
 from utils.version import VERSION
 
-VERSION_FILE = '/app/data/version_info.json'
+VERSION_FILE = path_manager.get_path('version_info')
 
 def get_version_info():
     if os.path.exists(VERSION_FILE):
@@ -1543,21 +1767,36 @@ def check_version():
         version_info = get_version_info()
         manual_check = request.args.get('manual', 'false') == 'true'
 
+        # Fetch all releases
+        url = "https://api.github.com/repos/sahara101/Movie-Roulette/releases"
         response = requests.get(
-            "https://api.github.com/repos/sahara101/Random-Plex-Movie/releases/latest",
+            url,
             headers={'Accept': 'application/vnd.github.v3+json'}
         )
+
         if response.ok:
-            release = response.json()
-            latest_version = release['tag_name'].lstrip('v')
-            
+            releases = response.json()
+
+            # Filter for macOS-specific releases
+            macos_releases = [
+                release for release in releases
+                if "macOS" in release['tag_name']
+            ]
+
+            if not macos_releases:
+                return jsonify({'error': "No macOS-specific releases found"}), 404
+
+            # Assume the first result is the latest macOS release
+            latest_release = macos_releases[0]
+            latest_version = latest_release['tag_name'].lstrip('v')
+
             # Compare version numbers properly
             current_parts = [int(x) for x in VERSION.split('.')]
             latest_parts = [int(x) for x in latest_version.split('.')]
-            
+
             is_newer = latest_parts > current_parts
             show_popup = is_newer and latest_version != version_info["last_version_seen"]
-            
+
             if manual_check or show_popup:
                 version_info["last_version_seen"] = latest_version
                 save_version_info(version_info)
@@ -1566,10 +1805,13 @@ def check_version():
                 'update_available': is_newer,
                 'current_version': VERSION,
                 'latest_version': latest_version,
-                'changelog': release['body'],
-                'download_url': release['html_url'],
+                'changelog': latest_release['body'],
+                'download_url': latest_release['html_url'],
                 'show_popup': show_popup or manual_check
             })
+
+        return jsonify({'error': "Failed to fetch releases"}), 500
+
     except Exception as e:
         print(f"Error checking version: {e}")
         return jsonify({'error': 'Failed to check version'}), 500
@@ -1577,7 +1819,9 @@ def check_version():
 @app.route('/api/dismiss_update')
 def dismiss_update():
     try:
-        with open('/app/data/last_update_check.json', 'w') as f:
+        update_check_file = path_manager.get_path('update_check')
+        os.makedirs(os.path.dirname(update_check_file), exist_ok=True)
+        with open(update_check_file, 'w') as f:
             json.dump({
                 'last_checked': datetime.now().isoformat(),
                 'dismissed': True
@@ -1604,6 +1848,12 @@ def cleanup_services():
         cache_manager.stop()
 
 atexit.register(cleanup_services)
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    print("Shutdown route triggered.")
+    import os
+    os._exit(0)  # Immediately terminates the application process
 
 # Application startup
 if __name__ == '__main__':

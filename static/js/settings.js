@@ -191,6 +191,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         async function handleOAuthFlow(authUrl) {
+            // Check if we're running in native mode
+            if (window.isNative) {
+                // Let the native dialog handle it
+                return;
+            }
             const codeDialog = document.createElement('div');
             codeDialog.className = 'trakt-confirm-dialog';
             codeDialog.innerHTML = `
@@ -218,19 +223,6 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
 
             document.body.appendChild(codeDialog);
-
-            const popup = window.open(
-                authUrl,
-                'TraktAuth',
-                'width=600,height=800'
-            );
-
-            if (!popup) {
-                showError('Popup was blocked. Please allow popups for this site.');
-                codeDialog.remove();
-                updateButtonState(false, false);
-                return;
-            }
 
             const input = codeDialog.querySelector('.code-input');
             const submitButton = codeDialog.querySelector('.submit-button');
@@ -386,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateButtonState(false, true);
 
                 try {
-                    const response = await fetch('/trakt/authorize');
+                    const response = await fetch('/trakt/authorize?native=true');
                     if (!response.ok) {
                         throw new Error('Failed to initialize Trakt authorization');
                     }
@@ -703,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
     	try {
             const response = await fetch('/api/check_version');
             const data = await response.json();
-        
+
             if (data.update_available && (data.show_popup || manual)) {
             	showUpdateDialog(data);
             } else if (manual) {
@@ -730,9 +722,9 @@ document.addEventListener('DOMContentLoaded', function() {
             	</div>
             	<div class="dialog-buttons">
                     <button class="cancel-button">Dismiss</button>
-                    <a href="${updateInfo.download_url}" 
-                   	class="submit-button" 
-                   	target="_blank" 
+                    <a href="${updateInfo.download_url}"
+                   	class="submit-button"
+                   	target="_blank"
                    	rel="noopener noreferrer">View Release</a>
             	</div>
             </div>
@@ -759,11 +751,11 @@ document.addEventListener('DOMContentLoaded', function() {
     	const button = document.createElement('button');
     	button.className = 'discover-button';
     	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
-    
+
     	button.addEventListener('click', async () => {
             button.disabled = true;
             button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
-        
+
             try {
             	await checkVersion(true);  // Manual check
             } finally {
@@ -771,7 +763,7 @@ document.addEventListener('DOMContentLoaded', function() {
             	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
             }
     	});
-    
+
     	wrapper.appendChild(button);
     	container.appendChild(wrapper);
     }
@@ -883,7 +875,7 @@ document.addEventListener('DOMContentLoaded', function() {
         integrations: {
             title: 'Integrations',
             sections: [
-		{
+        {
                     title: 'System',
                     fields: [
                     	{
@@ -1637,66 +1629,37 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const data = await response.json();
-		    console.log("Auth data received:", data);
 
-                    const authWindow = window.open(
-                        data.auth_url,
-                        'PlexAuth',
-			'width=800,height=600,location=yes,status=yes,scrollbars=yes'
-                    );
+                    // Just check for auth completion periodically
+                    let attempts = 0;
+                    const maxAttempts = 60;
 
-                    if (!authWindow) {
-                        throw new Error('Popup was blocked. Please allow popups for this site.');
-                    }
-
-   		    // Show PIN dialog
-        	    const pinDialog = showPinDialog(data.pin);
-
-		    let attempts = 0;
-        	    const maxAttempts = 60;
-
-                    // Check for auth completion
                     const checkAuth = setInterval(async () => {
                         try {
-			    if (attempts >= maxAttempts) {
-				clearInterval(checkAuth);
-                    		authWindow.close();
-                    		throw new Error('Authentication timed out');
-			    }
+                            if (attempts >= maxAttempts) {
+                                clearInterval(checkAuth);
+                                throw new Error('Authentication timed out');
+                            }
 
-			    attempts++;
+                            attempts++;
 
-			    const statusResponse = await fetch(`/api/plex/check_auth/${data.client_id}`);
+                            const statusResponse = await fetch(`/api/plex/check_auth/${data.client_id}`);
                             const statusData = await statusResponse.json();
-
-			    console.log("Status check:", statusData);
 
                             if (statusData.token) {
                                 clearInterval(checkAuth);
-                                authWindow.close();
                                 await handleSettingChange('plex.token', statusData.token);
                                 tokenInput.value = statusData.token;
                                 showSuccess('Successfully got Plex token');
                             }
                         } catch (error) {
                             console.error('Auth check error:', error);
-			    if (error.message !== 'Authentication timed out') {
-                    		clearInterval(checkAuth);
-                    		showError(error.message);
-			    }
+                            if (error.message !== 'Authentication timed out') {
+                                clearInterval(checkAuth);
+                                showError(error.message);
+                            }
                         }
                     }, 2000);
-
-                    // Clear interval if window is closed
-                    const windowCheck = setInterval(() => {
-                        if (authWindow.closed) {
-                            clearInterval(checkAuth);
-                            clearInterval(windowCheck);
-			    pinDialog.remove();
-                            getTokenButton.disabled = false;
-                            getTokenButton.innerHTML = '<i class="fa-solid fa-key"></i> Get Token';
-                        }
-                    }, 1000);
 
                 } catch (error) {
                     showError(error.message);

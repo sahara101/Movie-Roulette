@@ -2346,7 +2346,7 @@ body.homepage-mode #description.truncated::after {
     display: none !important;
 }
 
-.trakt-confirm-dialog {
+trakt-confirm-dialog {
     position: fixed;
     top: 0;
     left: 0;
@@ -2438,12 +2438,33 @@ body.homepage-mode #description.truncated::after {
 .trakt-confirm-dialog .dialog-content p,
 .trakt-confirm-dialog .version-info {
     color: #EAEAEC;
-    font-weight: 300; 
+    font-weight: 300;
 }
 
 .trakt-confirm-dialog .changelog-content {
     color: #EAEAEC;
-    font-weight: 300;  
+    font-weight: 300;
     white-space: pre-line;
     line-height: 1.6;
+}
+
+/* Only text and element sizing for native app filter dropdown */
+.native-app .filter-dropdown label {
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
+.native-app .filter-dropdown select {
+    font-size: 12px;
+    padding: 4px;
+}
+
+.native-app .filter-dropdown button {
+    font-size: 12px;
+    padding: 6px 10px;
+    margin-top: 6px;
+}
+
+.native-app .filter-dropdown .filter-option {
+    margin-bottom: 6px;
 }

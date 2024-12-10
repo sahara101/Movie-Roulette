@@ -8,6 +8,7 @@ import time
 import logging
 from utils.settings import settings
 
+from utils.path_manager import path_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -16,7 +17,7 @@ poster_bp = Blueprint('poster', __name__)
 socketio = None
 
 # File to store current movie data
-CURRENT_MOVIE_FILE = '/app/data/current_movie.json'
+CURRENT_MOVIE_FILE = path_manager.get_path('current_movie')
 
 def init_socket(socket):
     global socketio

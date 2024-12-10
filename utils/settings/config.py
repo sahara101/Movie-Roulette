@@ -50,9 +50,6 @@ DEFAULT_SETTINGS = {
         'client_secret': '',
         'access_token': '',
         'refresh_token': ''
-    },
-    'system': {
-        'disable_settings': False
     }
 }
 
@@ -97,7 +94,4 @@ ENV_MAPPINGS = {
     'TRAKT_CLIENT_SECRET': ('trakt', 'client_secret', str),
     'TRAKT_ACCESS_TOKEN': ('trakt', 'access_token', str),
     'TRAKT_REFRESH_TOKEN': ('trakt', 'refresh_token', str),
-
-    # Settings
-    'DISABLE_SETTINGS': ('system', 'disable_settings', lambda x: x.upper() == 'TRUE'),
 }
