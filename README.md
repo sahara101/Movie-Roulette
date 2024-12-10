@@ -4,7 +4,7 @@ Native macOS application for Movie Roulette, a random movie picker for Plex and 
 
 ## Download
 
-Download the latest version from the [Releases](link-to-releases) page.
+Download the latest version from the [Releases](https://github.com/sahara101/Movie-Roulette/releases/tag/v1.0-macos) page.
 
 ## Installation
 
@@ -16,7 +16,9 @@ Download the latest version from the [Releases](link-to-releases) page.
 
 ## Features
 
-For a complete README check the default-docker page: https://github.com/sahara101/Movie-Roulette/tree/main
+For a complete README check the [default-docker](https://github.com/sahara101/Movie-Roulette/tree/main) page:
+
+> **Note**: The MacOS Version does not support ENV variables.
 
 - Native macOS application
 - Supports both Intel and Apple Silicon Macs
