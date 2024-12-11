@@ -1767,7 +1767,6 @@ def check_version():
         version_info = get_version_info()
         manual_check = request.args.get('manual', 'false') == 'true'
 
-        # Fetch all releases
         url = "https://api.github.com/repos/sahara101/Movie-Roulette/releases"
         response = requests.get(
             url,
@@ -1776,21 +1775,33 @@ def check_version():
 
         if response.ok:
             releases = response.json()
-
-            # Filter for macOS-specific releases
             macos_releases = [
                 release for release in releases
-                if "macOS" in release['tag_name']
+                if any(macos_term in (release['tag_name'] + release['name']).lower()
+                      for macos_term in ['macos', 'mac', 'darwin'])
             ]
 
             if not macos_releases:
-                return jsonify({'error': "No macOS-specific releases found"}), 404
+                macos_releases = [
+                    release for release in releases
+                    if any(asset['name'].endswith('.dmg') for asset in release['assets'])
+                ]
 
-            # Assume the first result is the latest macOS release
+            if not macos_releases:
+                return jsonify({'error': "No macOS releases found"}), 404
+
             latest_release = macos_releases[0]
-            latest_version = latest_release['tag_name'].lstrip('v')
+            latest_version = latest_release['tag_name'].replace('-macos', '').lstrip('v')
 
-            # Compare version numbers properly
+            # Get direct DMG download URL if available
+            dmg_asset = next(
+                (asset for asset in latest_release['assets']
+                 if asset['name'].endswith('.dmg')),
+                None
+            )
+            download_url = dmg_asset['browser_download_url'] if dmg_asset else latest_release['html_url']
+
+            # Compare version numbers as in original code
             current_parts = [int(x) for x in VERSION.split('.')]
             latest_parts = [int(x) for x in latest_version.split('.')]
 
@@ -1806,7 +1817,7 @@ def check_version():
                 'current_version': VERSION,
                 'latest_version': latest_version,
                 'changelog': latest_release['body'],
-                'download_url': latest_release['html_url'],
+                'download_url': download_url,
                 'show_popup': show_popup or manual_check
             })
 
@@ -1814,7 +1825,7 @@ def check_version():
 
     except Exception as e:
         print(f"Error checking version: {e}")
-        return jsonify({'error': 'Failed to check version'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/dismiss_update')
 def dismiss_update():

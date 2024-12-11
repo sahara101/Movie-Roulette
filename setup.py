@@ -49,6 +49,15 @@ OPTIONS = {
         'CFBundleShortVersionString': "1.0.0",
         'LSMinimumSystemVersion': "10.10",
         'NSHighResolutionCapable': True,
+        'NSRequiresAquaSystemAppearance': False,  # Support dark mode
+        'LSApplicationCategoryType': 'public.app-category.entertainment',
+        'NSAppleEventsUsageDescription': 'Movie Roulette uses Apple Events to communicate with media players.',
+        'NSNetworkingUsageDescription': 'Movie Roulette requires network access to communicate with media servers.',
+        'com.apple.security.cs.allow-jit': True,
+        'com.apple.security.cs.allow-unsigned-executable-memory': True,
+        'com.apple.security.cs.disable-library-validation': True,
+        'com.apple.security.network.client': True,
+        'com.apple.security.network.server': True,
     }
 }
 

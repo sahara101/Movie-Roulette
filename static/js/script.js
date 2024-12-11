@@ -2441,25 +2441,41 @@ function showUpdateDialog(updateInfo) {
             <h3>Update Available!</h3>
             <p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
             <div class="changelog">
-                <h4>Changelog:</h4>
+                <h4>What's New:</h4>
                 <div class="changelog-content">${updateInfo.changelog}</div>
             </div>
             <div class="dialog-buttons">
-                <button class="cancel-button">Dismiss</button>
+                <button class="cancel-button">Remind Me Later</button>
                 <a href="${updateInfo.download_url}"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   class="submit-button">View Release</a>
+                   class="download-button"
+                   download="Movie-Roulette.dmg">
+                    <i class="fa-solid fa-download"></i> Download Update
+                </a>
+            </div>
+            <div class="update-note">
+                <i class="fa-solid fa-info-circle"></i>
+                The app will continue running while downloading. Install the new version when ready.
             </div>
         </div>
     `;
 
     document.body.appendChild(dialog);
 
-    // Only handle the Dismiss button click
-    dialog.querySelector('.cancel-button').addEventListener('click', () => {
+    // Handle close/dismiss
+    const closeDialog = () => {
         dialog.remove();
         fetch('/api/dismiss_update').catch(console.error);
+    };
+
+    dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) closeDialog();
+    });
+
+    // Track download start
+    dialog.querySelector('.download-button').addEventListener('click', () => {
+        showSuccess('Download started! Install the new version when ready.');
+        closeDialog();
     });
 }
 

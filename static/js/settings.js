@@ -709,63 +709,80 @@ document.addEventListener('DOMContentLoaded', function() {
     	}
     }
 
-    function showUpdateDialog(updateInfo) {
-    	const dialog = document.createElement('div');
-    	dialog.className = 'trakt-confirm-dialog';
-    	dialog.innerHTML = `
-            <div class="dialog-content">
-            	<h3>Update Available!</h3>
-            	<p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
-            	<div class="changelog">
-                    <h4>Changelog:</h4>
-                    <div class="changelog-content">${updateInfo.changelog}</div>
-            	</div>
-            	<div class="dialog-buttons">
-                    <button class="cancel-button">Dismiss</button>
-                    <a href="${updateInfo.download_url}"
-                   	class="submit-button"
-                   	target="_blank"
-                   	rel="noopener noreferrer">View Release</a>
-            	</div>
-            </div>
-    	`;
-
-   	 document.body.appendChild(dialog);
-
-    	// Handle close/dismiss
-    	const closeDialog = () => {
-            dialog.remove();
-            fetch('/api/dismiss_update').catch(console.error);
-    	};
-
-    	dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
-    	dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) closeDialog();
-    	});
-    }
-
     function renderVersionCheckButton(container) {
-    	const wrapper = document.createElement('div');
-    	wrapper.className = 'version-check-wrapper';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'version-check-wrapper';
 
-    	const button = document.createElement('button');
-    	button.className = 'discover-button';
-    	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
+        const button = document.createElement('button');
+        button.className = 'discover-button';
+        button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
 
-    	button.addEventListener('click', async () => {
+        button.addEventListener('click', async () => {
             button.disabled = true;
             button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
 
             try {
-            	await checkVersion(true);  // Manual check
-            } finally {
-            	button.disabled = false;
-            	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
-            }
-    	});
+                const response = await fetch('/api/check_version?manual=true');
+                const data = await response.json();
 
-    	wrapper.appendChild(button);
-    	container.appendChild(wrapper);
+                if (data.update_available) {
+                    showUpdateDialog(data);
+                } else {
+                    showSuccess('You are running the latest version!');
+                }
+            } catch (error) {
+                showError('Failed to check for updates');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
+            }
+        });
+
+        wrapper.appendChild(button);
+        container.appendChild(wrapper);
+    }
+
+    function showUpdateDialog(updateInfo) {
+        const dialog = document.createElement('div');
+        dialog.className = 'trakt-confirm-dialog';
+        dialog.innerHTML = `
+            <div class="dialog-content">
+                <h3>Update Available!</h3>
+                <p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
+                <div class="changelog">
+                    <h4>What's New:</h4>
+                    <div class="changelog-content">${updateInfo.changelog}</div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="cancel-button">Later</button>
+                    <a href="${updateInfo.download_url}" 
+                       class="submit-button download-button" 
+                       target="_blank" 
+                       rel="noopener noreferrer">
+                        <i class="fa-solid fa-download"></i> 
+                        Download Update
+                    </a>
+                </div>
+                <div class="update-note">
+                    <i class="fa-solid fa-info-circle"></i>
+                    After downloading, close Movie Roulette and install the new version
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        // Handle close/dismiss
+        dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+            fetch('/api/dismiss_update').catch(console.error);
+        });
+
+        // Track download start
+        dialog.querySelector('.download-button').addEventListener('click', () => {
+            showSuccess('Download started! Close Movie Roulette and install the new version when ready.');
+            dialog.remove();
+        });
     }
 
     // Add automatic version check on page load

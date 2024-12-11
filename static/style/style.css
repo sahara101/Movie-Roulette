@@ -2346,7 +2346,7 @@ body.homepage-mode #description.truncated::after {
     display: none !important;
 }
 
-trakt-confirm-dialog {
+.trakt-confirm-dialog {
     position: fixed;
     top: 0;
     left: 0;
@@ -2375,23 +2375,49 @@ trakt-confirm-dialog {
     font-size: 24px;
 }
 
+.download-button {
+    background-color: #E5A00D;
+    color: #282A2D;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.download-button:hover {
+    background-color: #F8D68B;
+}
+
+.update-note {
+    margin-top: 15px;
+    font-size: 0.9em;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .changelog {
-    background-color: #282A2D;
-    padding: 20px;
-    border-radius: 8px;
-    margin: 20px 0;
+    margin: 15px 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #2A2C2F;
+    border-radius: 5px;
+    padding: 10px;
 }
 
 .changelog h4 {
+    margin: 0 0 10px 0;
     color: #E5A00D;
-    margin: 0 0 12px 0;
-    font-size: 1.1em;
 }
 
 .changelog-content {
-    color: #EAEAEC;
     white-space: pre-line;
-    line-height: 1.6;
+    font-size: 0.9em;
 }
 
 .version-info {

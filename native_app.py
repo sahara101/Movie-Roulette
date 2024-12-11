@@ -1,16 +1,75 @@
 import sys
 import threading
+import platform
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
-from PyQt6.QtCore import QUrl, Qt
-from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtCore import QUrl, Qt, QObject
+from PyQt6.QtGui import QIcon, QAction, QDesktopServices
 import movie_selector
 import socketio
 import requests
 import time
 import socket
+
+class NativeNotificationHandler(QObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.platform = platform.system()
+        print(f"Platform detected: {self.platform}")
+        
+        if self.platform == 'Darwin':
+            try:
+                from Foundation import (NSUserNotification, 
+                                     NSUserNotificationCenter, 
+                                     NSObject)
+                self.notification_center = NSUserNotificationCenter.defaultUserNotificationCenter()
+                print("macOS notification system initialized") 
+ 
+                class NotificationDelegate(NSObject):
+                    def userNotificationCenter_didActivateNotification_(self, center, notification):
+                        user_info = notification.userInfo()
+                        if user_info and user_info.get('type') == 'update':
+                            url = user_info.get('url')
+                            if url:
+                                QDesktopServices.openUrl(QUrl(url))
+                
+                self.delegate = NotificationDelegate.alloc().init()
+                self.notification_center.setDelegate_(self.delegate)
+                self.NSUserNotification = NSUserNotification
+            except Exception as e:
+                print(f"Failed to initialize macOS notifications: {e}")
+                self.notification_center = None
+        else:
+            self.notification_center = None
+
+    def show_update_notification(self, version_info):
+        print(f"Attempting to show notification with info: {version_info}") 
+        if self.platform == 'Darwin' and self.notification_center:
+            try:
+                print("Notification delivered")
+                notification = self.NSUserNotification.alloc().init()
+                notification.setTitle_("Movie Roulette Update Available")
+                notification.setSubtitle_(f"Version {version_info['latest_version']} is now available")
+                notification.setInformativeText_(f"You currently have version {version_info['current_version']}")
+                notification.setHasActionButton_(True)
+                notification.setActionButtonTitle_("Download")
+                notification.setSoundName_("NSUserNotificationDefaultSoundName")
+                notification.setUserInfo_({
+                    'type': 'update',
+                    'url': version_info['download_url']
+                })
+                
+                self.notification_center.deliverNotification_(notification)
+                return True
+            except Exception as e:
+                print(f"Error showing macOS notification: {e}")
+                return False
+        return False
+
+    def clear_notifications(self):
+        if self.platform == 'Darwin' and self.notification_center:
+            self.notification_center.removeAllDeliveredNotifications()
 
 
 class FlaskThread(threading.Thread):
@@ -20,21 +79,17 @@ class FlaskThread(threading.Thread):
         self.app = movie_selector.app
         self.ctx = self.app.app_context()
         self.ctx.push()
-
-        # Configure Socket.IO for async mode
         self.socketio.init_app(self.app, async_mode='threading', cors_allowed_origins='*')
-        self.port_ready = threading.Event()  # Event to signal when the port is ready
-        self.port = None  # To store the assigned port
+        self.port_ready = threading.Event()
+        self.port = None
 
     def run(self):
         try:
-            # Use a socket to find an available port
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('127.0.0.1', 0))  # Bind to a free port
-                self.port = s.getsockname()[1]  # Get the assigned port
-                self.port_ready.set()  # Signal that the port is ready
+                s.bind(('127.0.0.1', 0))
+                self.port = s.getsockname()[1]
+                self.port_ready.set()
 
-            # Start the Flask server on the assigned port
             self.socketio.run(
                 self.app,
                 host='127.0.0.1',
@@ -54,29 +109,24 @@ class MovieRouletteApp(QMainWindow):
         self.flask_thread = flask_thread
         self.setWindowTitle("Movie Roulette")
 
-        # Wait for the Flask thread to retrieve the port
+        # Initialize notification handler
+        self.notification_handler = NativeNotificationHandler(self)
+
         if not flask_thread.port_ready.wait(timeout=5):
             print("Error: Flask server did not start in time.")
-            sys.exit(1)  # Exit if the server fails to start
+            sys.exit(1)
         flask_port = flask_thread.port
 
-        # Get screen size and set window size to 80%
         screen = QApplication.primaryScreen().availableGeometry()
         width = int(screen.width() * 0.8)
         height = int(screen.height() * 0.8)
-
-        # Set minimum size to prevent too small windows
         self.setMinimumSize(800, 600)
-
-        # Set window size and center it
         self.resize(width, height)
         self.center()
 
-        # Configure web profile
         profile = QWebEngineProfile.defaultProfile()
         settings = profile.settings()
 
-        # Enable required features
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, True)
@@ -85,28 +135,22 @@ class MovieRouletteApp(QMainWindow):
         settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True)
 
-        # Create web view widget
         self.web = QWebEngineView()
-        self.web.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)  # Disable right-click menu
+        self.web.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
 
-        # Set up new window handling
         self.web.page().profile().setHttpUserAgent('Mozilla/5.0')
         self.web.page().newWindowRequested.connect(self.handle_new_window)
-
-        # Connect loadFinished signal to our handler
         self.web.loadFinished.connect(self.onPageLoadFinished)
-
         self.web.setUrl(QUrl(f"http://127.0.0.1:{flask_port}"))
         self.setCentralWidget(self.web)
 
-        # Set up the menu bar
         self.create_menu_bar()
-
-        # Initialize cache
         self.init_cache()
 
+    def show_update_notification(self, version_info):
+        return self.notification_handler.show_update_notification(version_info)
+
     def center(self):
-        # Center window on screen
         qr = self.frameGeometry()
         cp = QApplication.primaryScreen().availableGeometry().center()
         qr.moveCenter(cp)
@@ -114,7 +158,6 @@ class MovieRouletteApp(QMainWindow):
 
     def update_trakt_button(self):
         self.web.page().runJavaScript("""
-            // Update button state
             const button = document.querySelector('.trakt-connect-button');
             if (button) {
                 button.className = 'trakt-connect-button connected';
@@ -126,26 +169,22 @@ class MovieRouletteApp(QMainWindow):
     def onPageLoadFinished(self, ok):
         if ok:
             print("Page loaded successfully")
-            # Inject native flag
             self.web.page().runJavaScript("""
                 window.isNative = true;
                 document.documentElement.classList.add('native-app');
             """)
 
     def handle_new_window(self, request):
-        """Handle requests to open new windows/tabs"""
         url = request.requestedUrl()
         QDesktopServices.openUrl(url)
 
     def create_menu_bar(self):
-        # File Menu
         file_menu = self.menuBar().addMenu('File')
         quit_action = QAction('Quit Movie Roulette', self)
         quit_action.setMenuRole(QAction.MenuRole.QuitRole)
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
-        # View Menu
         view_menu = self.menuBar().addMenu('View')
         reload_action = QAction('Reload', self)
         reload_action.triggered.connect(self.web.reload)
@@ -153,7 +192,6 @@ class MovieRouletteApp(QMainWindow):
 
         view_menu.addSeparator()
 
-        # Add zoom actions
         zoom_in_action = QAction('Zoom In', self)
         zoom_in_action.triggered.connect(lambda: self.web.setZoomFactor(self.web.zoomFactor() + 0.1))
         view_menu.addAction(zoom_in_action)
@@ -168,7 +206,6 @@ class MovieRouletteApp(QMainWindow):
 
         view_menu.addSeparator()
 
-        # Move Window controls to View menu
         minimize_action = QAction('Minimize', self)
         minimize_action.triggered.connect(self.showMinimized)
         view_menu.addAction(minimize_action)
@@ -177,7 +214,6 @@ class MovieRouletteApp(QMainWindow):
         zoom_window_action.triggered.connect(lambda: self.setWindowState(self.windowState() ^ Qt.WindowState.WindowMaximized))
         view_menu.addAction(zoom_window_action)
 
-        # Help Menu
         help_menu = self.menuBar().addMenu('Help')
         github_action = QAction('GitHub Repository', self)
         github_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl('https://github.com/sahara101/Movie-Roulette')))
@@ -227,4 +263,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-
