@@ -2445,16 +2445,17 @@ function showUpdateDialog(updateInfo) {
                 <div class="changelog-content">${updateInfo.changelog}</div>
             </div>
             <div class="dialog-buttons">
-                <button class="cancel-button">Remind Me Later</button>
+                <button class="cancel-button">Later</button>
                 <a href="${updateInfo.download_url}"
-                   class="download-button"
-                   download="Movie-Roulette.dmg">
+                   class="submit-button download-button"
+                   target="_blank"
+                   rel="noopener noreferrer">
                     <i class="fa-solid fa-download"></i> Download Update
                 </a>
             </div>
             <div class="update-note">
                 <i class="fa-solid fa-info-circle"></i>
-                The app will continue running while downloading. Install the new version when ready.
+                After downloading, close Movie Roulette and install the new version
             </div>
         </div>
     `;
@@ -2462,21 +2463,18 @@ function showUpdateDialog(updateInfo) {
     document.body.appendChild(dialog);
 
     // Handle close/dismiss
-    const closeDialog = () => {
+    dialog.querySelector('.cancel-button').addEventListener('click', () => {
         dialog.remove();
         fetch('/api/dismiss_update').catch(console.error);
-    };
-
-    dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
-    dialog.addEventListener('click', (e) => {
-        if (e.target === dialog) closeDialog();
     });
 
     // Track download start
     dialog.querySelector('.download-button').addEventListener('click', () => {
-        showSuccess('Download started! Install the new version when ready.');
-        closeDialog();
+        showSuccess('Download started! Close Movie Roulette and install the new version when ready.');
+        dialog.remove();
     });
+
+    return dialog;
 }
 
 async function checkVersion() {
@@ -2490,4 +2488,37 @@ async function checkVersion() {
     } catch (error) {
         console.error('Error checking version:', error);
     }
+}
+
+function showSuccess(message) {
+    const container = document.querySelector('.toast-container') || (() => {
+        const cont = document.createElement('div');
+        cont.className = 'toast-container';
+        document.body.appendChild(cont);
+        return cont;
+    })();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast success';
+    toast.innerHTML = `
+        <div class="toast-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+        </div>
+        <div class="toast-message">${message}</div>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('removing');
+        setTimeout(() => {
+            toast.remove();
+            if (!container.children.length) {
+                container.remove();
+            }
+        }, 300);
+    }, 3000);
 }
