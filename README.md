@@ -1,3 +1,5 @@
+# WIP - do not install yet
+
 # Movie Roulette for macOS
 
 Native macOS application for Movie Roulette, a random movie picker for Plex and Jellyfin.
