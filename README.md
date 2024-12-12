@@ -180,6 +180,7 @@ Movie Roulette offers two ways to configure the application:
 | `USE_FILTER` | Show filter button | TRUE | ✅ Settings |
 | `USE_WATCH_BUTTON` | Show Watch button | TRUE | ✅ Settings |
 | `USE_NEXT_BUTTON` | Show next button | TRUE | ✅ Settings |
+| `ENABLE_MOBILE_TRUNCATION` | Choose if descriptions are truncated on mobile | FALSE | ✅ Settings |
 
 
 ### Device Control (Optional)
