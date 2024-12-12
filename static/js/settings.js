@@ -411,7 +411,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderSettingsSection(title, settings, envOverrides, fields) {
-    	console.log('Current envOverrides:', envOverrides);
     	const section = document.createElement('div');
     	section.className = 'settings-section';
 
@@ -426,6 +425,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const label = document.createElement('label');
             label.textContent = field.label;
             fieldContainer.appendChild(label);
+
+	    if (field.description) {
+    		const description = document.createElement('div');
+    		description.className = 'setting-description';
+    		description.innerHTML = field.description;
+    		fieldContainer.appendChild(description);
+	    }
 
             if (field.key === 'trakt.connect') {
             	createTraktIntegration(fieldContainer);
@@ -490,11 +496,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const value = getNestedValue(settings, field.key);
             let isOverridden = getNestedValue(envOverrides, field.key);
 
-            console.log(`Field ${field.key}:`, {
-            	value,
-            	isOverridden,
-            	envOverrides: envOverrides
-            });
+            console.log(`Field ${field.key}: configured`);
 
             const isIntegrationToggle = (
             	field.key === 'overseerr.enabled' ||
@@ -851,7 +853,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         { key: 'features.use_filter', label: 'Enable Filters', type: 'switch' },
                         { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch' },
                         { key: 'features.use_next_button', label: 'Enable Next Button', type: 'switch' },
-                        { key: 'features.homepage_mode', label: 'Homepage Mode', type: 'switch' }
+			{ key: 'features.mobile_truncation', label: 'Enable Mobile Description Truncation', type: 'switch' },
+			{
+            		    key: 'features.homepage_mode',
+            		    label: 'Homepage Mode',
+            		    type: 'switch',
+            		    description: 'Provides a simplified, non-interactive display format ideal for <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a> iframe integration. Removes buttons, links, and keeps movie descriptions fully expanded.'
+        		}
                     ]
                 },
                 {
@@ -1637,7 +1645,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const data = await response.json();
-		    console.log("Auth data received:", data);
 
                     const authWindow = window.open(
                         data.auth_url,
@@ -1669,7 +1676,7 @@ document.addEventListener('DOMContentLoaded', function() {
 			    const statusResponse = await fetch(`/api/plex/check_auth/${data.client_id}`);
                             const statusData = await statusResponse.json();
 
-			    console.log("Status check:", statusData);
+			    console.log("Auth status check completed");
 
                             if (statusData.token) {
                                 clearInterval(checkAuth);

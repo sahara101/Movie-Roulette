@@ -45,19 +45,35 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     checkAndLoadCache();
     try {
-        // Check current client configuration
-        const response = await fetch('/devices');
-        const devices = await response.json();
-        const powerButton = document.getElementById("btn_power");
-        if (powerButton) {
-            powerButton.style.display = devices.length > 0 ? 'flex' : 'none';
-        }
+    	// Check current client configuration
+    	const response = await fetch('/devices');
+    	const devices = await response.json();
+    	const powerButton = document.getElementById("btn_power");
+    	const nextButton = document.getElementById("btn_next_movie");
+    
+    	if (powerButton && nextButton) {
+            if (devices.length > 0) {
+            	powerButton.style.display = 'flex';
+		nextButton.style.flex = '';
+            } else {
+            	powerButton.style.display = 'none';
+		if (window.matchMedia('(max-width: 767px)').matches) {
+		    nextButton.style.flex = '0 0 100%';
+                    nextButton.style.marginRight = '0';
+		}
+            }
+    	}
     } catch (error) {
-        console.error("Error checking devices:", error);
-        const powerButton = document.getElementById("btn_power");
-        if (powerButton) {
+    	console.error("Error checking devices:", error);
+    	const powerButton = document.getElementById("btn_power");
+    	const nextButton = document.getElementById("btn_next_movie");
+    	if (powerButton && nextButton) {
             powerButton.style.display = 'none';
-        }
+	    if (window.matchMedia('(max-width: 767px)').matches) {
+                nextButton.style.flex = '0 0 100%';
+                nextButton.style.marginRight = '0';
+            }
+    	}
     }
     await syncTraktWatched(false);
     startVersionChecker();
@@ -500,7 +516,7 @@ function updateMovieDisplay(movieData) {
         return;
     }
 
-    console.log('Movie data received:', movieData);
+//    console.log('Movie data received:', movieData);
 
     hideMessage();
 
@@ -1093,42 +1109,90 @@ class ExpandableText {
     }
 
     reset() {
-        if (!this.element) return;
-        this.element.removeEventListener('click', this.boundToggle);
-        this.element.classList.remove('truncated', 'expanded');
-        this.element.style.webkitLineClamp = '1';
-        this.element.style.display = '-webkit-box';
-        this.element.style.maxHeight = '';
-        this.element.style.cursor = 'default';
-        this.state.expanded = false;
+    	if (!this.element) return;
+    	this.element.removeEventListener('click', this.boundToggle);
+    	this.element.classList.remove('truncated', 'expanded');
+    
+    	// Check for mobile and truncation setting
+    	const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
+    	if (isMobileOrPWA) {
+            // On mobile, respect the MOBILE_TRUNCATION setting
+            if (window.MOBILE_TRUNCATION) {
+            	this.element.style.webkitLineClamp = '1';
+            	this.element.style.display = '-webkit-box';
+            } else {
+            	this.element.style.webkitLineClamp = 'unset';
+            	this.element.style.display = 'block';
+            }
+    	} else {
+            // On desktop, always use truncation
+            this.element.style.webkitLineClamp = '1';
+            this.element.style.display = '-webkit-box';
+    	}
+    
+    	this.element.style.maxHeight = '';
+    	this.element.style.cursor = 'default';
+    	this.state.expanded = false;
     }
 
     checkTruncation() {
-        if (!this.element) return;
+    	if (!this.element) return;
 
-        requestAnimationFrame(() => {
+    	requestAnimationFrame(() => {
             void this.element.offsetHeight;
+
+            const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
+        
+            // If on mobile and truncation is disabled, don't truncate
+            if (isMobileOrPWA && !window.MOBILE_TRUNCATION) {
+            	this.state.truncated = false;
+            	this.element.classList.remove('truncated');
+            	this.element.style.cursor = 'default';
+            	return;
+            }
 
             const truncated = this.element.scrollHeight > this.element.clientHeight;
             this.state.truncated = truncated;
 
             if (truncated) {
-                this.element.classList.add('truncated');
-                this.element.style.cursor = 'pointer';
+            	this.element.classList.add('truncated');
+            	this.element.style.cursor = 'pointer';
             }
-
-            console.log('Truncation check:', {
-                scrollHeight: this.element.scrollHeight,
-                clientHeight: this.element.clientHeight,
-                isTruncated: truncated,
-                text: this.element.textContent.substring(0, 50) + '...'
-            });
-        });
+    	});
     }
 
     bindEvents() {
         if (!this.element) return;
         this.element.addEventListener('click', this.boundToggle);
+    }
+
+    checkTruncation() {
+    	if (!this.element) return;
+
+    	requestAnimationFrame(() => {
+            void this.element.offsetHeight;
+
+            // Add check for mobile and truncation setting
+            const isMobileOrPWA = window.matchMedia('(max-width: 768px)').matches || window.navigator.standalone;
+            const shouldTruncate = !isMobileOrPWA || window.MOBILE_TRUNCATION;
+
+            const truncated = shouldTruncate && this.element.scrollHeight > this.element.clientHeight;
+            this.state.truncated = truncated;
+
+            if (truncated) {
+            	this.element.classList.add('truncated');
+            	this.element.style.cursor = 'pointer';
+            }
+
+            console.log('Truncation check:', {
+            	scrollHeight: this.element.scrollHeight,
+            	clientHeight: this.element.clientHeight,
+            	isTruncated: truncated,
+            	isMobile: isMobileOrPWA,
+            	truncationEnabled: window.MOBILE_TRUNCATION,
+            	text: this.element.textContent.substring(0, 50) + '...'
+            });
+    	});
     }
 
     toggle(e) {

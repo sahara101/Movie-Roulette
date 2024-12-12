@@ -317,7 +317,7 @@ class JellyfinService:
             "description": movie.get('Overview', ''),
             "genres": movie.get('Genres', []),
             "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={self.api_key}",
-            "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}",
+            "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}" if movie.get('BackdropImageTags') else None,
             "ProviderIds": movie.get('ProviderIds', {}),
             "contentRating": movie.get('OfficialRating', ''),
             "videoFormat": video_format,

@@ -59,7 +59,7 @@ def initialize_services():
 
             # Initialize Plex
             plex = PlexServer(plex_url, plex_token)
-            logger.info(f"Plex initialized with URL: {plex_url}, Libraries: {PLEX_MOVIE_LIBRARIES}")
+            logger.info(f"Plex initialized with URL: {plex_url}, Libraries: [REDACTED]")
         except Exception as e:
             logger.error(f"Error initializing Plex: {e}")
             PLEX_AVAILABLE = False

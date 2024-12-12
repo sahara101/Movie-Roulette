@@ -18,7 +18,7 @@ class PlexService:
 
     def __init__(self, url=None, token=None, libraries=None):
         logger.info("Initializing PlexService")
-        logger.info(f"Parameters - URL: {bool(url)}, Token: {bool(token)}, Libraries: {libraries}")
+        logger.info(f"Parameters - URL: {bool(url)}, Token: {bool(token)}, Libraries: [REDACTED]")
 
         # First try settings (from parameters)
         self.PLEX_URL = url

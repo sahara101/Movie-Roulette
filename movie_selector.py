@@ -53,6 +53,7 @@ USE_WATCH_BUTTON = True
 USE_NEXT_BUTTON = True
 PLEX_AVAILABLE = False
 JELLYFIN_AVAILABLE = False
+MOBILE_TRUNCATION = False
 
 # Other globals
 all_plex_unwatched_movies = []
@@ -69,7 +70,7 @@ def load_settings():
     global FEATURE_SETTINGS, CLIENT_SETTINGS, APPLE_TV_SETTINGS
     global LG_TV_SETTINGS, PLEX_SETTINGS, JELLYFIN_SETTINGS
     global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_WATCH_BUTTON, USE_NEXT_BUTTON
-    global PLEX_AVAILABLE, JELLYFIN_AVAILABLE
+    global PLEX_AVAILABLE, JELLYFIN_AVAILABLE, MOBILE_TRUNCATION
 
     # Load all settings first
     FEATURE_SETTINGS = settings.get('features', {})
@@ -85,6 +86,7 @@ def load_settings():
     USE_FILTER = FEATURE_SETTINGS.get('use_filter', True)
     USE_WATCH_BUTTON = FEATURE_SETTINGS.get('use_watch_button', True)
     USE_NEXT_BUTTON = FEATURE_SETTINGS.get('use_next_button', True)
+    MOBILE_TRUNCATION = FEATURE_SETTINGS.get('mobile_truncation', False)
 
     # Update service availability flags
     PLEX_AVAILABLE = (
@@ -501,6 +503,7 @@ def index():
         use_filter=USE_FILTER,
         use_watch_button=USE_WATCH_BUTTON,
         use_next_button=USE_NEXT_BUTTON,
+        mobile_truncation=MOBILE_TRUNCATION,
         settings_disabled=settings.get('system', {}).get('disable_settings', False)
     )
 
@@ -1198,8 +1201,8 @@ def get_plex_token():
 
         # Store in global dict
         _plex_pin_logins[client_id] = pin_login
-
-        logger.info(f"Plex auth initiated with PIN: {pin_login.pin}")
+        
+        logger.info("Plex auth initiated with PIN: ****")
 
         return jsonify({
             "auth_url": "https://plex.tv/link",

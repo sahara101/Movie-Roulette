@@ -27,6 +27,7 @@ DEFAULT_SETTINGS = {
         'use_filter': True,
         'use_watch_button': True,
         'use_next_button': True,
+        'mobile_truncation': False,
         'homepage_mode': False,
         'timezone': 'UTC',
         'default_poster_text': '',
@@ -84,6 +85,7 @@ ENV_MAPPINGS = {
     'USE_FILTER': ('features', 'use_filter', lambda x: x.upper() == 'TRUE'),
     'USE_WATCH_BUTTON': ('features', 'use_watch_button', lambda x: x.upper() == 'TRUE'),
     'USE_NEXT_BUTTON': ('features', 'use_next_button', lambda x: x.upper() == 'TRUE'),
+    'ENABLE_MOBILE_TRUNCATION': ('features', 'mobile_truncation', lambda x: x.upper() == 'TRUE'),
     
     # Overseerr
     'OVERSEERR_URL': ('overseerr', 'url', str),
