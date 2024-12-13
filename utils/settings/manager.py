@@ -115,7 +115,7 @@ class Settings:
             update_nested(self.settings[category], data)
             
             # Special handling for service enabling/disabling
-            if category in ['plex', 'jellyfin', 'overseerr', 'trakt']:
+            if category in ['plex', 'jellyfin', 'overseerr', 'jellyseerr', 'trakt']:
                 if 'enabled' in data and not self.is_field_env_controlled(f"{category}.enabled"):
                     self.settings[category]['enabled'] = data['enabled']
 
@@ -157,6 +157,14 @@ class Settings:
                 if parts[1] == 'enabled':
                     return has_overseerr_env
                 return has_overseerr_env
+            return False
+
+        elif parts[0] == 'jellyseerr':
+            has_jellyseerr_env = bool(os.getenv('JELLYSEERR_URL') and os.getenv('JELLYSEERR_API_KEY'))
+            if len(parts) > 1:
+                if parts[1] == 'enabled':
+                    return has_jellyseerr_env
+                return has_jellyseerr_env
             return False
 
         elif parts[0] == 'trakt':
@@ -247,6 +255,11 @@ class Settings:
             if not (os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY')):
                 print("Removing overseerr from overrides - missing required ENVs")
                 del overrides['overseerr']
+
+        if 'jellyseerr' in overrides:
+            if not (os.getenv('JELLYSEERR_URL') and os.getenv('JELLYSEERR_API_KEY')):
+                print("Removing jellyseerr from overrides - missing required ENVs")
+                del overrides['jellyseerr']
 
         if 'trakt' in overrides:
             if not (os.getenv('TRAKT_CLIENT_ID') and 

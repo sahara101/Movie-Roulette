@@ -163,7 +163,7 @@ def update_settings(category):
                     logger.info("Client settings changed, will reinitialize services")
 
                 # If these are integration settings
-                if category in ['overseerr', 'tmdb', 'trakt']:
+                if category in ['overseerr', 'jellyseerr', 'tmdb', 'trakt']:
                     needs_reinit = True
                     logger.info("Integration settings changed, will reinitialize services")
 
