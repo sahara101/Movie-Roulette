@@ -2,7 +2,7 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Release](https://img.shields.io/badge/release-v3.1-blue)]()
+[![Release](https://img.shields.io/badge/release-v3.1.1-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
 [![GHCR Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fsahara101%2FMovie-Roulette%2Fmovie-roulette.json&query=%24.downloads&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
@@ -180,6 +180,7 @@ Movie Roulette offers two ways to configure the application:
 | `USE_FILTER` | Show filter button | TRUE | ✅ Settings |
 | `USE_WATCH_BUTTON` | Show Watch button | TRUE | ✅ Settings |
 | `USE_NEXT_BUTTON` | Show next button | TRUE | ✅ Settings |
+| `ENABLE_MOBILE_TRUNCATION` | Choose if descriptions are truncated on mobile | FALSE | ✅ Settings |
 
 
 ### Device Control (Optional)
