@@ -822,3 +822,22 @@ button.discover-button {
     background-color: #E5A00D;
     color: #282A2D;
 }
+
+.setting-description {
+    font-size: 0.9em;
+    color: #EAEAEC;
+    margin: 4px 0 8px 0;
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
+.setting-description a {
+    color: #E5A00D;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.setting-description a:hover {
+    color: #F8D68B;
+    text-decoration: underline;
+}

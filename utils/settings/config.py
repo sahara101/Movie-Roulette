@@ -40,9 +40,15 @@ DEFAULT_SETTINGS = {
         'url': '',
         'api_key': ''
     },
+    'jellyseerr': {
+        'enabled': False,
+        'url': '',
+        'api_key': '',
+        'force_use': False
+    },
     'tmdb': {
-        'enabled': False,  # If False, use built-in key
-        'api_key': ''     # Optional user-provided key
+        'enabled': False,  
+        'api_key': ''     
     },
     'trakt': {
         'enabled': False,
@@ -70,6 +76,11 @@ ENV_MAPPINGS = {
     'JELLYFIN_URL': ('jellyfin', 'url', str),
     'JELLYFIN_API_KEY': ('jellyfin', 'api_key', str),
     'JELLYFIN_USER_ID': ('jellyfin', 'user_id', str),
+
+    # Jelyseerr ENV
+    'JELLYSEERR_URL': ('jellyseerr', 'url', str),
+    'JELLYSEERR_API_KEY': ('jellyseerr', 'api_key', str),
+    'JELLYSEERR_FORCE_USE': ('jellyseerr', 'force_use', lambda x: x.upper() == 'TRUE'),
     
     # Client ENV
     'APPLE_TV_ID': ('clients.apple_tv', 'id', str),

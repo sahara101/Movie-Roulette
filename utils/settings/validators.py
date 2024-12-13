@@ -43,10 +43,22 @@ def validate_clients(data):
             raise ValueError("Apple TV ID is required when enabled")
     return True
 
+def validate_jellyseerr(data):
+    """Validate Jellyseerr settings"""
+    if data.get('enabled'):
+        if not data.get('url') or not data.get('api_key'):
+            raise ValueError("Jellyseerr URL and API key are required when enabled")
+
+        # force_use is optional and boolean, no validation needed
+        if 'force_use' in data and not isinstance(data['force_use'], bool):
+            raise ValueError("force_use must be a boolean value")
+    return True
+
 VALIDATORS = {
     'plex': validate_plex,
     'jellyfin': validate_jellyfin,
     'overseerr': validate_overseerr,
     'trakt': validate_trakt,
-    'clients': validate_clients
+    'clients': validate_clients,
+    'jellyseerr': validate_jellyseerr
 }

@@ -419,6 +419,12 @@ document.addEventListener('DOMContentLoaded', function() {
             label.textContent = field.label;
             fieldContainer.appendChild(label);
 
+            if (field.description) {
+                const description = document.createElement('div');
+                description.className = 'setting-description';
+                description.innerHTML = field.description;
+                fieldContainer.appendChild(description);
+	    }
             if (field.key === 'trakt.connect') {
             	createTraktIntegration(fieldContainer);
             	section.appendChild(fieldContainer);
@@ -490,7 +496,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const isIntegrationToggle = (
             	field.key === 'overseerr.enabled' ||
-            	field.key === 'trakt.enabled'
+            	field.key === 'trakt.enabled' ||
+                field.key === 'jellyseerr.enabled'
             );
 
             const isPlexEnv = Boolean(
@@ -511,6 +518,10 @@ document.addEventListener('DOMContentLoaded', function() {
             	getNestedValue(envOverrides, 'overseerr.url') &&
             	getNestedValue(envOverrides, 'overseerr.api_key')
             );
+            const isJellyseerrEnv = Boolean(
+    		getNestedValue(envOverrides, 'jellyseerr.url') &&
+    		getNestedValue(envOverrides, 'jellyseerr.api_key')
+	    );
             const isTraktEnv = Boolean(
             	getNestedValue(envOverrides, 'trakt.client_id') &&
             	getNestedValue(envOverrides, 'trakt.client_secret') &&
@@ -545,6 +556,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     	isOverridden = isOverseerrEnv;
                     	isEnvEnabled = isOverseerrEnv;
                     	break;
+                    case 'jellyseerr.enabled':
+    			isOverridden = isJellyseerrEnv;
+    			isEnvEnabled = isJellyseerrEnv;
+    			break;
                     case 'trakt.enabled':
                     	isOverridden = isTraktEnv;
                     	isEnvEnabled = isTraktEnv;
@@ -860,7 +875,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         { key: 'features.use_filter', label: 'Enable Filters', type: 'switch' },
                         { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch' },
                         { key: 'features.use_next_button', label: 'Enable Next Button', type: 'switch' },
-                        { key: 'features.homepage_mode', label: 'Homepage Mode', type: 'switch' }
+                        {
+                            key: 'features.homepage_mode',
+                            label: 'Homepage Mode',
+                            type: 'switch',
+                            description: 'Provides a simplified, non-interactive display format ideal for <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a> iframe integration. Removes buttons, links, and keeps movie descriptions fully expanded.'
+                        }
                     ]
                 },
                 {
@@ -927,6 +947,32 @@ document.addEventListener('DOMContentLoaded', function() {
                         { key: 'overseerr.api_key', label: 'API Key', type: 'password' },
                     ]
                 },
+                {
+                    title: 'Jellyseerr',
+    		    fields: [
+        		{
+            		    key: 'jellyseerr.enabled',
+            		    label: 'Enable Jellyseerr',
+            		    type: 'switch'
+        		},
+        		{
+            		    key: 'jellyseerr.url',
+            		    label: 'Jellyseerr URL',
+            		    type: 'text'
+        		},
+        		{
+            		    key: 'jellyseerr.api_key',
+            		    label: 'API Key',
+            		    type: 'password'
+        		},
+        		{
+            		    key: 'jellyseerr.force_use',
+            		    label: 'Force Use Jellyseerr',
+            		    type: 'switch',
+            		    description: 'Use Jellyseerr even when Plex is the active service'
+        		}
+    		    ]
+		},
                 {
                     title: 'Trakt',
                     fields: [

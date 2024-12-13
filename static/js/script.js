@@ -698,14 +698,17 @@ function updateMovieDisplay(movieData) {
     window.dispatchEvent(new Event('resize'));
 }
 
-async function checkOverseerrAvailability() {
+async function checkRequestServiceAvailability() {
     try {
         const response = await fetch('/api/overseerr/status');
         const data = await response.json();
-        return data.available;
+        return {
+            available: data.available,
+            service: data.service  // Will be either 'overseerr' or 'jellyseerr'
+        };
     } catch (error) {
-        console.error('Error checking Overseerr status:', error);
-        return false;
+        console.error('Error checking request service status:', error);
+        return { available: false, service: null };
     }
 }
 
@@ -1339,8 +1342,8 @@ async function createMovieCard(movie) {
         requestButton.textContent = "Watch";
         requestButton.addEventListener('click', () => showClientsForPoster(movie.id));
     } else {
-        const overseerrAvailable = await checkOverseerrAvailability();
-        if (overseerrAvailable) {
+        const serviceStatus = await checkRequestServiceAvailability();
+        if (serviceStatus.available) {
             const mediaStatus = await fetch(`/api/overseerr/media/${movie.id}`).then(r => r.json());
             console.log('Media status:', mediaStatus);
             // Only check for pending (3) or processing (4) status
@@ -1351,13 +1354,18 @@ async function createMovieCard(movie) {
                 requestButton.classList.add('requested');
                 requestButton.disabled = true;
             } else {
-                requestButton.textContent = "Request";
+                const serviceName = serviceStatus.service === 'overseerr' ? 'Overseerr' : 'Jellyseerr';
+                requestButton.textContent = `Request (${serviceStatus.service})`;
                 requestButton.addEventListener('click', () => requestMovie(movie.id));
             }
         } else {
             requestButton.textContent = "Request";
             requestButton.disabled = true;
-            requestButton.title = "Overseerr is not configured or disabled";
+            if (currentService === 'jellyfin') {
+                requestButton.title = "Jellyseerr is not configured";
+            } else {
+                requestButton.title = "No request service available";
+            }
         }
     }
 
@@ -1482,14 +1490,14 @@ async function openMoviesOverlay(personId, personType, personName) {
 async function openMovieDataOverlay(movieId) {
     console.log('openMovieDataOverlay started for movieId:', movieId);
     try {
-        const [movieResponse, plexAvailable, overseerrAvailable, overseerrStatus] = await Promise.all([
+        const [movieResponse, plexAvailable, requestServiceStatus, mediaStatus] = await Promise.all([
             fetch(`/api/movie_details/${movieId}`),
             fetch(`/is_movie_in_plex/${movieId}`).then(r => r.json()),
-            checkOverseerrAvailability(),
+            checkRequestServiceAvailability(),
             fetch(`/api/overseerr/media/${movieId}`).then(r => r.json()).catch(() => null)
         ]);
 
-        console.log('Media status in overlay:', overseerrStatus);
+        console.log('Media status in overlay:', mediaStatus);
 
         if (!movieResponse.ok) {
             throw new Error(`Failed to fetch movie details: ${movieResponse.status} ${movieResponse.statusText}`);
@@ -1497,7 +1505,7 @@ async function openMovieDataOverlay(movieId) {
 
         const movieData = await movieResponse.json();
         const isInPlex = plexAvailable.available;
-        const isRequested = overseerrStatus?.mediaInfo?.status === 3 || overseerrStatus?.mediaInfo?.status === 4;
+        const isRequested = mediaStatus?.mediaInfo?.status === 3 || mediaStatus?.mediaInfo?.status === 4;
 
         const overlayContent = document.getElementById('movie_data_overlay_content');
         overlayContent.innerHTML = `
@@ -1527,7 +1535,7 @@ async function openMovieDataOverlay(movieId) {
             watchButton.textContent = 'Watch Movie';
             watchButton.addEventListener('click', () => showClientsForPoster(movieId));
             overlayContent.appendChild(watchButton);
-        } else if (overseerrAvailable) {
+        } else if (requestServiceStatus.available) {
             const requestButton = document.createElement('button');
             requestButton.className = 'action-button';
             if (isRequested) {
@@ -1536,15 +1544,22 @@ async function openMovieDataOverlay(movieId) {
                 requestButton.classList.add('requested');
             } else {
                 requestButton.id = 'request_movie_button';
-                requestButton.textContent = 'Request Movie';
+                const serviceName = requestServiceStatus.service === 'overseerr' ? 'Overseerr' : 'Jellyseerr';
+                requestButton.textContent = `Request Movie (${requestServiceStatus.service})`;
                 requestButton.addEventListener('click', () => requestMovie(movieId));
             }
+            overlayContent.appendChild(requestButton);
         } else {
             const disabledButton = document.createElement('button');
             disabledButton.className = 'action-button';
             disabledButton.textContent = 'Request Movie';
             disabledButton.disabled = true;
-            disabledButton.title = 'Overseerr is not configured or disabled';
+            disabledButton.title = 'No request service available';
+	    if (currentService === 'jellyfin') {
+                disabledButton.title = "Jellyseerr is not configured";
+            } else {
+                disabledButton.title = "No request service available";
+            }
             overlayContent.appendChild(disabledButton);
         }
 
