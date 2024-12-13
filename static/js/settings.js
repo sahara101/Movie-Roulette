@@ -500,7 +500,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const isIntegrationToggle = (
             	field.key === 'overseerr.enabled' ||
-            	field.key === 'trakt.enabled'
+            	field.key === 'trakt.enabled' ||
+		field.key === 'jellyseerr.enabled'
             );
 
             const isPlexEnv = Boolean(
@@ -515,12 +516,15 @@ document.addEventListener('DOMContentLoaded', function() {
             );
             const isAppleTVEnv = getNestedValue(envOverrides, 'clients.apple_tv.id');
             const isLGTVEnv = getNestedValue(envOverrides, 'clients.lg_tv.ip') &&
-                             getNestedValue(envOverrides, 'clients.lg_tv.mac');
-
+                              getNestedValue(envOverrides, 'clients.lg_tv.mac');
             const isOverseerrEnv = Boolean(
             	getNestedValue(envOverrides, 'overseerr.url') &&
             	getNestedValue(envOverrides, 'overseerr.api_key')
             );
+	    const isJellyseerrEnv = Boolean(
+    		getNestedValue(envOverrides, 'jellyseerr.url') &&
+    		getNestedValue(envOverrides, 'jellyseerr.api_key')
+	    );
             const isTraktEnv = Boolean(
             	getNestedValue(envOverrides, 'trakt.client_id') &&
             	getNestedValue(envOverrides, 'trakt.client_secret') &&
@@ -543,6 +547,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     	isOverridden = isJellyfinEnv;
                     	isEnvEnabled = isJellyfinEnv;
                     	break;
+		    case 'jellyseerr.enabled':
+        		isOverridden = isJellyseerrEnv;
+        		isEnvEnabled = isJellyseerrEnv;
+        		break;
                     case 'clients.apple_tv.enabled':
                     	isOverridden = isAppleTVEnv;
                     	isEnvEnabled = isAppleTVEnv;
@@ -555,6 +563,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     	isOverridden = isOverseerrEnv;
                     	isEnvEnabled = isOverseerrEnv;
                     	break;
+		    case 'jellyseerr.enabled':
+    			isOverridden = isJellyseerrEnv;
+    			isEnvEnabled = isJellyseerrEnv;
+    			break;
                     case 'trakt.enabled':
                     	isOverridden = isTraktEnv;
                     	isEnvEnabled = isTraktEnv;
@@ -926,6 +938,32 @@ document.addEventListener('DOMContentLoaded', function() {
                         { key: 'overseerr.api_key', label: 'API Key', type: 'password' },
                     ]
                 },
+		{
+    		    title: 'Jellyseerr',
+    		    fields: [
+        		{
+            		    key: 'jellyseerr.enabled',
+            		    label: 'Enable Jellyseerr',
+            		    type: 'switch'
+        		},
+        		{
+            		    key: 'jellyseerr.url',
+            		    label: 'Jellyseerr URL',
+            		    type: 'text'
+        		},
+        		{
+            		    key: 'jellyseerr.api_key',
+            		    label: 'API Key',
+            		    type: 'password'
+        		},
+        		{
+            		    key: 'jellyseerr.force_use',
+            		    label: 'Force Use Jellyseerr',
+            		    type: 'switch',
+            		    description: 'Use Jellyseerr even when Plex is the active service'
+        		}
+    		    ]
+		},
                 {
                     title: 'Trakt',
                     fields: [

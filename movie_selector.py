@@ -241,6 +241,34 @@ def initialize_services():
         except Exception as e:
             logger.error(f"Failed to reset Overseerr configuration: {e}")
 
+    # Initialize Jellyseerr if enabled
+    jellyseerr_settings = settings.get('jellyseerr', {})
+    jellyseerr_enabled = (
+        (bool(os.getenv('JELLYSEERR_URL')) and bool(os.getenv('JELLYSEERR_API_KEY'))) or
+        (bool(jellyseerr_settings.get('enabled')) and
+         bool(jellyseerr_settings.get('url', '').strip()) and
+         bool(jellyseerr_settings.get('api_key', '').strip()))
+    )
+
+    if jellyseerr_enabled:
+        logger.info("Initializing Jellyseerr service...")
+        try:
+            from utils.jellyseerr_service import update_configuration
+            if update_configuration(
+                url=os.getenv('JELLYSEERR_URL') or jellyseerr_settings.get('url', ''),
+                api_key=os.getenv('JELLYSEERR_API_KEY') or jellyseerr_settings.get('api_key', '')
+            ):
+                logger.info("Jellyseerr service initialized successfully")
+            else:
+                logger.error("Failed to initialize Jellyseerr service")
+        except Exception as e:
+            logger.error(f"Failed to initialize Jellyseerr service: {e}")
+    else:
+        logger.info("Jellyseerr service is disabled or not configured")
+
+    # Add to the services status log
+    logger.info(f"- Jellyseerr: {jellyseerr_enabled}")
+
     # Initialize Trakt if enabled
     trakt_settings = settings.get('trakt', {})
     trakt_enabled = (
