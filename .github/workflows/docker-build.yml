@@ -58,9 +58,9 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:latest
-            sahara101/movie-roulette:v3.1
+            sahara101/movie-roulette:v3.1.2
             ghcr.io/sahara101/movie-roulette:latest
-            ghcr.io/sahara101/movie-roulette:v3.1
+            ghcr.io/sahara101/movie-roulette:v3.1.2
 
       # Build ARM image
       - name: Build and push ARM
@@ -72,6 +72,6 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:arm-latest
-            sahara101/movie-roulette:arm-v3.1
+            sahara101/movie-roulette:arm-v3.1.2
             ghcr.io/sahara101/movie-roulette:arm-latest
-            ghcr.io/sahara101/movie-roulette:arm-v3.1
+            ghcr.io/sahara101/movie-roulette:arm-v3.1.2
