@@ -797,28 +797,6 @@ def random_movie():
        else:
            return jsonify({"error": "No available media service"}), 400
 
-<<<<<<< Updated upstream
-    try:
-        if current_service == 'plex' and PLEX_AVAILABLE:
-            movie_data = plex.filter_movies(genres, years, pg_ratings)
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-            movie_data = jellyfin.filter_movies(genres, years, pg_ratings)
-        else:
-            return jsonify({"error": "No available media service"}), 400
-
-        if movie_data:
-            # Enrich the movie data with TMDb information
-            movie_data = enrich_movie_data(movie_data)
-            return jsonify({
-                "service": current_service, 
-                "movie": movie_data
-            })
-        else:
-            return jsonify({"error": "No movies found matching the filter"}), 204
-    except Exception as e:
-        logger.error(f"Error in filter_movies: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-=======
        if movie_data:
            movie_data = enrich_movie_data(movie_data)
            return jsonify({
@@ -832,7 +810,6 @@ def random_movie():
    except Exception as e:
        logger.error(f"Error in random_movie: {str(e)}", exc_info=True)
        return jsonify({"error": str(e)}), 500
->>>>>>> Stashed changes
 
 @app.route('/next_movie')
 def next_movie():
@@ -1027,28 +1004,6 @@ def devices():
             "env_controlled": False
         })
 
-<<<<<<< Updated upstream
-    # Check LG TV
-    env_lg_ip = os.getenv('LGTV_IP')
-    env_lg_mac = os.getenv('LGTV_MAC')
-    
-    if env_lg_ip and env_lg_mac:
-        # If ENV is set, show it and mark as ENV controlled
-        devices.append({
-            "name": "lg_tv",
-            "displayName": "LG TV (webOS)",
-            "env_controlled": True
-        })
-    elif (LG_TV_SETTINGS.get('enabled') and 
-          LG_TV_SETTINGS.get('ip') and 
-          LG_TV_SETTINGS.get('mac')):
-        # If no ENV but settings are enabled and have all required fields
-        devices.append({
-            "name": "lg_tv",
-            "displayName": "LG TV (webOS)",
-            "env_controlled": False
-        })
-=======
     # Add all configured TVs
     tv_instances = settings.get('clients', {}).get('tvs', {}).get('instances', {})
     for tv_id, tv in tv_instances.items():
@@ -1065,7 +1020,6 @@ def devices():
                 })
             except Exception as e:
                 logger.error(f"Error adding TV {tv_id} to devices list: {e}")
->>>>>>> Stashed changes
 
     logger.debug(f"Available devices: {devices}")
     return jsonify(devices)
@@ -1085,36 +1039,6 @@ def turn_on_device(device):
         except Exception as e:
             logger.error(f"Error turning on Apple TV: {str(e)}")
             return jsonify({"error": f"Failed to turn on Apple TV: {str(e)}"}), 500
-<<<<<<< Updated upstream
-    elif device == "lg_tv" and (LG_TV_SETTINGS.get('enabled') or os.getenv('LGTV_MAC')):
-        try:
-            from utils.lgtv_control import get_tv_config, send_wol
-            tv_ip, tv_mac = get_tv_config()
-            
-            if not tv_mac:
-                return jsonify({"error": "LG TV MAC address not configured"}), 400
-
-            current_service = session.get('current_service', get_available_service())
-                
-            if send_wol(tv_mac):
-                # Start a background task to launch the app after TV wakes up
-                def delayed_app_launch(service):
-                    time.sleep(10)  # Give TV time to wake up
-                    try:
-                        app_to_launch = 'plex' if current_service == 'plex' else 'jellyfin'
-                        from utils.lgtv_control import main
-                        main(app_to_launch)
-                    except Exception as e:
-                        logger.error(f"Failed to launch app: {e}")
-                
-                thread = threading.Thread(target=delayed_app_launch, args=(current_service,))
-                thread.daemon = True
-                thread.start()
-                
-                return jsonify({"status": "LG TV wake-on-LAN sent successfully"})
-            else:
-                return jsonify({"error": "Failed to send wake-on-LAN packet"}), 500
-=======
 
     else:  # TV devices
         try:
@@ -1139,7 +1063,6 @@ def turn_on_device(device):
 
             return jsonify(asyncio.run(launch_tv()))
 
->>>>>>> Stashed changes
         except Exception as e:
             return jsonify({"error": f"Failed to control TV: {str(e)}"}), 500
 
@@ -1148,30 +1071,6 @@ def debug_service():
     """Return debug information for the current media service"""
     current_service = session.get('current_service', get_available_service())
     try:
-<<<<<<< Updated upstream
-        update_cache_status()
-        total_movies = plex.get_total_unwatched_movies() if plex else 0
-        all_movies_count = len(cache_manager.get_all_plex_movies()) if cache_manager else 0
-        cached_movies = len(cache_manager.get_cached_movies()) if cache_manager else 0
-        
-        # Get settings-based URL and libraries
-        plex_url = PLEX_SETTINGS.get('url') or os.getenv('PLEX_URL')
-        movie_libraries = PLEX_SETTINGS.get('movie_libraries') or os.getenv('PLEX_MOVIE_LIBRARIES', '')
-        
-        # If movie_libraries is a list, join it
-        if isinstance(movie_libraries, list):
-            movie_libraries = ','.join(movie_libraries)
-        
-        return jsonify({
-            "total_movies": all_movies_count,
-            "total_unwatched_movies": total_movies,
-            "cached_movies": cached_movies,
-            "loaded_from_cache": movies_loaded_from_cache,
-            "plex_url": plex_url,
-            "movies_library_name": movie_libraries,
-            "cache_file_exists": os.path.exists(cache_file_path)
-        })
-=======
         if current_service == 'plex' and PLEX_AVAILABLE:
             update_cache_status()
             
@@ -1261,7 +1160,6 @@ def debug_service():
                 }), 500
         else:
             return jsonify({"error": "No available media service"}), 400
->>>>>>> Stashed changes
     except Exception as e:
         logger.error(f"Error in debug_service: {str(e)}")
         logger.error(traceback.format_exc())
@@ -1358,22 +1256,7 @@ def scan_for_tv(tv_type):
             "devices": devices,
             "found": len(devices) > 0
         })
-<<<<<<< Updated upstream
-        
-    except subprocess.CalledProcessError as e:
-        logger.error(f"arp-scan execution failed: {str(e)}")
-        return jsonify({
-            'error': 'Network scan failed. Please ensure arp-scan is installed and you have necessary permissions.',
-            'devices': [],
-            'scan_info': {
-                'timestamp': datetime.now().isoformat(),
-                'error_details': str(e),
-                'scan_successful': False
-            }
-        }), 500
-=======
 
->>>>>>> Stashed changes
     except Exception as e:
         logger.error(f"Error scanning for {tv_type} TVs: {str(e)}")
         return jsonify({
@@ -1381,68 +1264,6 @@ def scan_for_tv(tv_type):
             "devices": []
         }), 500
 
-<<<<<<< Updated upstream
-@app.route('/api/lgtv/validate')
-def validate_tv():
-    """Validate TV connection and configuration"""
-    ip = request.args.get('ip')
-    mac = request.args.get('mac')
-    
-    if not ip or not mac:
-        return jsonify({
-            'error': 'Both IP and MAC address are required',
-            'validation': {
-                'ip': bool(ip),
-                'mac': bool(mac)
-            }
-        }), 400
-        
-    # Get just the prefix part for comparison
-    mac_prefix = ':'.join(mac.upper().split(':')[:3])
-        
-    validation_results = {
-        'ip': {
-            'valid': is_valid_ip(ip),
-            'value': ip
-        },
-        'mac': {
-            'valid': is_valid_mac(mac),
-            'value': mac,
-            'is_lg_device': mac_prefix in LG_MAC_PREFIXES,
-            'device_type': LG_MAC_PREFIXES.get(mac_prefix, 'Unknown LG Device')
-        },
-        'connection': {
-            'reachable': False,
-            'tested_at': datetime.now().isoformat()
-        }
-    }
-    
-    # Only test connection if IP and MAC are valid
-    if validation_results['ip']['valid'] and validation_results['mac']['valid']:
-        validation_results['connection']['reachable'] = test_tv_connection(ip)
-    
-    if validation_results['connection']['reachable']:
-        return jsonify({
-            'status': 'valid',
-            'validation': validation_results
-        })
-    elif validation_results['ip']['valid'] and validation_results['mac']['valid']:
-        return jsonify({
-            'error': 'TV found but not reachable. Please ensure:',
-            'checks': [
-                'TV is powered on',
-                'TV is connected to the network',
-                'No firewall is blocking the connection',
-                'TV is on the same network as Movie Roulette'
-            ],
-            'validation': validation_results
-        }), 404
-    else:
-        return jsonify({
-            'error': 'Invalid IP or MAC address format',
-            'validation': validation_results
-        }), 400
-=======
 @app.route('/api/tv/test/<tv_id>')
 def test_tv_connection(tv_id):
     """Test connection to a specific TV"""
@@ -1467,7 +1288,6 @@ def test_tv_connection(tv_id):
 
             if not is_available:
                 logger.warning(f"TV at {controller.ip} is not available. Check TV power state and network connection.")
->>>>>>> Stashed changes
 
             return jsonify({"success": is_available})
         finally:

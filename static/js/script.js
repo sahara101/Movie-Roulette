@@ -518,9 +518,6 @@ function setupFilterEventListeners() {
 
     if (filterButton && filterDropdown) {
         console.log('Found filter elements, attaching listeners');
-<<<<<<< Updated upstream
-        
-=======
 
 	const watchStatusSelect = document.getElementById("watchStatusSelect");
         if (watchStatusSelect) {
@@ -529,7 +526,6 @@ function setupFilterEventListeners() {
             });
         }
 
->>>>>>> Stashed changes
         // Remove any existing listeners by cloning and replacing
         const newFilterButton = filterButton.cloneNode(true);
         filterButton.parentNode.replaceChild(newFilterButton, filterButton);
@@ -2280,17 +2276,11 @@ async function checkAndLoadCache() {
     try {
         const response = await fetch('/debug_service');
         const data = await response.json();
-<<<<<<< Updated upstream
-        if (data.cached_movies === 0) {
-            console.log('Cache is empty. Starting to load movies...');
-            
-=======
 
         // Only check cache for Plex service
         if (data.service === 'plex' && data.cached_movies === 0) {
             console.log('Plex cache is empty. Starting to load movies...');
 
->>>>>>> Stashed changes
             // First remove existing event listeners to prevent duplicates
             const filterButton = document.getElementById("filterButton");
             if (filterButton) {
