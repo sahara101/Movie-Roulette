@@ -1,6 +1,7 @@
 import os
 import requests
 import logging
+import json
 from dotenv import load_dotenv
 from utils.settings import settings
 from utils.tmdb_service import tmdb_service
@@ -16,22 +17,59 @@ OVERSEERR_API_KEY = None
 def initialize_overseerr():
     """Initialize or reinitialize Overseerr service"""
     global OVERSEERR_INITIALIZED, OVERSEERR_URL, OVERSEERR_API_KEY
+    
+    # First capture current state for logging
+    previous_state = {
+        'initialized': OVERSEERR_INITIALIZED,
+        'has_url': bool(OVERSEERR_URL),
+        'has_key': bool(OVERSEERR_API_KEY)
+    }
 
     # Get settings
     overseerr_settings = settings.get('overseerr', {})
+    enabled = overseerr_settings.get('enabled', False)
 
     # Get values from ENV or settings
     OVERSEERR_URL = os.getenv('OVERSEERR_URL') or overseerr_settings.get('url', '').strip()
     OVERSEERR_API_KEY = os.getenv('OVERSEERR_API_KEY') or overseerr_settings.get('api_key', '').strip()
 
     # Check if service should be enabled
-    if ((os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY')) or
-        (overseerr_settings.get('enabled') and OVERSEERR_URL and OVERSEERR_API_KEY)):
-        OVERSEERR_INITIALIZED = True
-        logger.info("Overseerr service initialized successfully")
-        return True
+    is_env_configured = bool(os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY'))
+    is_settings_configured = bool(enabled and OVERSEERR_URL and OVERSEERR_API_KEY)
+
+    if is_env_configured or is_settings_configured:
+        try:
+            OVERSEERR_INITIALIZED = True
+            
+            # Save state to file
+            state_file = '/app/data/overseerr_state.json'
+            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+            with open(state_file, 'w') as f:
+                json.dump({
+                    'initialized': True,
+                    'url': OVERSEERR_URL,
+                    'api_key': bool(OVERSEERR_API_KEY)
+                }, f)
+            
+            logger.info("Overseerr service initialized successfully")
+            logger.debug(f"Initialization details - URL: {OVERSEERR_URL}, API Key exists: {bool(OVERSEERR_API_KEY)}")
+            logger.debug(f"Previous state: {previous_state}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save Overseerr state: {e}")
+            OVERSEERR_INITIALIZED = False
+            return False
 
     OVERSEERR_INITIALIZED = False
+    
+    # Clean up state file if it exists
+    try:
+        state_file = '/app/data/overseerr_state.json'
+        if os.path.exists(state_file):
+            os.remove(state_file)
+    except Exception as e:
+        logger.error(f"Failed to clean up Overseerr state file: {e}")
+    
     logger.info("Overseerr service not initialized - missing configuration or disabled")
     return False
 

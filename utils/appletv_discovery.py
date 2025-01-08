@@ -597,7 +597,8 @@ def launch_streaming_app(device_id):
         # Map services to their bundle IDs
         app_bundles = {
             'plex': 'com.plexapp.plex',
-            'jellyfin': 'org.jellyfin.swiftfin'  # Updated to correct bundle ID
+            'jellyfin': 'org.jellyfin.swiftfin',
+            'emby': 'emby.media.emby-tvos'
         }
         
         bundle_id = app_bundles.get(current_service)

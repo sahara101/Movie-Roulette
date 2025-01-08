@@ -105,7 +105,24 @@ class JellyfinService:
         finally:
             self.is_updating = False
 
-    def get_random_movie(self):
+    def get_unwatched_count(self):
+        """Get count of unwatched movies"""
+        try:
+            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            params = {
+                'IncludeItemTypes': 'Movie',
+                'Recursive': 'true',
+                'IsPlayed': 'false'  # Get only unwatched movies
+            }
+            response = requests.get(movies_url, headers=self.headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('TotalRecordCount', 0)
+        except Exception as e:
+            logger.error(f"Error getting unwatched count: {e}")
+            return 0
+
+    def get_random_movie(self, watch_status='unwatched'):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -116,21 +133,28 @@ class JellyfinService:
                 'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating',
                 'IsPlayed': 'false'
             }
+
+            # Handle watch status
+            if watch_status == 'unwatched':
+                params['IsPlayed'] = 'false'
+            elif watch_status == 'watched':
+                params['IsPlayed'] = 'true'
+
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
             movies = response.json()
 
             if movies.get('Items'):
                 movie_data = self.get_movie_data(movies['Items'][0])
-                logger.debug(f"Fetched unwatched movie data: {movie_data}")
+                logger.debug(f"Fetched movie data: {movie_data}")
                 return movie_data
             logger.warning("No unwatched movies found")
             return None
         except Exception as e:
-            logger.error(f"Error fetching random unwatched movie: {e}")
+            logger.warning(f"No movies found with watch_status: {watch_status}")
             return None
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -141,6 +165,12 @@ class JellyfinService:
                 'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating',
                 'IsPlayed': 'false'
             }
+
+            # Handle watch status
+            if watch_status == 'unwatched':
+                params['IsPlayed'] = 'false'
+            elif watch_status == 'watched':
+                params['IsPlayed'] = 'true'
 
             # Handle empty lists as None
             genres = genres if genres and genres[0] else None
@@ -600,3 +630,36 @@ class JellyfinService:
         except Exception as e:
             logger.error(f"Error getting current Jellyfin username: {e}")
             return None
+
+    def search_movies(self, query):
+        """Search for movies matching the query in titles only"""
+        try:
+            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            params = {
+                'IncludeItemTypes': 'Movie',
+                'Recursive': 'true',
+                'SearchTerm': query,
+                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
+                'SearchFields': 'Name',
+                'EnableTotalRecordCount': True,
+                'Limit': 50
+            }
+
+            logger.info(f"Searching Jellyfin movies with query: {query}")
+            response = requests.get(movies_url, headers=self.headers, params=params)
+            response.raise_for_status()
+            movies = response.json().get('Items', [])
+
+            # Double check title match and process results
+            results = []
+            for movie in movies:
+                if query.lower() in movie.get('Name', '').lower():
+                    movie_data = self.get_movie_data(movie)
+                    results.append(movie_data)
+
+            logger.info(f"Found {len(results)} Jellyfin movies matching title: {query}")
+            return results
+
+        except Exception as e:
+            logger.error(f"Error searching Jellyfin movies: {str(e)}")
+            return []

@@ -1,0 +1,77 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile.arm'
+      - 'requirements.txt'
+      - 'movie_selector.py'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64,arm
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Install latest rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          
+      # Login to both registries
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: sahara101
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      # Build AMD64 image
+      - name: Build and push AMD64
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            sahara101/movie-roulette:latest
+            sahara101/movie-roulette:v3.2
+            ghcr.io/sahara101/movie-roulette:latest
+            ghcr.io/sahara101/movie-roulette:v3.2
+
+      # Build ARM image
+      - name: Build and push ARM
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.arm
+          platforms: linux/arm64,linux/arm/v7
+          push: true
+          tags: |
+            sahara101/movie-roulette:arm-latest
+            sahara101/movie-roulette:arm-v3.2
+            ghcr.io/sahara101/movie-roulette:arm-latest
+            ghcr.io/sahara101/movie-roulette:arm-v3.2

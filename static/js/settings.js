@@ -109,6 +109,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             current[keyParts[keyParts.length - 1]] = value;
 
+            console.log('Updating setting:', key, 'with value:', value);
+
             const response = await fetch(`/api/settings/${category}`, {
                 method: 'POST',
                 headers: {
@@ -426,12 +428,12 @@ document.addEventListener('DOMContentLoaded', function() {
             label.textContent = field.label;
             fieldContainer.appendChild(label);
 
-	    if (field.description) {
-    		const description = document.createElement('div');
-    		description.className = 'setting-description';
-    		description.innerHTML = field.description;
-    		fieldContainer.appendChild(description);
-	    }
+            if (field.description) {
+            	const description = document.createElement('div');
+            	description.className = 'setting-description';
+            	description.innerHTML = field.description;
+            	fieldContainer.appendChild(description);
+            }
 
             if (field.key === 'trakt.connect') {
             	createTraktIntegration(fieldContainer);
@@ -496,12 +498,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const value = getNestedValue(settings, field.key);
             let isOverridden = getNestedValue(envOverrides, field.key);
 
-            console.log(`Field ${field.key}: configured`);
-
             const isIntegrationToggle = (
             	field.key === 'overseerr.enabled' ||
             	field.key === 'trakt.enabled' ||
-		field.key === 'jellyseerr.enabled'
+            	field.key === 'jellyseerr.enabled' ||
+            	field.key === 'ombi.enabled'
             );
 
             const isPlexEnv = Boolean(
@@ -514,17 +515,24 @@ document.addEventListener('DOMContentLoaded', function() {
             	getNestedValue(envOverrides, 'jellyfin.api_key') &&
             	getNestedValue(envOverrides, 'jellyfin.user_id')
             );
+            const isEmbyEnv = Boolean(
+            	getNestedValue(envOverrides, 'emby.url') &&
+            	getNestedValue(envOverrides, 'emby.api_key') &&
+            	getNestedValue(envOverrides, 'emby.user_id')
+            );
             const isAppleTVEnv = getNestedValue(envOverrides, 'clients.apple_tv.id');
-            const isLGTVEnv = getNestedValue(envOverrides, 'clients.lg_tv.ip') &&
-                              getNestedValue(envOverrides, 'clients.lg_tv.mac');
             const isOverseerrEnv = Boolean(
             	getNestedValue(envOverrides, 'overseerr.url') &&
             	getNestedValue(envOverrides, 'overseerr.api_key')
             );
-	    const isJellyseerrEnv = Boolean(
-    		getNestedValue(envOverrides, 'jellyseerr.url') &&
-    		getNestedValue(envOverrides, 'jellyseerr.api_key')
-	    );
+            const isJellyseerrEnv = Boolean(
+            	getNestedValue(envOverrides, 'jellyseerr.url') &&
+            	getNestedValue(envOverrides, 'jellyseerr.api_key')
+            );
+            const isOmbiEnv = Boolean(
+            	getNestedValue(envOverrides, 'ombi.url') &&
+            	getNestedValue(envOverrides, 'ombi.api_key')
+            );
             const isTraktEnv = Boolean(
             	getNestedValue(envOverrides, 'trakt.client_id') &&
             	getNestedValue(envOverrides, 'trakt.client_secret') &&
@@ -533,9 +541,8 @@ document.addEventListener('DOMContentLoaded', function() {
             );
 
             let isEnvEnabled = false;
-            const isServiceToggle = field.key === 'plex.enabled' || field.key === 'jellyfin.enabled';
-            const isClientToggle = field.key === 'clients.apple_tv.enabled' ||
-                                 field.key === 'clients.lg_tv.enabled';
+            const isServiceToggle = field.key === 'plex.enabled' || field.key === 'jellyfin.enabled' || field.key === 'emby.enabled';
+            const isClientToggle = field.key === 'clients.apple_tv.enabled'
 
             if (isServiceToggle || isClientToggle || isIntegrationToggle) {
             	switch (field.key) {
@@ -547,87 +554,60 @@ document.addEventListener('DOMContentLoaded', function() {
                     	isOverridden = isJellyfinEnv;
                     	isEnvEnabled = isJellyfinEnv;
                     	break;
-		    case 'jellyseerr.enabled':
-        		isOverridden = isJellyseerrEnv;
-        		isEnvEnabled = isJellyseerrEnv;
-        		break;
+                    case 'emby.enabled':
+                    	isOverridden = isEmbyEnv;
+                    	isEnvEnabled = isEmbyEnv;
+                    	break;
                     case 'clients.apple_tv.enabled':
                     	isOverridden = isAppleTVEnv;
                     	isEnvEnabled = isAppleTVEnv;
-                    	break;
-                    case 'clients.lg_tv.enabled':
-                    	isOverridden = isLGTVEnv;
-                    	isEnvEnabled = isLGTVEnv;
                     	break;
                     case 'overseerr.enabled':
                     	isOverridden = isOverseerrEnv;
                     	isEnvEnabled = isOverseerrEnv;
                     	break;
-		    case 'jellyseerr.enabled':
-    			isOverridden = isJellyseerrEnv;
-    			isEnvEnabled = isJellyseerrEnv;
-    			break;
+                    case 'jellyseerr.enabled':
+                    	isOverridden = isJellyseerrEnv;
+                    	isEnvEnabled = isJellyseerrEnv;
+                    	break;
+                    case 'ombi.enabled':
+                    	isOverridden = isOmbiEnv;
+                    	isEnvEnabled = isOmbiEnv;
+                    	break;
                     case 'trakt.enabled':
                     	isOverridden = isTraktEnv;
                     	isEnvEnabled = isTraktEnv;
                     	break;
-            	}
+                }
             }
 
-            if (field.type === 'switch') {
-            	if (field.key === 'tmdb.enabled') {
-                    const isApiKeyOverridden = Boolean(getNestedValue(envOverrides, 'tmdb.api_key'));
-                    const toggle = createToggle(
-                    	isApiKeyOverridden || value,
-                    	isApiKeyOverridden,
-                    	isApiKeyOverridden,
-                    	async (checked) => {
-                            if (!isApiKeyOverridden) {
-                            	await handleSettingChange(field.key, checked);
-                            	// Find and update the API key input field
-                            	const apiKeyField = section.querySelector('[data-field-key="tmdb.api_key"]')
-                                    .closest('.setting-field');
+            if (field.type === 'select') {
+            	const select = document.createElement('select');
+            	select.className = 'setting-input';
+            	select.disabled = isOverridden;
 
-                            	if (checked) {
-                                    // Switch to editable password input
-                                    const newInput = createInput(
-                                    	'password',
-                                    	getNestedValue(settings, 'tmdb.api_key'),
-                                    	false,
-                                    	(value) => handleSettingChange('tmdb.api_key', value),
-                                    	'Enter your TMDB API key'
-                                    );
-                                    newInput.setAttribute('data-field-key', 'tmdb.api_key');
-                                    apiKeyField.innerHTML = '';
-                                    apiKeyField.appendChild(label.cloneNode(true));
-                                    apiKeyField.appendChild(newInput);
-                            	} else {
-                                    // Switch back to disabled "Using built-in API key"
-                                    const newInput = createInput(
-                                    	'text',
-                                    	'Using built-in API key',
-                                    	true,
-                                    	() => {},
-                                    	''
-                                    );
-                                    newInput.setAttribute('data-field-key', 'tmdb.api_key');
-                                    apiKeyField.innerHTML = '';
-                                    apiKeyField.appendChild(label.cloneNode(true));
-                                    apiKeyField.appendChild(newInput);
-                            	}
-                            }
-                    	}
-                    );
-                    fieldContainer.appendChild(toggle);
-            	} else {
-                    const toggle = createToggle(
-                    	value,
-                    	isOverridden,
-                    	isEnvEnabled,
-                    	(checked) => handleSettingChange(field.key, checked)
-                    );
-                    fieldContainer.appendChild(toggle);
+            	field.options.forEach(option => {
+                    const optionElement = document.createElement('option');
+                    optionElement.value = option.value;
+                    optionElement.textContent = option.label;
+                    if (option.value === value) {
+                    	optionElement.selected = true;
+                    }
+                    select.appendChild(optionElement);
+            	});
+
+            	if (!isOverridden) {
+                    select.addEventListener('change', (e) => handleSettingChange(field.key, e.target.value));
             	}
+            	fieldContainer.appendChild(select);
+            } else if (field.type === 'switch') {
+            	const toggle = createToggle(
+                    value,
+                    isOverridden,
+                    isEnvEnabled,
+                    (checked) => handleSettingChange(field.key, checked)
+            	);
+            	fieldContainer.appendChild(toggle);
             } else if (field.key !== 'tmdb.api_key') {  // Skip if it's tmdb.api_key as we handled it above
             	const input = createInput(
                     field.type,
@@ -636,7 +616,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     (value) => handleSettingChange(field.key, value),
                     field.placeholder
             	);
-                fieldContainer.appendChild(input);
+            	fieldContainer.appendChild(input);
             }
 
             if (isOverridden &&
@@ -717,7 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
     	try {
             const response = await fetch('/api/check_version');
             const data = await response.json();
-        
+
             if (data.update_available && (data.show_popup || manual)) {
             	showUpdateDialog(data);
             } else if (manual) {
@@ -744,9 +724,9 @@ document.addEventListener('DOMContentLoaded', function() {
             	</div>
             	<div class="dialog-buttons">
                     <button class="cancel-button">Dismiss</button>
-                    <a href="${updateInfo.download_url}" 
-                   	class="submit-button" 
-                   	target="_blank" 
+                    <a href="${updateInfo.download_url}"
+                   	class="submit-button"
+                   	target="_blank"
                    	rel="noopener noreferrer">View Release</a>
             	</div>
             </div>
@@ -773,11 +753,11 @@ document.addEventListener('DOMContentLoaded', function() {
     	const button = document.createElement('button');
     	button.className = 'discover-button';
     	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
-    
+
     	button.addEventListener('click', async () => {
             button.disabled = true;
             button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
-        
+
             try {
             	await checkVersion(true);  // Manual check
             } finally {
@@ -785,7 +765,7 @@ document.addEventListener('DOMContentLoaded', function() {
             	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
             }
     	});
-    
+
     	wrapper.appendChild(button);
     	container.appendChild(wrapper);
     }
@@ -833,8 +813,21 @@ document.addEventListener('DOMContentLoaded', function() {
             		    render: renderJellyfinAuthConfig
         		}
                     ]
+                },
+		{
+                    title: 'Emby Configuration',
+                    fields: [
+                        { key: 'emby.enabled', label: 'Enable Emby', type: 'switch' },
+                        { key: 'emby.url', label: 'Emby URL', type: 'text' },
+                        {
+                            key: 'emby.auth_config',
+                            label: 'Authentication',
+                            type: 'custom',
+                            render: renderEmbyAuthConfig
+                        }
+                    ]
                 }
-            ]
+           ]
         },
         clients: {
             title: 'Client Devices',
@@ -846,13 +839,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     type: 'custom',
                     render: renderAppleTVConfig
                 },
-                { key: 'clients.lg_tv.enabled', label: 'Enable LG TV', type: 'switch' },
-                {
-                    key: 'clients.lg_tv.configuration',
-                    label: 'LG TV Configuration',
-                    type: 'custom',
-                    render: renderLGTVConfig
-                }
+		{
+            	    key: 'clients.tvs.configuration',
+            	    label: 'Smart TVs',
+            	    type: 'custom',
+            	    render: renderSmartTVSection
+        	}
             ]
         },
         features: {
@@ -895,7 +887,13 @@ document.addEventListener('DOMContentLoaded', function() {
             		    label: 'Jellyfin Poster Users',
             		    type: 'custom',
             		    render: renderJellyfinUserSelector
-        		}
+        		},
+			{
+    			    key: 'features.poster_users.emby',
+    			    label: 'Emby Poster Users',
+    			    type: 'custom',
+    			    render: renderEmbyUserSelector
+			}
                     ]
                 }
             ]
@@ -914,6 +912,54 @@ document.addEventListener('DOMContentLoaded', function() {
                     	}
 		    ]
 		},
+		{
+                    title: 'Request Services',
+                    fields: [
+                        {
+                            key: 'request_services.default',
+                            label: 'Global Default Service',
+                            type: 'select',
+                            options: [
+                                { value: 'auto', label: 'Automatic' },
+                                { value: 'overseerr', label: 'Overseerr' },
+                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'ombi', label: 'Ombi' }
+                            ],
+                            description: 'The default request service to use when none is specified'
+                        },
+                        {
+                            key: 'request_services.plex_override',
+                            label: 'Plex Service Override',
+                            type: 'select',
+                            options: [
+                                { value: 'auto', label: 'Use Default' },
+                                { value: 'overseerr', label: 'Overseerr' },
+                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'ombi', label: 'Ombi' }
+                            ]
+                        },
+                        {
+                            key: 'request_services.jellyfin_override',
+                            label: 'Jellyfin Service Override',
+                            type: 'select',
+                            options: [
+                                { value: 'auto', label: 'Use Default' },
+                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'ombi', label: 'Ombi' }
+                            ]
+                        },
+                        {
+                            key: 'request_services.emby_override',
+                            label: 'Emby Service Override',
+                            type: 'select',
+                            options: [
+                                { value: 'auto', label: 'Use Default' },
+                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'ombi', label: 'Ombi' }
+                            ]
+                        }
+                    ]
+                },
 		{
             	    title: 'TMDB',
             	    fields: [
@@ -955,15 +1001,17 @@ document.addEventListener('DOMContentLoaded', function() {
             		    key: 'jellyseerr.api_key',
             		    label: 'API Key',
             		    type: 'password'
-        		},
-        		{
-            		    key: 'jellyseerr.force_use',
-            		    label: 'Force Use Jellyseerr',
-            		    type: 'switch',
-            		    description: 'Use Jellyseerr even when Plex is the active service'
         		}
     		    ]
 		},
+		{
+                    title: 'Ombi',
+                    fields: [
+                        { key: 'ombi.enabled', label: 'Enable Ombi', type: 'switch' },
+                        { key: 'ombi.url', label: 'Ombi URL', type: 'text' },
+                        { key: 'ombi.api_key', label: 'API Key', type: 'password' }
+                    ]
+                },
                 {
                     title: 'Trakt',
                     fields: [
@@ -1057,110 +1105,107 @@ document.addEventListener('DOMContentLoaded', function() {
             return null;
         }
 
-        function showConfigDialog(devices) {
-            const dialog = document.createElement('div');
-            dialog.className = 'trakt-confirm-dialog';
+	function showConfigDialog(devices) {
+   	    const dialog = document.createElement('div');
+   	    dialog.className = 'trakt-confirm-dialog';
 
-            let dialogContent = `
-                <div class="dialog-content">
-                    <h3><i class="fa-brands fa-apple"></i> Apple TV Configuration</h3>`;
+   	    let dialogContent = `
+       	    	<div class="dialog-content">
+           	    <h3><i class="fa-brands fa-apple"></i> Apple TV Configuration</h3>`;
 
-            if (devices.length > 0) {
-                dialogContent += `
-                    <div class="dialog-section">
-                        <h4>Found Devices</h4>
-                        <div class="device-list">
-                            ${devices.map((device, index) => `
-                                <button class="device-option" data-id="${device.identifier}">
-                                    <i class="fa-brands fa-apple"></i>
-                                    <div class="device-details">
-                                        <div class="device-name">${device.name || `Apple TV ${index + 1}`}</div>
-                                        <div class="device-info">ID: ${device.identifier}</div>
-                                        ${device.model ? `<div class="device-model">${device.model}</div>` : ''}
-                                    </div>
-                                </button>
-                            `).join('')}
-                        </div>
-                        <div class="dialog-separator">
-                            <span>or enter manually</span>
-                        </div>
-                    </div>`;
-            } else {
-                dialogContent += `
-                    <div class="scan-notice">
-                        <i class="fa-solid fa-info-circle"></i>
-                        <p>No Apple TVs found automatically. This could be because:</p>
-                        <ul>
-                            <li>The Apple TV is not powered on</li>
-                            <li>The Apple TV is not connected to the network</li>
-                            <li>The Apple TV is on a different subnet</li>
-                        </ul>
-                        <p>You can enter the Device ID manually below:</p>
-                    </div>`;
-            }
+   	    if (devices.length > 0) {
+       	    	dialogContent += `
+           	    <div class="dialog-section">
+               	    	<h4>Found Devices</h4>
+               	    	<div class="device-list">
+                   	    ${devices.map((device, index) => `
+                       	    	<button class="device-option" data-id="${device.identifier}">
+                           	    <i class="fa-brands fa-apple"></i>
+                           	    <div class="device-details">
+                               	    	<div class="device-name">${device.name || `Apple TV ${index + 1}`}</div>
+                               	    	<div class="device-info">ID: ${device.identifier}</div>
+                               	    	${device.model ? `<div class="device-model">${device.model}</div>` : ''}
+                           	    </div>
+                       	    	</button>
+                   	    `).join('')}
+               	    	</div>
+               	    	<div class="dialog-separator">
+                   	    <span>or enter manually</span>
+               	    	</div>
+           	    </div>`;
+   	    } else {
+       	    	dialogContent += `
+           	    <div class="scan-notice">
+               	    	<i class="fa-solid fa-info-circle"></i>
+               	    	<p>No Apple TVs found automatically. This could be because:</p>
+               	    	<ul>
+                   	    <li>The Apple TV is not powered on</li>
+                   	    <li>The Apple TV is not connected to the network</li>
+                   	    <li>The Apple TV is on a different subnet</li>
+               	    	</ul>
+               	    	<p>You can enter the Device ID manually below:</p>
+           	    </div>`;
+   	    }
 
-            dialogContent += `
-                <div class="manual-input-group">
-                    <label>Device ID</label>
-                    <input type="text" class="setting-input" id="manual-id"
-                           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                </div>
-                <div class="dialog-buttons">
-                    <button class="cancel-button">Cancel</button>
-                    <button class="submit-button">Start Pairing</button>
-                </div>
-            </div>`;
+   	    dialogContent += `
+       	    	<div class="manual-input-group">
+           	    <label>Device ID</label>
+           	    <input type="text" class="setting-input" id="manual-id"
+                      	   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+       	    	</div>
+       	    	<div class="dialog-buttons">
+           	    <button class="cancel-button">Cancel</button>
+           	    <button class="submit-button">Start Pairing</button>
+       	    	</div>
+   	    </div>`;
 
-            dialog.innerHTML = dialogContent;
-            document.body.appendChild(dialog);
+   	    dialog.innerHTML = dialogContent;
+   	    document.body.appendChild(dialog);
 
-            // Handle device selection
-            dialog.querySelectorAll('.device-option').forEach(button => {
-                button.addEventListener('click', () => {
-                    const id = button.dataset.id;
-                    dialog.querySelector('#manual-id').value = id;
-                });
-            });
+   	    // Handle device selection
+   	    dialog.querySelectorAll('.device-option').forEach(button => {
+       	    	button.addEventListener('click', () => {
+           	    const id = button.dataset.id;
+           	    dialog.querySelector('#manual-id').value = id;
+       	        });
+   	    });
 
-            // Handle start pairing
-            dialog.querySelector('.submit-button').addEventListener('click', async () => {
-                const id = dialog.querySelector('#manual-id').value.trim();
-                if (!id) {
-                    showError('Please enter a Device ID');
-                    return;
-                }
+   	    // Handle start pairing
+   	    dialog.querySelector('.submit-button').addEventListener('click', async () => {
+       	    	const id = dialog.querySelector('#manual-id').value.trim();
+       	    	if (!id) {
+           	    showError('Please enter a Device ID');
+           	    return;
+       	    	}
 
-                try {
-                    const submitButton = dialog.querySelector('.submit-button');
-                    submitButton.disabled = true;
-                    submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Starting pairing...';
+       	    	try {
+           	    const submitButton = dialog.querySelector('.submit-button');
+           	    submitButton.disabled = true;
+           	    submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Starting pairing...';
 
-                    // Start pairing process
-                    const pairResponse = await fetch(`/api/appletv/pair/${id}`);
-                    const pairData = await pairResponse.json();
+           	    const pairResponse = await fetch(`/api/appletv/pair/${id}`);
+           	    const pairData = await pairResponse.json();
 
-                    if (pairData.status === 'awaiting_pin') {
-                        submitButton.disabled = false;
-                        submitButton.innerHTML = 'Start Pairing';
-                        dialog.remove();
-                        // Show PIN input dialog
-                        setTimeout(() => showPinDialog(id), 100);
-                    } else {
-                        throw new Error(pairData.message || 'Failed to start pairing');
-                    }
-                } catch (error) {
-                    const submitButton = dialog.querySelector('.submit-button');
-                    submitButton.disabled = false;
-                    submitButton.innerHTML = 'Start Pairing';
-                    showError(error.message);
-                }
-            });
+           	    if (pairData.status === 'awaiting_pin') {
+               	    	submitButton.disabled = false;
+               	    	submitButton.innerHTML = 'Start Pairing';
+               	    	dialog.remove();
+               	    	setTimeout(() => showPinDialog(id), 100);
+           	    } else {
+               	    	throw new Error(pairData.message || 'Failed to start pairing');
+           	    }
+       	    	} catch (error) {
+           	    const submitButton = dialog.querySelector('.submit-button');
+           	    submitButton.disabled = false;
+           	    submitButton.innerHTML = 'Start Pairing';
+           	    showError(error.message);
+       	    	}
+   	    });
 
-            // Handle cancel
-            dialog.querySelector('.cancel-button').addEventListener('click', () => {
-                dialog.remove();
-            });
-        }
+   	    dialog.querySelector('.cancel-button').addEventListener('click', () => {
+       	    	dialog.remove();
+   	    });
+	}
 
         function showPinDialog(deviceId) {
             const dialog = document.createElement('div');
@@ -1259,181 +1304,769 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Define the renderLGTVConfig function
-    function renderLGTVConfig(container) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'lgtv-setup-wrapper';
+    function renderSmartTVSection(container) {
+    	const wrapper = document.createElement('div');
+    	wrapper.className = 'smart-tv-section';
 
-        // Check if controlled by ENV
-        const isEnvControlled = Boolean(
-            getNestedValue(currentOverrides, 'clients.lg_tv.ip') ||
-            getNestedValue(currentOverrides, 'clients.lg_tv.mac')
-        );
+    	// Create button container
+    	const buttonContainer = document.createElement('div');
+    	buttonContainer.className = 'tv-controls';
 
-        if (isEnvControlled) {
-            // Show ENV override message
+    	// Add TV button
+    	const addButton = document.createElement('button');
+    	addButton.className = 'discover-button add-tv-button';
+    	addButton.innerHTML = '<i class="fa-solid fa-plus"></i> Add TV';
+    	addButton.addEventListener('click', () => showAddTVDialog());
+
+    	// Add Blacklist Management button
+    	const manageBlacklistButton = document.createElement('button');
+    	manageBlacklistButton.className = 'discover-button manage-blacklist-button';
+    	manageBlacklistButton.innerHTML = '<i class="fa-solid fa-ban"></i> Manage Blacklist';
+    	manageBlacklistButton.addEventListener('click', showBlacklistDialog);
+
+    	// Check for ENV controlled TVs and add standard ENV override indicator if needed
+    	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
+    	const envControlledTVs = Object.entries(tvs)
+            .filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)));
+
+    	if (envControlledTVs.length > 0) {
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
-            overrideIndicator.textContent = 'Set by environment variable';
+            overrideIndicator.textContent = 'Some TVs are configured by environment variables';
             wrapper.appendChild(overrideIndicator);
-        } else {
-            // Create find TV button
-            const findButton = document.createElement('button');
-            findButton.className = 'discover-button';
-            findButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Configure TV';
+    	}
 
-            findButton.addEventListener('click', async () => {
-                try {
-                    findButton.disabled = true;
-                    findButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning...';
+    	// Add buttons to container
+    	buttonContainer.appendChild(addButton);
+    	buttonContainer.appendChild(manageBlacklistButton);
 
-                    const response = await fetch('/api/lgtv/scan');
-                    const data = await response.json();
+    	// TV list container
+    	const tvList = document.createElement('div');
+    	tvList.className = 'tv-list';
 
-                    // Always show the dialog, but with scan results if any
-                    showConfigDialog(data.devices || []);
-                } catch (error) {
-                    console.error('Scan error:', error);
-                    showConfigDialog([]);
-                } finally {
-                    findButton.disabled = false;
-                    findButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Configure TV';
-                }
-            });
+    	refreshTVList(tvList);
 
-            function showConfigDialog(foundDevices) {
-                const dialog = document.createElement('div');
-                dialog.className = 'trakt-confirm-dialog';
+    	// Add everything to wrapper
+    	wrapper.appendChild(buttonContainer);
+    	wrapper.appendChild(tvList);
+    	container.appendChild(wrapper);
+    }
 
-                let dialogContent = `
-                    <div class="dialog-content">
-                        <h3>LG TV Configuration</h3>`;
+    function showBlacklistDialog() {
+    	console.log("Opening blacklist dialog");
+	console.log("Current settings:", currentSettings);
+    	let blacklistedMacs = getNestedValue(currentSettings, 'clients.tvs.blacklist.mac_addresses');
+    	console.log("Retrieved blacklisted MACs:", blacklistedMacs);
 
-                // If devices were found, show them
-                if (foundDevices.length > 0) {
-                    dialogContent += `
-                        <div class="dialog-section">
-                            <h4>Found TVs</h4>
-                            <div class="tv-list">
-                                ${foundDevices.map((device, index) => `
-                                    <button class="tv-option" data-ip="${device.ip}" data-mac="${device.mac}">
-                                        <i class="fa-solid fa-tv"></i>
-                                        <div class="tv-details">
-                                            <div class="tv-name">LG TV ${index + 1}</div>
-                                            <div class="tv-info">
-                                                <div>IP: ${device.ip}</div>
-                                                <div>MAC: ${device.mac}</div>
-                                            </div>
-                                        </div>
-                                    </button>
-                                `).join('')}
+	if (typeof blacklistedMacs === 'string') {
+            blacklistedMacs = [blacklistedMacs];
+    	}
+
+	blacklistedMacs = Array.isArray(blacklistedMacs) ? blacklistedMacs.filter(mac => mac) : [];
+    	console.log("Filtered MACs:", blacklistedMacs);
+
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	// Filter out ENV-controlled TVs from blacklist
+    	const envControlledMacs = Object.entries(currentSettings.clients.tvs.instances || {})
+            .filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)))
+            .map(([_, tv]) => tv.mac.toLowerCase());
+    	console.log("ENV controlled MACs:", envControlledMacs);
+
+    	const displayableMacs = blacklistedMacs.filter(mac =>
+            !envControlledMacs.includes(mac.toLowerCase())
+    	);
+    	console.log("Displayable MACs:", displayableMacs);
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Blacklisted Devices</h3>
+            	<div class="blacklist-devices">
+                    ${displayableMacs.length > 0
+                    	? displayableMacs.map(mac => `
+                            <div class="blacklist-item">
+                            	<div class="blacklist-mac">${mac}</div>
+                            	<button class="remove-blacklist" data-mac="${mac}">
+                                    <i class="fas fa-trash"></i>
+                            	</button>
                             </div>
-                            <div class="dialog-separator">
-                                <span>or enter manually</span>
-                            </div>
-                        </div>`;
-                } else {
-                    dialogContent += `
-                        <div class="scan-notice">
-                            <i class="fa-solid fa-info-circle"></i>
-                            <p>No TVs were found automatically. This could be because:</p>
-                            <ul>
-                                <li>The TV is turned off</li>
-                                <li>The TV is not connected to the network</li>
-                                <li>The TV is on a different subnet</li>
-                            </ul>
-                            <p>You can enter the TV details manually below:</p>
-                        </div>`;
-                }
-                dialogContent += `
-                    <div class="manual-input-group">
-                        <label>IP Address</label>
-                        <input type="text" class="setting-input" id="manual-ip" placeholder="192.168.1.100">
-                        <label>MAC Address</label>
-                        <input type="text" class="setting-input" id="manual-mac" placeholder="00:00:00:00:00:00">
-                    </div>
-                    <div class="dialog-buttons">
-                        <button class="cancel-button">Cancel</button>
-                        <button class="submit-button">Save Configuration</button>
-                    </div>
-                </div>`;
-
-                dialog.innerHTML = dialogContent;
-                document.body.appendChild(dialog);
-
-                // Handle auto-fill from found devices
-                dialog.querySelectorAll('.tv-option').forEach(button => {
-                    button.addEventListener('click', () => {
-                        const ip = button.dataset.ip;
-                        const mac = button.dataset.mac;
-                        dialog.querySelector('#manual-ip').value = ip;
-                        dialog.querySelector('#manual-mac').value = mac;
-                    });
-                });
-
-                // MAC address formatting
-                const macInput = dialog.querySelector('#manual-mac');
-                macInput.addEventListener('input', (e) => {
-                    let value = e.target.value.replace(/[^0-9a-fA-F]/g, '');
-                    if (value.length > 12) value = value.slice(0, 12);
-                    const formatted = value.match(/.{1,2}/g)?.join(':') || value;
-                    macInput.value = formatted.toUpperCase();
-                });
-
-                // Handle save
-                dialog.querySelector('.submit-button').addEventListener('click', async () => {
-		    const submitButton = dialog.querySelector('.submit-button');
-                    const ip = dialog.querySelector('#manual-ip').value.trim();
-                    const mac = dialog.querySelector('#manual-mac').value.trim();
-
-                    try {
-			// Disable button and show loading state
-        		submitButton.disabled = true;
-        		submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-
-                        const response = await fetch(`/api/lgtv/validate?ip=${encodeURIComponent(ip)}&mac=${encodeURIComponent(mac)}`);
-                        const data = await response.json();
-
-                        if (response.ok) {
-                            await handleSettingChange('clients.lg_tv.ip', ip);
-                            await handleSettingChange('clients.lg_tv.mac', mac);
-                            showSuccess('TV configured successfully');
-                            dialog.remove();
-                        } else {
-                            throw new Error(data.error || 'Invalid IP or MAC address');
-                        }
-                    } catch (error) {
-                        showError(error.message);
-			// Reset button state on error
-        		submitButton.disabled = false;
-        		submitButton.innerHTML = 'Save Configuration';
+                    	`).join('')
+                    	: '<div class="no-blacklist">No devices blacklisted</div>'
                     }
-                });
+            	</div>
+            	<div class="dialog-buttons">
+                    <button class="done-button">Done</button>
+            	</div>
+            </div>
+    	`;
 
-                // Handle cancel
-                dialog.querySelector('.cancel-button').addEventListener('click', () => {
+    	// Add dialog to document
+    	document.body.appendChild(dialog);
+
+    	// Handle remove buttons
+    	const dialogContent = dialog.querySelector('.dialog-content');
+    	dialogContent.querySelectorAll('.remove-blacklist').forEach(button => {
+            button.addEventListener('click', async () => {
+            	const mac = button.dataset.mac;
+            	console.log("Attempting to remove MAC:", mac);
+            	try {
+                    let currentBlacklist = getNestedValue(currentSettings, 'clients.tvs.blacklist.mac_addresses');
+                    console.log("Current blacklist before removal:", currentBlacklist);
+                    if (typeof currentBlacklist === 'string') {
+                    	currentBlacklist = currentBlacklist.split(',').map(m => m.trim());
+                    }
+                    currentBlacklist = Array.isArray(currentBlacklist) ? currentBlacklist.filter(m => m) : [];
+
+                    const updatedList = currentBlacklist.filter(m => m !== mac);
+                    console.log("Updated blacklist after removal:", updatedList);
+                    await handleSettingChange('clients.tvs.blacklist.mac_addresses', updatedList);
+
+                    // Update the dialog content to show empty state if needed
+                    const blacklistDevices = dialogContent.querySelector('.blacklist-devices');
+                    const itemToRemove = button.closest('.blacklist-item');
+
+                    if (itemToRemove) {
+                    	itemToRemove.remove();
+
+                    	// If no more items, show the empty state
+                    	if (updatedList.length === 0) {
+                            blacklistDevices.innerHTML = '<div class="no-blacklist">No devices blacklisted</div>';
+                    	}
+                    }
+
+                    showSuccess('Device removed from blacklist');
+            	} catch (error) {
+                    console.error('Error removing from blacklist:', error);
+                    showError('Failed to remove device from blacklist');
+            	}
+            });
+    	});
+
+    	// Handle dialog closing with Done button
+    	const doneButton = dialog.querySelector('.done-button');
+    	if (doneButton) {
+            doneButton.addEventListener('click', () => {
+            	dialog.remove();
+            });
+    	}
+
+    	// Handle click outside dialog to close
+    	dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+            	dialog.remove();
+            }
+    	});
+    }
+
+    function showAddTVDialog() {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Add Smart TV</h3>
+            	<div class="tv-setup-form">
+                    <div class="input-group">
+                    	<label>TV Type</label>
+                    	<select class="setting-input" id="tv-type">
+                            <option value="webos">LG (WebOS)</option>
+                            <option value="tizen">Samsung (Tizen)</option>
+                            <option value="android">Sony (Android)</option>
+                    	</select>
+                    </div>
+
+                    <div class="scan-section">
+                    	<button class="discover-button scan-button">
+                            <i class="fa-solid fa-magnifying-glass"></i> Scan Network
+                    	</button>
+                    	<div class="dialog-separator">
+                            <span>or enter manually</span>
+                    	</div>
+                    </div>
+
+                    <div class="manual-section">
+                    	<div class="input-group">
+                            <label>TV Name</label>
+                            <input type="text" class="setting-input" id="tv-name"
+                                   placeholder="e.g., Living Room TV">
+                    	</div>
+                    	<div class="input-group">
+                            <label>IP Address</label>
+                            <input type="text" class="setting-input" id="tv-ip"
+                                   placeholder="192.168.1.100">
+                    	</div>
+                    	<div class="input-group">
+                            <label>MAC Address</label>
+                            <input type="text" class="setting-input" id="tv-mac"
+                                   placeholder="00:00:00:00:00:00">
+                    	</div>
+                    </div>
+            	</div>
+            	<div class="dialog-buttons">
+                    <button class="cancel-button">Cancel</button>
+                    <button class="submit-button">Add TV</button>
+            	</div>
+            </div>
+    	`;
+
+    	document.body.appendChild(dialog);
+
+    	const tvTypeSelect = dialog.querySelector('#tv-type');
+    	const scanButton = dialog.querySelector('.scan-button');
+    	const nameInput = dialog.querySelector('#tv-name');
+    	const ipInput = dialog.querySelector('#tv-ip');
+    	const macInput = dialog.querySelector('#tv-mac');
+
+    	// MAC address formatting
+    	formatMacInput(macInput);
+
+    	// Handle scanning
+    	scanButton.addEventListener('click', async () => {
+            try {
+            	const tvType = tvTypeSelect.value;
+            	scanButton.disabled = true;
+            	scanButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning...';
+
+            	const response = await fetch(`/api/tv/scan/${tvType}`);
+            	if (!response.ok) {
+                    throw new Error('Scan failed');
+            	}
+
+            	const data = await response.json();
+            	if (data.devices && data.devices.length > 0) {
                     dialog.remove();
-                });
+                    showTVSelectionDialog(tvType, data.devices);
+            	} else {
+                    showMessage('No TVs found. You can enter details manually.');
+            	}
+            } catch (error) {
+            	showError(error.message || 'Failed to scan for TVs');
+            } finally {
+            	scanButton.disabled = false;
+            	scanButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Scan Network';
+            }
+    	});
+
+    	// Handle manual form submission
+    	dialog.querySelector('.submit-button').addEventListener('click', async () => {
+            const mac = macInput.value.trim().toLowerCase();
+            const name = nameInput.value.trim();
+            const ip = ipInput.value.trim();
+            const type = tvTypeSelect.value;
+
+            if (!name || !ip || !mac) {
+            	showError('All fields are required');
+            	return;
             }
 
-            wrapper.appendChild(findButton);
-        }
+            // Check if MAC is controlled by ENV
+            const envControlledMacs = Object.entries(currentSettings.clients.tvs.instances || {})
+            	.filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)))
+            	.map(([_, tv]) => tv.mac.toLowerCase());
 
-        // Show current configuration if it exists
-        const currentIP = getNestedValue(currentSettings, 'clients.lg_tv.ip');
-        const currentMAC = getNestedValue(currentSettings, 'clients.lg_tv.mac');
+            if (envControlledMacs.includes(mac)) {
+            	showError('This TV is already configured via environment variables');
+            	return;
+            }
 
-        if (currentIP && currentMAC) {
-            const configDisplay = document.createElement('div');
-            configDisplay.className = 'current-config';
-            configDisplay.innerHTML = `
-                <div class="config-item">IP: ${currentIP}</div>
-                <div class="config-item">MAC: ${currentMAC}</div>
-            `;
-            wrapper.appendChild(configDisplay);
-        }
+            await submitTVConfig({
+            	name,
+            	type,
+            	ip,
+            	mac
+            }, dialog);
+    	});
 
-        container.appendChild(wrapper);
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+    }
+
+    function showTVSelectionDialog(tvType, devices) {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	// Filter out already ENV-controlled devices
+    	const envControlledMacs = Object.entries(currentSettings.clients.tvs.instances || {})
+            .filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)))
+            .map(([_, tv]) => tv.mac.toLowerCase());
+
+    	const availableDevices = devices.filter(device =>
+            !envControlledMacs.includes(device.mac.toLowerCase())
+    	);
+
+    	const typeDisplay = {
+            'webos': 'LG',
+            'tizen': 'Samsung',
+            'android': 'Sony'
+    	}[tvType];
+
+    	const implName = {
+            'webos': 'WebOS',
+            'tizen': 'Tizen',
+            'android': 'Android'
+    	}[tvType];
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Select ${typeDisplay} TV</h3>
+            	${availableDevices.length === 0 ? `
+                    <div class="no-devices">
+                    	<p>No configurable TVs found. This could be because:</p>
+                    	<ul>
+                            <li>No TVs were detected on the network</li>
+                            <li>All detected TVs are already configured via environment variables</li>
+                            <li>TVs are not powered on or not connected to the network</li>
+                    	</ul>
+                    </div>
+            	` : `
+                    <div class="found-devices">
+                    	${availableDevices.map((device, index) => `
+                            <div class="device-info-block">
+                            	<div class="device-info-header">
+                                    <div class="device-info">
+                                    	<div class="device-name">${typeDisplay} TV ${index + 1}</div>
+                                    	<div class="device-meta">IP: ${device.ip || ''}</div>
+                                    	<div class="device-meta">MAC: ${device.mac || ''}</div>
+                                    </div>
+                                    <div class="device-actions">
+                                    	<button class="select-button"
+                                                data-ip="${device.ip || ''}"
+                                            	data-mac="${device.mac || ''}"
+                                            	data-type="${tvType}">
+                                            Select
+                                    	</button>
+                                    	<button class="blacklist-button"
+                                            	data-mac="${device.mac || ''}"
+                                            	title="Blacklist this device">
+                                            <i class="fa-solid fa-ban"></i> Not a TV
+                                    	</button>
+                                    </div>
+                            	</div>
+                            	${device.warning ? `
+                                    <div class="device-warning">
+                                    	<i class="fa-solid fa-triangle-exclamation"></i>
+					${device.warning}
+                                    </div>
+                            	` : ''}
+                            </div>
+                    	`).join('')}
+                    </div>
+            	`}
+            	<div class="dialog-footer">
+                    <button class="cancel-button">Cancel</button>
+                    <button class="manual-button">Enter Manually</button>
+            	</div>
+            </div>
+    	`;
+
+    	// Handle select button clicks
+    	dialog.querySelectorAll('.select-button').forEach(button => {
+            button.addEventListener('click', () => {
+            	const deviceData = {
+                    ip: button.dataset.ip,
+                    mac: button.dataset.mac,
+                    type: button.dataset.type
+            	};
+            	dialog.remove();
+            	showNameInputDialog(tvType, deviceData);
+            });
+    	});
+
+    	// Handle blacklist button clicks
+    	dialog.querySelectorAll('.blacklist-button').forEach(button => {
+            button.addEventListener('click', async () => {
+            	try {
+                    let currentBlacklist = getNestedValue(currentSettings, 'clients.tvs.blacklist.mac_addresses') || [];
+                    if (!Array.isArray(currentBlacklist)) {
+                    	currentBlacklist = [];
+                    }
+
+                    const macToAdd = button.dataset.mac;
+                    if (!currentBlacklist.includes(macToAdd)) {
+                    	currentBlacklist.push(macToAdd);
+                    	await handleSettingChange('clients.tvs.blacklist.mac_addresses', currentBlacklist);
+                    }
+
+                    button.closest('.device-info-block').remove();
+                    showSuccess('Device added to blacklist');
+
+                    if (dialog.querySelectorAll('.device-info-block').length === 0) {
+                    	dialog.querySelector('.found-devices').innerHTML =
+                            '<div class="no-devices">No TV devices found</div>';
+                    }
+            	} catch (error) {
+                    console.error('Blacklist error:', error);
+                    showError('Failed to blacklist device');
+            	}
+            });
+    	});
+
+    	// Handle close button clicks
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+
+    	// Handle manual entry button clicks
+    	dialog.querySelector('.manual-button').addEventListener('click', () => {
+            dialog.remove();
+            showAddTVDialog();
+    	});
+
+    	// Handle click outside dialog to close
+    	dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+            	dialog.remove();
+            }
+    	});
+
+    	document.body.appendChild(dialog);
+    }
+
+    function showNameInputDialog(tvType, deviceData) {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Name Your TV</h3>
+            	<div class="input-group">
+                    <label>TV Name</label>
+                    <input type="text" class="setting-input" id="tv-name"
+                           placeholder="e.g., Living Room TV">
+            	</div>
+            	<div class="dialog-buttons">
+                    <button class="cancel-button">Cancel</button>
+                    <button class="submit-button">Add TV</button>
+            	</div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        dialog.querySelector('.submit-button').addEventListener('click', () => {
+            const name = dialog.querySelector('#tv-name').value.trim();
+            if (!name) {
+            	showError('Please enter a name for the TV');
+            	return;
+            }
+
+            submitTVConfig({
+            	name: name,
+            	type: tvType,
+            	ip: deviceData.ip,
+            	mac: deviceData.mac
+            }, dialog);
+    	});
+
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+    }
+
+    async function submitTVConfig(config, dialog) {
+    	if (!config.name || !config.ip || !config.mac) {
+            showError('All fields are required');
+            return;
+    	}
+
+    	// Check for duplicate MAC addresses
+    	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
+    	const isDuplicateMAC = Object.values(tvs).some(tv =>
+            tv && tv.mac && tv.mac.toLowerCase() === config.mac.toLowerCase()
+    	);
+
+    	if (isDuplicateMAC) {
+            showError('A TV with this MAC address is already configured');
+            return;
+    	}
+
+    	try {
+            const tvConfig = {
+            	enabled: true,
+            	type: config.type,
+            	name: config.name,
+            	ip: config.ip,
+            	mac: config.mac
+            };
+
+            const key = config.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            await handleSettingChange(`clients.tvs.instances.${key}`, tvConfig);
+            dialog.remove();
+            showSuccess('TV added successfully');
+
+            refreshTVList(document.querySelector('.tv-list'));
+    	} catch (error) {
+            showError(error.message);
+    	}
+    }
+
+    function getDisplayType(type) {
+    	const types = {
+            'webos': 'LG (WebOS)',
+            'tizen': 'Samsung (Tizen)',
+            'android': 'Sony (Android)'
+    	};
+    	return types[type] || `Unknown (${type.toUpperCase()})`;
+    }
+
+    function refreshTVList(container) {
+	console.log("Current overrides:", currentOverrides);
+    	console.log("Current settings:", currentSettings);
+    	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
+
+    	if (Object.keys(tvs).length === 0) {
+            container.innerHTML = '<div class="no-tvs">No Smart TVs configured</div>';
+            return;
+    	}
+
+    	container.innerHTML = Object.entries(tvs)
+            .filter(([_, tv]) => tv !== undefined && tv !== null && typeof tv === 'object')
+            .map(([id, tv]) => {
+            	const name = tv.name || id;
+            	const type = tv.type || 'unknown';
+            	const ip = tv.ip || 'Not set';
+            	const isEnabled = tv.enabled !== false; // Default to true if not set
+
+            	// Check if this TV instance is ENV controlled
+            	const isEnvControlled = Boolean(
+                    getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)
+            	);
+
+		return `
+    		    <div class="tv-entry" data-id="${id}">
+        		<div class="tv-header">
+            		    <div class="tv-title-section">
+                		<div class="tv-name">${name}</div>
+                		${isEnvControlled ? `<div class="env-override">Set by environment variable</div>` : ''}
+            		    </div>
+            		    <div class="tv-type small">${getDisplayType(type)}</div>
+        		</div>
+        		<div class="tv-details">
+            		    IP: ${ip}
+        		</div>
+        		<div class="tv-toggle-section">
+            		    <label>Enabled</label>
+            		    <div class="toggle ${isEnabled ? 'active' : ''} ${isEnvControlled ? 'disabled' : ''}"
+                 		data-tv-id="${id}"
+                 		role="switch"
+                 		aria-checked="${isEnabled}">
+            		    </div>
+        		</div>
+        		<div class="tv-actions">
+            		    <button class="tv-action test" data-tv-id="${id}">
+                		<i class="fa-solid fa-plug"></i> Test
+            		    </button>
+            		    ${!isEnvControlled ? `
+                		<button class="tv-action edit" data-tv-id="${id}">
+                    		    <i class="fa-solid fa-edit"></i> Edit
+                		</button>
+                		<button class="tv-action delete" data-tv-id="${id}">
+                    		    <i class="fa-solid fa-trash"></i> Delete
+                		</button>
+            		    ` : ''}
+        		</div>
+    		    </div>
+		`;
+        }).join('');
+
+    	// Add toggle event listener only for non-ENV controlled TVs
+    	container.querySelectorAll('.tv-toggle-section .toggle:not(.disabled)').forEach(toggle => {
+            toggle.addEventListener('click', async () => {
+            	const tvId = toggle.getAttribute('data-tv-id');
+            	const tv = getNestedValue(currentSettings, `clients.tvs.instances.${tvId}`);
+            	if (!tv) return;
+
+            	const newEnabled = !tv.enabled;
+            	const updatedTV = { ...tv, enabled: newEnabled };
+
+            	try {
+                    await handleSettingChange(`clients.tvs.instances.${tvId}`, updatedTV);
+                    toggle.classList.toggle('active');
+                    toggle.setAttribute('aria-checked', newEnabled);
+            	} catch (error) {
+                    showError('Failed to update TV status');
+            	}
+            });
+    	});
+
+    	// Add test event listeners
+    	container.querySelectorAll('.tv-action.test').forEach(button => {
+            button.addEventListener('click', () => {
+            	const tvId = button.getAttribute('data-tv-id');
+            	testTVConnection(tvId);
+            });
+    	});
+
+    	// Add edit and delete event listeners only for non-ENV controlled TVs
+    	container.querySelectorAll('.tv-action.edit').forEach(button => {
+            button.addEventListener('click', () => {
+            	const tvId = button.getAttribute('data-tv-id');
+            	editTV(tvId);
+            });
+    	});
+
+    	container.querySelectorAll('.tv-action.delete').forEach(button => {
+            button.addEventListener('click', () => {
+            	const tvId = button.getAttribute('data-tv-id');
+            	deleteTV(tvId);
+            });
+    	});
+    }
+
+    // Helper function to determine display type
+    function getDisplayType(type, model) {
+    	const types = {
+            'webos': 'LG (WebOS)',
+            'tizen': 'Samsung (Tizen)',
+            'android': 'Sony (Android)'
+    	};
+        return types[type] || `${model.toUpperCase()} (${type.toUpperCase()})`;
+    }
+
+    async function testTVConnection(id) {
+    	const button = document.querySelector(`[data-id="${id}"] .tv-action.test`);
+    	const originalHtml = button.innerHTML;
+
+    	try {
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testing...';
+
+            const response = await fetch(`/api/tv/test/${id}`);
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+            	showSuccess('TV connection successful');
+            } else {
+            	throw new Error(data.error || 'Connection failed');
+            }
+    	} catch (error) {
+            showError(error.message);
+    	} finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+    	}
+    }
+
+    function editTV(id) {
+    	const tv = getNestedValue(currentSettings, `clients.tvs.instances.${id}`);
+    	if (!tv) return;
+
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Edit ${tv.name}</h3>
+                <div class="tv-setup-form">
+                    <div class="input-group">
+                    	<label>IP Address</label>
+                    	<input type="text" class="setting-input" id="tv-ip" value="${tv.ip}">
+                    </div>
+                    <div class="input-group">
+                    	<label>MAC Address</label>
+                    	<input type="text" class="setting-input" id="tv-mac" value="${tv.mac}">
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button class="cancel-button">Cancel</button>
+                    <button class="submit-button">Save Changes</button>
+            	</div>
+            </div>
+    	`;
+
+    	document.body.appendChild(dialog);
+
+    	// MAC address formatting for edit
+    	formatMacInput(dialog.querySelector('#tv-mac'));
+
+    	dialog.querySelector('.submit-button').addEventListener('click', async () => {
+            const ip = dialog.querySelector('#tv-ip').value.trim();
+            const mac = dialog.querySelector('#tv-mac').value.trim();
+
+            if (!ip || !mac) {
+            	showError('All fields are required');
+            	return;
+            }
+
+	    // Check for duplicate MAC only if MAC has changed
+            if (mac.toLowerCase() !== tv.mac.toLowerCase()) {
+            	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
+            	const isDuplicateMAC = Object.values(tvs).some(existingTv =>
+                    existingTv &&
+                    existingTv.mac &&
+                    existingTv.mac.toLowerCase() === mac.toLowerCase()
+            	);
+
+            	if (isDuplicateMAC) {
+                    showError('A TV with this MAC address is already configured');
+                    return;
+            	}
+            }
+
+            try {
+            	const updatedTV = { ...tv, ip, mac };
+            	await handleSettingChange(`clients.tvs.instances.${id}`, updatedTV);
+            	dialog.remove();
+            	showSuccess('TV updated successfully');
+            	refreshTVList(document.querySelector('.tv-list'));
+            } catch (error) {
+            	showError(error.message);
+            }
+    	});
+
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+    }
+
+    function deleteTV(id) {
+    	const tv = getNestedValue(currentSettings, `clients.tvs.instances.${id}`);
+    	if (!tv) return;
+
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	const name = tv.name || id;
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3>Delete TV</h3>
+            	<p>Are you sure you want to remove ${name}?</p>
+            	<div class="dialog-buttons">
+                    <button class="cancel-button">Cancel</button>
+                    <button class="delete-button">Delete</button>
+            	</div>
+            </div>
+    	`;
+
+    	document.body.appendChild(dialog);
+
+    	dialog.querySelector('.delete-button').addEventListener('click', async () => {
+            try {
+            	await handleSettingChange(`clients.tvs.instances.${id}`, null);  // Change here: use null instead of undefined
+            	dialog.remove();
+            	showSuccess('TV removed successfully');
+            	refreshTVList(document.querySelector('.tv-list'));
+            } catch (error) {
+            	showError(error.message);
+            }
+    	});
+
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+    }
+
+    // Utility function for MAC address formatting
+    function formatMacInput(input) {
+    	input.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/[^0-9a-fA-F]/g, '');
+            if (value.length > 12) value = value.slice(0, 12);
+            const formatted = value.match(/.{1,2}/g)?.join(':') || value;
+            input.value = formatted.toUpperCase();
+    	});
     }
 
     // Add tab click event listener
@@ -1482,33 +2115,74 @@ document.addEventListener('DOMContentLoaded', function() {
             currentSettings = data.settings;
             currentOverrides = data.env_overrides;
 
+	    // Load the initial tab (media by default)
+            document.querySelector('[data-tab="media"]').click();
+
             // Check if any services are configured
             const plexEnabled = currentSettings.plex?.enabled;
             const jellyfinEnabled = currentSettings.jellyfin?.enabled;
+	    const embyEnabled = currentSettings.emby?.enabled;
 
-            if (!plexEnabled && !jellyfinEnabled) {
-            	// Show message in the Media Servers tab
-            	const contentContainer = document.querySelector('.settings-content');
-            	if (contentContainer) {
-                    const message = document.createElement('div');
-                    message.className = 'setup-message';
-                    message.innerHTML = `
-                    	<div class="setup-welcome">
-                            <h2>Welcome to Movie Roulette!</h2>
-                            <p>To get started, you'll need to configure at least one media server.</p>
-                            <p>Configure Plex, Jellyfin or both below to start using Movie Roulette.</p>
-                    	</div>
-                    `;
-                    contentContainer.insertBefore(message, contentContainer.firstChild);
+	    if (!plexEnabled && !jellyfinEnabled && !embyEnabled) {
+    	    	// Show message in the Media Servers tab
+    	    	const contentContainer = document.querySelector('.settings-content');
+    	    	if (contentContainer) {
+        	    const message = document.createElement('div');
+        	    message.className = 'setup-message';
+        	    message.innerHTML = `
+            	    	<div class="setup-welcome">
+                	    <h2>Welcome to Movie Roulette!</h2>
+                	    <p>To get started, you'll need to configure at least one media server.</p>
+                	    <p>Configure Plex, Jellyfin, Emby or any combination to start using Movie Roulette.</p>
+            	    	</div>
+        	    `;
+        	    contentContainer.insertBefore(message, contentContainer.firstChild);
 
-                    // Automatically switch to media servers tab
-                    document.querySelector('[data-tab="media"]').click();
-            	}
-            } else {
-            	// Load the initial tab (media by default)
-            	document.querySelector('[data-tab="media"]').classList.add('active');
-            	loadTabContent('media');
-            }
+        	    // Automatically switch to media servers tab
+        	    document.querySelector('[data-tab="media"]').click();
+    		}
+		} else {
+    		    // Check for enabled but unconfigured services
+    		    const enabledButUnconfigured = [];
+
+    		    if (currentSettings.plex?.enabled &&
+        		(!currentSettings.plex?.url || !currentSettings.plex?.token || !currentSettings.plex?.movie_libraries)) {
+        		enabledButUnconfigured.push('Plex');
+    		    }
+
+    		    if (currentSettings.jellyfin?.enabled &&
+        		(!currentSettings.jellyfin?.url || !currentSettings.jellyfin?.api_key || !currentSettings.jellyfin?.user_id)) {
+        		enabledButUnconfigured.push('Jellyfin');
+    		    }
+
+    		    if (currentSettings.emby?.enabled &&
+        		(!currentSettings.emby?.url || !currentSettings.emby?.api_key || !currentSettings.emby?.user_id)) {
+        		enabledButUnconfigured.push('Emby');
+    		    }
+
+    		    if (enabledButUnconfigured.length > 0) {
+        		// Show message for enabled but unconfigured services
+        		const contentContainer = document.querySelector('.settings-content');
+        		if (contentContainer) {
+            		    const message = document.createElement('div');
+            		    message.className = 'setup-message warning';
+            		    message.innerHTML = `
+                		<div class="setup-welcome">
+                    		    <h2>Configuration Required</h2>
+                    		    <p>The following services are enabled but not fully configured:</p>
+                    		    <ul>
+                        		${enabledButUnconfigured.map(service => `<li>${service}</li>`).join('')}
+                    		    </ul>
+                    		    <p>Please complete the configuration to use Movie Roulette.</p>
+                		</div>
+            		    `;
+            		    contentContainer.insertBefore(message, contentContainer.firstChild);
+
+            		    // Automatically switch to media servers tab
+            		    document.querySelector('[data-tab="media"]').click();
+        		}
+    		    }
+	    }
 
             // Handle back button navigation
             const backButton = document.querySelector('.back-button');
@@ -1518,7 +2192,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     try {
                     	// Check if cache exists
-                    	const response = await fetch('/debug_plex');
+                    	const response = await fetch('/debug_service');
                     	const data = await response.json();
 
                     	if (!data.cache_file_exists) {
@@ -2023,6 +2697,379 @@ document.addEventListener('DOMContentLoaded', function() {
         container.appendChild(wrapper);
     }
 
+    function renderEmbyAuthConfig(container) {
+    	const wrapper = document.createElement('div');
+    	wrapper.className = 'emby-auth-wrapper';
+
+    	// Check if controlled by ENV
+    	const isEnvControlled = Boolean(
+            getNestedValue(currentOverrides, 'emby.api_key') ||
+            getNestedValue(currentOverrides, 'emby.user_id')
+    	);
+
+    	if (isEnvControlled) {
+            const overrideIndicator = document.createElement('div');
+            overrideIndicator.className = 'env-override';
+            overrideIndicator.textContent = 'Set by environment variable';
+            wrapper.appendChild(overrideIndicator);
+    	} else {
+            // Create manual input fields section
+            const manualGroup = document.createElement('div');
+            manualGroup.className = 'input-group';
+
+            const apiKeyInput = createInput(
+            	'password',
+            	getNestedValue(currentSettings, 'emby.api_key'),
+            	false,
+            	(value) => handleSettingChange('emby.api_key', value),
+            	'API Key'
+            );
+
+            const userIdInput = createInput(
+            	'text',
+            	getNestedValue(currentSettings, 'emby.user_id'),
+            	false,
+            	(value) => handleSettingChange('emby.user_id', value),
+            	'User ID'
+            );
+
+            manualGroup.appendChild(createLabel('API Key (manual entry)'));
+            manualGroup.appendChild(apiKeyInput);
+            manualGroup.appendChild(createLabel('User ID (manual entry)'));
+            manualGroup.appendChild(userIdInput);
+
+            // Add separator
+            const separator = document.createElement('div');
+            separator.className = 'dialog-separator';
+            separator.innerHTML = '<span>or login with</span>';
+
+            // Create auth buttons group
+            const authGroup = document.createElement('div');
+            authGroup.className = 'auth-buttons-group';
+
+            // Emby Connect button
+            const connectButton = document.createElement('button');
+            connectButton.className = 'discover-button';
+            connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Emby Connect';
+            connectButton.addEventListener('click', () => showEmbyConnectDialog());
+
+            // Local login button
+            const localButton = document.createElement('button');
+            localButton.className = 'discover-button';
+            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login';
+            localButton.addEventListener('click', () => showEmbyLocalLoginDialog());
+
+            authGroup.appendChild(connectButton);
+            authGroup.appendChild(localButton);
+
+            wrapper.appendChild(manualGroup);
+            wrapper.appendChild(separator);
+            wrapper.appendChild(authGroup);
+   	}
+
+    	container.appendChild(wrapper);
+    }
+
+    function showEmbyServerSelectionDialog(servers, connectUserId) {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3><i class="fa-solid fa-server"></i> Select Connection Type</h3>
+            	<div class="server-list">
+                    ${servers.map(server => `
+                    	<div class="server-group">
+                            <div class="server-name">${server.name}</div>
+                            <div class="connection-options">
+                            	<button class="server-option" data-server='${JSON.stringify({
+                                    ...server,
+                                    url: server.local_url,
+                                    access_key: server.access_key,
+                                    name: server.name,
+                                    id: server.id
+                            	})}'>
+                                     <i class="fa-solid fa-network-wired"></i>
+                                    <div class="server-details">
+                                    	<div class="connection-type">Local Network</div>
+                                    	<div class="server-url">${server.local_url}</div>
+                                    </div>
+                            	</button>
+                            	<button class="server-option" data-server='${JSON.stringify({
+                               	    ...server,
+                                    url: server.url,
+                                    access_key: server.access_key,
+                                    name: server.name,
+                                    id: server.id
+                            	})}'>
+                               	    <i class="fa-solid fa-globe"></i>
+                                    <div class="server-details">
+                                        <div class="connection-type">Remote Access (HTTPS)</div>
+                                        <div class="server-url">${server.url}</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="dialog-buttons">
+                    <button class="cancel-button">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        // Handle server selection
+        dialog.querySelectorAll('.server-option').forEach(button => {
+            button.addEventListener('click', async () => {
+                const server = JSON.parse(button.dataset.server);
+                const originalHtml = button.innerHTML;
+                try {
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting...';
+
+                    const response = await fetch('/api/emby/connect/select_server', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            server: server,
+                            connect_user_id: connectUserId
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to connect to server');
+                    }
+
+                    updateEmbyFields(data.server_url, data.api_key, data.user_id);
+                    showSuccess('Successfully connected to Emby server');
+                    dialog.remove();
+                } catch (error) {
+                    showError(error.message);
+                    button.disabled = false;
+                    button.innerHTML = originalHtml;
+                }
+            });
+        });
+
+        dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+        });
+    }
+
+    function showEmbyConnectDialog() {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3><i class="fa-solid fa-link"></i> Connect with Emby Connect</h3>
+            	<form id="emby-connect-form">
+                    <div class="input-group">
+                    	<label>Emby Connect Email</label>
+                    	<input type="email" class="setting-input" id="emby-username" required>
+                    </div>
+                    <div class="input-group">
+                    	<label>Password</label>
+                    	<input type="password" class="setting-input" id="emby-password" required>
+                    </div>
+                    <div class="dialog-buttons">
+                    	<button type="button" class="cancel-button">Cancel</button>
+                    	<button type="submit" class="submit-button">Connect</button>
+                    </div>
+            	</form>
+            </div>
+    	`;
+
+    	document.body.appendChild(dialog);
+
+    	const form = dialog.querySelector('#emby-connect-form');
+    	const submitButton = form.querySelector('.submit-button');
+
+    	form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting...';
+
+            try {
+            	const response = await fetch('/api/emby/connect/auth', {
+                    method: 'POST',
+                    headers: {
+                    	'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                    	username: form.querySelector('#emby-username').value,
+                    	password: form.querySelector('#emby-password').value
+                    })
+            	});
+
+            	const data = await response.json();
+            	if (!response.ok) {
+                    throw new Error(data.error || 'Failed to authenticate with Emby Connect');
+            	}
+
+            	if (data.status === 'servers_available') {
+                    dialog.remove();
+                    showEmbyServerSelectionDialog(data.servers, data.connect_user_id);
+            	} else {
+                    throw new Error('Unexpected response from server');
+            	}
+            } catch (error) {
+            	showError(error.message);
+            	submitButton.disabled = false;
+            	submitButton.innerHTML = 'Connect';
+            }
+    	});
+
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+    }
+
+    function showEmbyLocalLoginDialog() {
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	dialog.innerHTML = `
+            <div class="dialog-content">
+            	<h3><i class="fa-solid fa-user"></i> Local Login</h3>
+            	<form id="emby-local-form">
+                    <div class="input-group">
+                    	<label>Server URL</label>
+                    	<input type="text" class="setting-input" id="emby-server-url"
+                               value="${getNestedValue(currentSettings, 'emby.url') || ''}"
+                               placeholder="http://your-server:8096" required>
+                    </div>
+                    <div class="input-group">
+                    	<label>Username</label>
+                    	<input type="text" class="setting-input" id="emby-local-username" required>
+                    </div>
+                    <div class="input-group">
+                    	<label>Password</label>
+                    	<input type="password" class="setting-input" id="emby-local-password" required>
+                    </div>
+                    <div class="dialog-buttons">
+                    	<button type="button" class="cancel-button">Cancel</button>
+                    	<button type="submit" class="submit-button">Login</button>
+                    </div>
+            	</form>
+            </div>
+    	`;
+
+    	document.body.appendChild(dialog);
+
+    	const form = dialog.querySelector('#emby-local-form');
+    	const submitButton = form.querySelector('.submit-button');
+
+    	form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging in...';
+
+            const serverUrl = form.querySelector('#emby-server-url').value;
+
+            try {
+            	const response = await fetch('/api/emby/auth', {
+                    method: 'POST',
+                    headers: {
+                    	'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                    	server_url: serverUrl,
+                    	username: form.querySelector('#emby-local-username').value,
+                    	password: form.querySelector('#emby-local-password').value
+                    })
+            	});
+
+            	const data = await response.json();
+            	if (!response.ok) {
+                    throw new Error(data.error || 'Failed to authenticate');
+            	}
+
+            	// Update the fields directly
+            	updateEmbyFields(serverUrl, data.api_key, data.user_id);
+            	showSuccess('Successfully logged in to Emby');
+            	dialog.remove();
+
+            } catch (error) {
+            	showError(error.message);
+            	submitButton.disabled = false;
+            	submitButton.innerHTML = 'Login';
+            }
+    	});
+
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
+            dialog.remove();
+    	});
+    }
+
+    function getConnectionOptions(server) {
+    	const options = [];
+
+    	// Local Network
+    	if (server.LocalAddress) {
+            options.push({
+            	type: 'local',
+            	name: 'Local Network',
+            	url: server.LocalAddress,
+            	description: 'Best performance on your home network'
+            });
+    	}
+
+    	// Emby Connect
+    	if (server.ConnectAddress) {
+            options.push({
+            	type: 'connect',
+            	name: 'Emby Connect',
+            	url: server.ConnectAddress,
+            	description: 'Recommended for most users'
+            });
+    	}
+
+    	// Remote Access
+    	const remoteUrl = server.ExternalDomain || server.RemoteAddress;
+    	if (remoteUrl) {
+            const isDomain = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}/.test(remoteUrl);
+            options.push({
+            	type: 'remote',
+            	name: 'Remote Access',
+            	url: remoteUrl,
+            	description: isDomain ?
+                    'Custom domain access' :
+                    'Direct IP access (requires static IP)',
+            	warning: !isDomain ?
+                    'Warning: IP-based access may be unreliable with dynamic IPs' :
+                    null
+            });
+    	}
+
+    	return options;
+    }
+
+    function updateEmbyFields(url, apiKey, userId) {
+    	// Update settings first
+    	Promise.all([
+            handleSettingChange('emby.url', url),
+            handleSettingChange('emby.api_key', apiKey),
+            handleSettingChange('emby.user_id', userId)
+    	]).then(() => {
+            // Update currentSettings immediately
+            setNestedValue(currentSettings, 'emby.url', url);
+            setNestedValue(currentSettings, 'emby.api_key', apiKey);
+            setNestedValue(currentSettings, 'emby.user_id', userId);
+
+            // Force re-render the media servers tab
+            const currentTab = document.querySelector('.tab.active');
+            if (currentTab) {
+            	loadTabContent(currentTab.dataset.tab);
+            }
+    	});
+    }
+
     function createLabel(text) {
         const label = document.createElement('label');
         label.textContent = text;
@@ -2183,6 +3230,85 @@ document.addEventListener('DOMContentLoaded', function() {
             wrapper.appendChild(inputGroup);
             wrapper.appendChild(fetchButton);
         }
+
+        container.appendChild(wrapper);
+    }
+
+    function renderEmbyUserSelector(container) {
+    	const wrapper = document.createElement('div');
+    	wrapper.className = 'user-selector-wrapper';
+
+    	// Check if controlled by ENV
+    	const isEnvControlled = Boolean(
+            getNestedValue(currentOverrides, 'features.poster_users.emby')
+    	);
+
+    	if (isEnvControlled) {
+            const overrideIndicator = document.createElement('div');
+            overrideIndicator.className = 'env-override';
+            overrideIndicator.textContent = 'Set by environment variable';
+            wrapper.appendChild(overrideIndicator);
+    	} else {
+            // Create manual input first
+            const inputGroup = document.createElement('div');
+            inputGroup.className = 'input-group';
+
+            const manualInput = createInput(
+            	'text',
+            	getNestedValue(currentSettings, 'features.poster_users.emby'),
+            	false,
+            	(value) => handleSettingChange('features.poster_users.emby', value),
+            	'Comma-separated usernames'
+            );
+            inputGroup.appendChild(manualInput);
+
+            // Add fetch button
+            const fetchButton = document.createElement('button');
+            fetchButton.className = 'discover-button';
+            fetchButton.innerHTML = '<i class="fa-solid fa-users"></i> Fetch Users';
+
+            fetchButton.addEventListener('click', async () => {
+            	try {
+                    const embyUrl = getNestedValue(currentSettings, 'emby.url');
+                    const embyApiKey = getNestedValue(currentSettings, 'emby.api_key');
+
+                    if (!embyUrl || !embyApiKey) {
+                    	showError('Please configure Emby URL and API key first');
+                    	return;
+                    }
+
+                    fetchButton.disabled = true;
+                    fetchButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching...';
+
+                    const response = await fetch('/api/emby/users', {
+                    	method: 'POST',
+                    	headers: {
+                            'Content-Type': 'application/json'
+                    	},
+                        body: JSON.stringify({
+                       	    emby_url: embyUrl,
+                            api_key: embyApiKey
+                    	})
+                    });
+
+                    if (!response.ok) {
+                    	throw new Error('Failed to fetch users');
+                    }
+
+                    const data = await response.json();
+                    showUserSelectionDialog(data.users, 'emby', manualInput);
+
+            	} catch (error) {
+                    showError(error.message);
+            	} finally {
+                    fetchButton.disabled = false;
+                    fetchButton.innerHTML = '<i class="fa-solid fa-users"></i> Fetch Users';
+            	}
+            });
+
+            wrapper.appendChild(inputGroup);
+            wrapper.appendChild(fetchButton);
+    	}
 
         container.appendChild(wrapper);
     }
