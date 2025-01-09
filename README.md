@@ -2,7 +2,7 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Release](https://img.shields.io/badge/release-v3.1.2-blue)]()
+[![Release](https://img.shields.io/badge/release-v3.2-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
 [![GHCR Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fsahara101%2FMovie-Roulette%2Fmovie-roulette.json&query=%24.downloads&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
@@ -31,14 +31,14 @@ This project was extended with the assistance of AI tools. The core functionalit
 
 ## Features
 
-- 🎬 **Media Server Support**: Works with both Plex and Jellyfin
+- 🎬 **Media Server Support**: Get random movies with Plex, Jellyfin, Emby
 - 🎫 **Cinema Poster Mode**: Digital movie poster display with real-time progress
-- 🔍 **Smart Discovery**: Filter by genre, year, and rating
+- 🔍 **Smart Discovery**: Filter by watch status, genre, year, and rating
 - 📱 **PWA Support**: Install as app on mobile and desktop
-- 🎮 **Device Control**: Power on Apple TV and LG TV devices
+- 🎮 **Device Control**: Power on Apple TV and TV devices directly in the selected service application
 - 🔄 **Service Integration**: 
-  - Trakt for watch status
-  - Overseerr/Jellyseerr for requests
+  - Trakt for global watch status
+  - Overseerr/Jellyseerr/Ombi for requests
   - YouTube for trailers
  
 > **Note**: Ensure your client devices and Plex server are on the same network. On the first run, a Plex cache file will be created to enhance movie loading speeds.
@@ -52,6 +52,12 @@ This project was extended with the assistance of AI tools. The core functionalit
 - Xiaomi MI TV Box S (Android)
 ### Jellyfin
 - All cast capable devices
+- Apple TV - with turn on function and app start
+- Jellyfin for LGTV (WebOS) - with turn on function and app start
+### Emby
+- All cast capable devices
+- Apple TV - with turn on function and app start
+- Jellyfin for LGTV (WebOS) - with turn on function and app start
 
 ## Quick Start
 
@@ -89,8 +95,8 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 ## First Run
 
 1. Automatically redirects to settings if no services configured
-2. Set up at least one media server (Plex/Jellyfin)
-3. Wait for initial cache building
+2. Set up at least one media server (Plex/Jellyfin/Emby)
+3. Wait for initial cache building for Plex
 4. Optional: Configure additional services (Trakt, Overseerr, etc.)
 
 ## Key Configuration
@@ -107,14 +113,19 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 - API Key
 - User ID
 
+#### Emby
+- Server URL
+- API Key
+- User ID
+
 ### Integrations
-- TMDb (built-in key provided)
+- TMDb (built-in key provided or custom API)
 - Trakt (built-in app or custom credentials)
-- Overseerr/Jellyseerr (optional, for requests)
+- Overseerr/Jellyseerr/Ombi (optional, for requests)
 
 ### Devices
 - Apple TV (auto-discovery available)
-- LG TV (network scanning available)
+- LG WebOS, Samusng Tizen (pre-alpha), Android Sony (pre-alpha) (network scanning available)
 
 See [sample-compose.yml](sample-compose.yml) for full configuration options.
 
@@ -123,6 +134,7 @@ See [sample-compose.yml](sample-compose.yml) for full configuration options.
 1. **Standard Mode**
    - Random movie selection
    - Filter options
+   - Search movies
    - Movie details and trailers
    - Cast/crew filmographies
 
@@ -167,6 +179,9 @@ Movie Roulette offers two ways to configure the application:
 | `JELLYFIN_URL` | Jellyfin server URL | - | ✅ Settings |
 | `JELLYFIN_API_KEY` | Jellyfin API key | - | ✅ Auto setup |
 | `JELLYFIN_USER_ID` | Jellyfin user ID | - | ✅ Auto setup |
+| `EMBY_URL` | Emby server URL | - | ✅ Settings |
+| `EMBY_API_KEY` | Emby API key | - | ✅ Settings |
+| `EMBY_USER_ID` | Emby user ID | - | ✅ Settings |
 
 ### Optional Features
 | Variable | Description | Default | UI Alternative |
@@ -174,24 +189,34 @@ Movie Roulette offers two ways to configure the application:
 | `DISABLE_SETTINGS` | Lock Settings page | FALSE | - |
 | `HOMEPAGE_MODE` | Homepage widget mode | FALSE | ✅ Settings |
 | `TMDB_API_KEY` | Custom TMDb key | Built-in key | ✅ Settings |
-| `OVERSEERR_URL` | Overseerr URL | - | ✅ Settings |
-| `OVERSEERR_API_KEY` | Overseerr API key | - | ✅ Settings |
-| `JELLYSEERR_URL` | Jellyseerr URL | - | ✅ Settings |
-| `JELLYSEERR_API_KEY` | Jellyseerr API key | - | ✅ Settings |
-| `JELLYSEERR_FORCE_USE` | Override Overseerr and use for Plex | FALSE | ✅ Settings |
 | `USE_LINKS` | Show links buttons | TRUE | ✅ Settings |
 | `USE_FILTER` | Show filter button | TRUE | ✅ Settings |
 | `USE_WATCH_BUTTON` | Show Watch button | TRUE | ✅ Settings |
 | `USE_NEXT_BUTTON` | Show next button | TRUE | ✅ Settings |
 | `ENABLE_MOBILE_TRUNCATION` | Choose if descriptions are truncated on mobile | FALSE | ✅ Settings |
 
+### Request Service (Optional)
+| Variable | Description | Default | UI Alternative |
+|----------|-------------|---------|----------------|
+| `OVERSEERR_URL` | Overseerr URL | - | ✅ Settings |
+| `OVERSEERR_API_KEY` | Overseerr API key | - | ✅ Settings |
+| `JELLYSEERR_URL` | Jellyseerr URL | - | ✅ Settings |
+| `JELLYSEERR_API_KEY` | Jellyseerr API key | - | ✅ Settings |
+| `OMBI_URL` | Ombi server URL | - | ✅ Settings |
+| `OMBI_API_KEY` | Ombi API key | - | ✅ Settings |
+| `REQUEST_SERVICE_DEFAULT` | Default request service | "auto" | ✅ Settings |
+| `REQUEST_SERVICE_PLEX` | Plex request service override | "auto" | ✅ Settings |
+| `REQUEST_SERVICE_JELLYFIN` | Jellyfin request service override | "auto" | ✅ Settings |
+| `REQUEST_SERVICE_EMBY` | Emby request service override | "auto" | ✅ Settings |
 
 ### Device Control (Optional)
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
 | `APPLE_TV_ID` | Apple TV identifier | - | ✅ Auto-discovery |
-| `LGTV_IP` | LG TV IP address | - | ✅ Auto-discovery |
-| `LGTV_MAC` | LG TV MAC address | - | ✅ Auto-discovery |
+| `TV_<NAME>_TYPE` | TV type (`webos`, `tizen`, `android`) | - | ✅ Auto-discovery |
+| `TV_<NAME>_IP` | TV IP address | - | ✅ Auto-discovery |
+| `TV_<NAME>_MAC` | TV MAC address | - | ✅ Auto-discovery |
+> Note: Replace <NAME> with your chosen TV identifier (e.g., TV_LIVING_ROOM_TYPE: "webos"). Only use letters, numbers, and underscores.
 
 ### Cinema Poster (Optional)
 | Variable | Description | Default | UI Alternative |
@@ -200,6 +225,7 @@ Movie Roulette offers two ways to configure the application:
 | `DEFAULT_POSTER_TEXT` | Default text | - | ✅ Settings |
 | `PLEX_POSTER_USERS` | Plex users to monitor | - | ✅ User selector |
 | `JELLYFIN_POSTER_USERS` | Jellyfin users to monitor | - | ✅ User selector |
+| `EMBY_POSTER_USERS` | Emby users to monitor | - | ✅ User selector |
 
 ### Custom Trakt (Optional)
 | Variable | Description | Default | UI Alternative |
@@ -238,6 +264,33 @@ Go to settings → Network and activate Enable Local Network Discovery (GDM).
    atvremote --id YOUR-ID --protocol companion pair
    ```
 5. Enter PIN shown on Apple TV
+
+### TV Device Setup
+Movie Roulette supports multiple TV instances using a dynamic naming pattern. Each TV is configured with a name and its required parameters. The application supports multiple TV platforms:
+
+Supported TV Types:
+- `webos`: LG WebOS TVs
+- `tizen`: Samsung Tizen TVs
+- `android`: Android-based TVs
+
+Configuration example:
+```yaml
+environment:
+  # Example for LG WebOS TV in living room
+  TV_LIVING_ROOM_TYPE: "webos"
+  TV_LIVING_ROOM_IP: "192.168.1.100"
+  TV_LIVING_ROOM_MAC: "AA:BB:CC:DD:EE:FF"
+  
+  # Example for Samsung TV in bedroom
+  TV_BEDROOM_TYPE: "tizen"
+  TV_BEDROOM_IP: "192.168.1.101"
+  TV_BEDROOM_MAC: "11:22:33:44:55:66"
+  
+  # Example for Android TV in kitchen
+  TV_KITCHEN_TYPE: "android"
+  TV_KITCHEN_IP: "192.168.1.102"
+  TV_KITCHEN_MAC: "CC:DD:EE:FF:00:11"
+```
 
 ### Homepage Integration
 Add to <a href="http://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a>'s services.yaml:
