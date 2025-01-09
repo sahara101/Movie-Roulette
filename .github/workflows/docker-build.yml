@@ -50,6 +50,7 @@ jobs:
           
       # Build AMD64 image
       - name: Build and push AMD64
+        if: false
         uses: docker/build-push-action@v5
         with:
           context: .
