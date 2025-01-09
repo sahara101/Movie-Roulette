@@ -6,7 +6,7 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 
 ## Download
 
-Download the latest version from the [Releases](https://github.com/sahara101/Movie-Roulette/releases/tag/v1.0.1-macos) page.
+Download the latest version from the [Releases](https://github.com/sahara101/Movie-Roulette/releases/tag/v1.0.2-macos) page.
 
 ## Installation
 
