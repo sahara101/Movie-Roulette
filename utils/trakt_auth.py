@@ -8,6 +8,7 @@ class TraktAuthDialog(QDialog):
         super().__init__()
         self.main_window = main_window
         self.auth_url = auth_url 
+        self.port = main_window.flask_thread.port
         self.setWindowTitle("Trakt Authentication")
         self.setFixedSize(400, 500)
         
@@ -101,7 +102,7 @@ class TraktAuthDialog(QDialog):
         if code:
             try:
                 print(f"Submitting code: {code}")
-                response = requests.post('http://127.0.0.1:4000/trakt/token', 
+                response = requests.post(f'http://127.0.0.1:{self.port}/trakt/token',
                                       json={'code': code})
                 print(f"Response status: {response.status_code}")
                 print(f"Response text: {response.text}")

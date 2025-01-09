@@ -9,13 +9,40 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
 </head>
 <body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }} show">
+                        <div class="flash-content">
+                            <i class="fas fa-exclamation-circle"></i>
+                            {{ message }}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
     <div id="settings-root"></div>
     <script src="/static/js/settings.js"></script>
-    <a href="https://github.com/sahara101/Movie-Roulette/tree/macOS" target="_blank">
-    	<div class="version-label">
-             <i class="fab fa-github"></i>
-             <span>v{{ version }}</span>
-    	</div>
-    </a>
+    <div class="bottom-links">
+        <a href="https://github.com/sahara101/Movie-Roulette/tree/macOS" target="_blank" class="version-label">
+            <i class="fab fa-github"></i>
+            <span>v{{ version }}</span>
+        </a>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-dismiss flash messages
+        document.querySelectorAll('.flash-message').forEach(flash => {
+            setTimeout(() => {
+                if (flash && flash.classList.contains('show')) {
+                    flash.classList.remove('show');
+                    setTimeout(() => flash.remove(), 300);
+                }
+            }, 5000);
+        });
+    });
+    </script>
 </body>
 </html>

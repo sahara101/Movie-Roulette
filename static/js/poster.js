@@ -16,6 +16,7 @@ let startTime = initialStartTime;
 let currentStatus = 'UNKNOWN';
 let playbackInterval;
 let configuredTimezone;
+let sessionType = 'NEW';
 
 // Socket.IO connection
 const socket = io('/poster');
@@ -103,12 +104,17 @@ function updatePoster(movieData) {
     contentRatingElement.textContent = movieData.movie.contentRating;
     videoFormatElement.textContent = movieData.movie.videoFormat;
     audioFormatElement.textContent = movieData.movie.audioFormat;
-    
+
     // Store the original ISO string with timezone
     startTime = movieData.start_time;
-    console.log('Setting initial start time:', startTime);
+    sessionType = movieData.session_type || 'NEW';
+    resumePosition = movieData.resume_position || 0;
     
-    updateTimes(startTime, 0, 'PLAYING');
+    console.log('Setting initial start time:', startTime);
+    console.log('Session type:', sessionType);
+    console.log('Resume position:', resumePosition);
+
+    updateTimes(startTime, resumePosition, 'PLAYING');
     updatePlaybackStatus('playing');
     clearInterval(playbackInterval);
     playbackInterval = setInterval(fetchPlaybackState, 2000);
@@ -130,8 +136,17 @@ function clearMovieInfo() {
 
 function updateProgress(position) {
     if (movieDuration > 0) {
-        const progress = (position / movieDuration) * 100;
-        progressBar.style.width = `${progress}%`;
+        let progress;
+        if (sessionType === 'STOP') {
+            // For STOP resume, calculate based on remaining duration
+            const elapsedInCurrentSession = position - resumePosition;
+            const remainingDuration = movieDuration - resumePosition;
+            progress = ((resumePosition + elapsedInCurrentSession) / movieDuration) * 100;
+        } else {
+            // For NEW or PAUSE, use total duration from start
+            progress = (position / movieDuration) * 100;
+        }
+        progressBar.style.width = `${Math.min(progress, 100)}%`;
     } else {
         progressBar.style.width = '0%';
     }
@@ -139,11 +154,11 @@ function updateProgress(position) {
 
 function formatDateToTime(isoString) {
     if (!configuredTimezone || !isoString) return '--:--';
-    
+
     try {
         const date = new Date(isoString);
         console.log('Formatting date:', isoString, 'in timezone:', configuredTimezone);
-        
+
         return date.toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
@@ -173,15 +188,20 @@ function updateTimes(start, position, status) {
         const currentTime = new Date();
         let endDate;
 
-        if (status === 'PAUSED') {
-            // When paused, end time is current time + remaining duration
+        if (sessionType === 'STOP') {
+            // For STOP resume, calculate from current time
             endDate = new Date(currentTime.getTime() + (remainingDuration * 1000));
         } else {
-            // When playing, end time is current time + remaining duration
-            // This ensures we maintain the adjusted end time after resuming
-            endDate = new Date(currentTime.getTime() + (remainingDuration * 1000));
+            // For PAUSE/NEW, adjust end time based on pause duration
+            if (status === 'PAUSED') {
+                endDate = new Date(startDate.getTime() + (movieDuration * 1000));
+            } else {
+                const elapsedTime = (currentTime - startDate) / 1000;
+                const pauseAdjustment = elapsedTime - position;
+                endDate = new Date(startDate.getTime() + (movieDuration + pauseAdjustment) * 1000);
+            }
         }
-        
+
         endTimeElement.textContent = formatDateToTime(endDate.toISOString());
     } catch (e) {
         console.error('Error calculating end time:', e);
@@ -190,35 +210,35 @@ function updateTimes(start, position, status) {
 }
 
 function updatePlaybackStatus(status) {
-    playbackStatusElement.classList.remove('paused', 'ended', 'stopped');
+    playbackStatusElement.classList.remove('paused', 'ending', 'stopped');
 
     switch(status.toLowerCase()) {
         case 'playing':
             playbackStatusElement.textContent = "NOW PLAYING";
-            playbackStatusElement.classList.remove('paused', 'ended', 'stopped');
+            playbackStatusElement.classList.remove('paused', 'ending', 'stopped');
             currentStatus = 'PLAYING';
             break;
         case 'paused':
             playbackStatusElement.textContent = "PAUSED";
             playbackStatusElement.classList.add('paused');
-            playbackStatusElement.classList.remove('ended', 'stopped');
+            playbackStatusElement.classList.remove('ending', 'stopped');
             currentStatus = 'PAUSED';
             break;
-        case 'ended':
-            playbackStatusElement.textContent = "ENDED";
-            playbackStatusElement.classList.add('ended');
+        case 'ending':
+            playbackStatusElement.textContent = "ENDING";
+            playbackStatusElement.classList.add('ending');
             playbackStatusElement.classList.remove('paused', 'stopped');
-            currentStatus = 'ENDED';
+            currentStatus = 'ENDING';
             break;
         case 'stopped':
             playbackStatusElement.textContent = "STOPPED";
             playbackStatusElement.classList.add('stopped');
-            playbackStatusElement.classList.remove('paused', 'ended');
+            playbackStatusElement.classList.remove('paused', 'ending');
             currentStatus = 'STOPPED';
             break;
         default:
             playbackStatusElement.textContent = status.toUpperCase();
-            playbackStatusElement.classList.remove('paused', 'ended', 'stopped');
+            playbackStatusElement.classList.remove('paused', 'ending', 'stopped');
             currentStatus = 'UNKNOWN';
     }
 
@@ -241,6 +261,12 @@ function fetchPlaybackState() {
                 return;
             }
             console.log('Received playback state:', data);
+
+            // Update session type if provided
+            if (data.session_type) {
+                sessionType = data.session_type;
+            }
+
             updateProgress(data.position);
             updatePlaybackStatus(data.status);
 
@@ -254,17 +280,7 @@ function fetchPlaybackState() {
         })
         .catch(error => {
             console.error('Error:', error);
-            fetch('/current_poster')
-                .then(response => response.json())
-                .then(data => {
-                    posterImage.src = data.poster;
-                    isDefaultPoster = data.poster === defaultPosterUrl;
-                    updatePosterDisplay();
-                    if (isDefaultPoster) {
-                        clearMovieInfo();
-                    }
-                })
-                .catch(error => console.error('Error fetching current poster:', error));
+            checkCurrentPoster();
         });
 }
 

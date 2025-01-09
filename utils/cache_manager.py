@@ -21,14 +21,78 @@ class CacheManager:
         self.is_updating = False
         self.last_update = 0
         self._cache_lock = Lock()
-        self._movies_memory_cache = [] 
-        self._init_memory_cache()
-        self.last_update = time.time()  # Set initial last_update to current time
-        logger.info(f"Cache manager initialized with update interval of {update_interval} seconds")
+        self._movies_memory_cache = []
+        self._initializing = False
 
+        # Don't initialize if PlexService is building cache
+        if os.path.exists(self.cache_file_path):
+            logger.info("Loading existing cache into memory")
+            self._init_memory_cache()
+            self.last_update = time.time()  # Set last update to now
+        else:
+            logger.info("Cache file doesn't exist, memory cache will stay empty until built")
+            self._movies_memory_cache = []
+
+        # Build all movies cache if missing
         if not os.path.exists(self.all_movies_cache_path):
-            logger.info("Initializing all movies cache...")
-            self.cache_all_plex_movies()
+            logger.info("All movies cache missing - building at startup...")
+            Thread(target=self.cache_all_plex_movies, daemon=True).start()
+
+    def start_cache_build(self):
+        """Start the cache building process with progress updates"""
+        if self._initializing:
+            return
+
+        self._initializing = True
+        try:
+            all_movies = []
+            for library in self.plex_service.libraries:
+                all_movies.extend(library.search(unwatched=True))
+
+            total_movies = len(all_movies)
+            self._movies_memory_cache = []
+
+            for i, movie in enumerate(all_movies, 1):
+                metadata = self.plex_service._fetch_metadata(movie.ratingKey)
+                movie_data = self.plex_service._basic_movie_data(movie)
+                if metadata:
+                    self.plex_service._enrich_with_metadata(movie_data, metadata)
+                self._movies_memory_cache.append(movie_data)
+
+                progress = (i / total_movies) * 0.90
+                self.socketio.emit('loading_progress', {
+                    'progress': progress,
+                    'current': i,
+                    'total': total_movies,
+                    'status': 'Building cache'
+                }, namespace='/')
+
+            # Save cache before final progress updates
+            self._save_cache_to_disk()
+            time.sleep(1)
+
+            self.socketio.emit('loading_progress', {
+                'progress': 0.95,
+                'current': total_movies,
+                'total': total_movies,
+                'status': 'Building cache'
+            }, namespace='/')
+
+            self._initializing = False
+            time.sleep(1)
+
+            self.socketio.emit('loading_progress', {
+                'progress': 1.0,
+                'current': total_movies,
+                'total': total_movies,
+                'status': 'Finished cache'
+            }, namespace='/')
+
+            self.socketio.emit('loading_complete', namespace='/')
+
+        except Exception as e:
+            logger.error(f"Error building cache: {e}")
+            self._initializing = False
 
     def _init_memory_cache(self):
         """Initialize in-memory cache from disk cache"""
@@ -59,18 +123,20 @@ class CacheManager:
 
     def _update_loop(self):
         """Background thread that periodically checks for changes"""
-        logger.info("Update loop started")  # Add this
+        logger.info("Update loop started")
         while self.running:
             try:
                 current_time = time.time()
-                logger.debug(f"Current time: {current_time}, Last update: {self.last_update}, Interval: {self.update_interval}")  # Add this
-                if current_time - self.last_update >= self.update_interval:
-                    logger.info("Update interval reached")  # Add this
+                logger.debug(f"Current time: {current_time}, Last update: {self.last_update}, Interval: {self.update_interval}")
+
+                # Only check if interval passed AND cache exists
+                if os.path.exists(self.cache_file_path) and (current_time - self.last_update >= self.update_interval):
+                    logger.info("Update interval reached, checking for changes")
                     with self._cache_lock:
                         self.check_for_changes()
                 time.sleep(60)  # Check every minute
             except Exception as e:
-                logger.error(f"Error in update loop: {e}", exc_info=True)  # Add traceback
+                logger.error(f"Error in update loop: {e}", exc_info=True)
                 time.sleep(5)
 
     def check_for_changes(self):
@@ -79,6 +145,9 @@ class CacheManager:
             logger.info("Update already in progress, skipping")
             return
 
+        if not os.path.exists(self.cache_file_path):
+            logger.info("Cache file doesn't exist, skipping check")
+            return
         try:
             logger.info("Starting to check for library changes...")
             self.is_updating = True
@@ -92,7 +161,7 @@ class CacheManager:
                 logger.info(f"Checking library {library.title} for unwatched movies...")
                 for movie in library.search(unwatched=True):
                     current_unwatched.add(str(movie.ratingKey))
-        
+
             logger.info(f"Found {len(current_unwatched)} currently unwatched movies")
 
             # Get cached unwatched movie IDs from memory cache
@@ -130,7 +199,7 @@ class CacheManager:
                 logger.info("Cache updated successfully")
             else:
                 logger.info("No changes detected")
-            
+
         except Exception as e:
             logger.error(f"Error checking for changes: {e}", exc_info=True)
         finally:
@@ -146,42 +215,52 @@ class CacheManager:
             logger.error(f"Error saving cache to disk: {e}")
 
     def cache_all_plex_movies(self):
-        """Cache all movies (watched and unwatched) for Plex badge checking"""
+        """Cache all movies (watched and unwatched) for Plex"""
         try:
-            logger.info("Starting to cache all Plex movies...")
-            all_movies = []
-            total_movies = 0
-        
-            for library in self.plex_service.libraries:
-                logger.info(f"Processing library: {library.title}")
-                library_movies = list(library.all())
-                total_movies += len(library_movies)
-            
-                for movie in library_movies:
-                    tmdb_id = None
-                    for guid in movie.guids:
-                        if 'tmdb://' in guid.id:
-                            tmdb_id = guid.id.split('//')[1]
-                            break
-                    all_movies.append({
-                        "plex_id": movie.ratingKey,
-                        "tmdb_id": tmdb_id
-                    })
+            # If already building, skip
+            if getattr(self, '_building_all_cache', False):
+                logger.info("All movies cache build already in progress, skipping")
+                return
 
-            # Save to disk atomically
-            temp_path = f"{self.all_movies_cache_path}.tmp"
-            with open(temp_path, 'w') as f:
-                json.dump(all_movies, f)
-            os.replace(temp_path, self.all_movies_cache_path)
+            self._building_all_cache = True
+            logger.info("Starting to cache all Plex movies in background...")
 
-            logger.info(f"Successfully cached {len(all_movies)} total Plex movies")
-        
-            if len(all_movies) != total_movies:
-                logger.warning(f"Mismatch in movie counts: Found {total_movies} movies but cached {len(all_movies)}")
-            
+            def build_cache():
+                try:
+                    all_movies = []
+                    total_movies = 0
+
+                    for library in self.plex_service.libraries:
+                        logger.info(f"Processing library: {library.title}")
+                        library_movies = list(library.all())
+                        total_movies += len(library_movies)
+
+                        for movie in library_movies:
+                            try:
+                                movie_data = self.plex_service.get_movie_data(movie)
+                                if movie_data:
+                                    all_movies.append(movie_data)
+                            except Exception as e:
+                                logger.error(f"Error processing movie {movie.title}: {e}")
+
+                    # Save to disk atomically
+                    temp_path = f"{self.all_movies_cache_path}.tmp"
+                    with open(temp_path, 'w') as f:
+                        json.dump(all_movies, f)
+                    os.replace(temp_path, self.all_movies_cache_path)
+
+                    logger.info(f"Successfully cached {len(all_movies)} total Plex movies")
+                except Exception as e:
+                    logger.error(f"Error building all movies cache: {e}")
+                finally:
+                    self._building_all_cache = False
+
+            # Start background thread
+            Thread(target=build_cache, daemon=True).start()
+
         except Exception as e:
-            logger.error(f"Error caching all Plex movies: {e}")
-            logger.error(f"Stack trace:", exc_info=True)
+            logger.error(f"Error initiating all movies cache: {e}")
+            self._building_all_cache = False
 
     @lru_cache(maxsize=1)
     def get_all_plex_movies(self):

@@ -1,11 +1,13 @@
 import os
 import requests
 import logging
+import json
 from dotenv import load_dotenv
 from utils.settings import settings
 from utils.tmdb_service import tmdb_service
+from utils.path_manager import path_manager
 
-load_dotenv()  # Load environment variables from .env
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Global state
@@ -19,19 +21,47 @@ def initialize_overseerr():
 
     # Get settings
     overseerr_settings = settings.get('overseerr', {})
+    enabled = overseerr_settings.get('enabled', False)
 
     # Get values from ENV or settings
     OVERSEERR_URL = os.getenv('OVERSEERR_URL') or overseerr_settings.get('url', '').strip()
     OVERSEERR_API_KEY = os.getenv('OVERSEERR_API_KEY') or overseerr_settings.get('api_key', '').strip()
 
     # Check if service should be enabled
-    if ((os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY')) or
-        (overseerr_settings.get('enabled') and OVERSEERR_URL and OVERSEERR_API_KEY)):
-        OVERSEERR_INITIALIZED = True
-        logger.info("Overseerr service initialized successfully")
-        return True
+    is_env_configured = bool(os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY'))
+    is_settings_configured = bool(enabled and OVERSEERR_URL and OVERSEERR_API_KEY)
+
+    if is_env_configured or is_settings_configured:
+        try:
+            OVERSEERR_INITIALIZED = True
+
+            # Save state to file using path manager
+            state_file = path_manager.get_path('overseerr_state')
+            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+            with open(state_file, 'w') as f:
+                json.dump({
+                    'initialized': True,
+                    'url': OVERSEERR_URL,
+                    'api_key': bool(OVERSEERR_API_KEY)
+                }, f)
+
+            logger.info("Overseerr service initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save Overseerr state: {e}")
+            OVERSEERR_INITIALIZED = False
+            return False
 
     OVERSEERR_INITIALIZED = False
+
+    # Clean up state file if it exists
+    try:
+        state_file = path_manager.get_path('overseerr_state')
+        if os.path.exists(state_file):
+            os.remove(state_file)
+    except Exception as e:
+        logger.error(f"Failed to clean up Overseerr state file: {e}")
+
     logger.info("Overseerr service not initialized - missing configuration or disabled")
     return False
 

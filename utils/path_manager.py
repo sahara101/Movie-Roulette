@@ -23,14 +23,19 @@ class PathManager:
             'plex_all_movies': self.base_dir / 'plex_all_movies.json',
             'plex_metadata': self.base_dir / 'plex_metadata_cache.json',
             'jellyfin_movies': self.base_dir / 'jellyfin_all_movies.json',
+            'emby_movies': self.base_dir / 'emby_all_movies.json',
             'trakt_tokens': self.base_dir / 'trakt_tokens.json',
             'trakt_watched': self.base_dir / 'trakt_watched_movies.json',
             'settings': self.base_dir / 'settings.json',
             'current_movie': self.base_dir / 'current_movie.json',
             'lgtv_store': self.base_dir / 'lgtv_store.json',
+            'adbkey': self.base_dir / 'adbkey',
             'pyatv_config': self.base_dir / 'pyatv.conf',
             'version_info': self.base_dir / 'version_info.json',
-            'update_check': self.base_dir / 'last_update_check.json'
+            'update_check': self.base_dir / 'last_update_check.json',
+            'jellyseerr_state': self.base_dir / 'jellyseerr_state.json',
+            'ombi_state': self.base_dir / 'ombi_state.json',
+            'overseerr_state': self.base_dir / 'overseerr_state.json'
         }
 
     def create_directories(self):

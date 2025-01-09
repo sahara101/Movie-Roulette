@@ -9,6 +9,13 @@ DEFAULT_SETTINGS = {
         'enabled': False,
         'url': '',
         'api_key': '',
+        'user_id': '',
+        'connect_enabled': False
+    },
+    'emby': {
+        'enabled': False,
+        'url': '',
+        'api_key': '',
         'user_id': ''
     },
     'clients': {
@@ -16,10 +23,11 @@ DEFAULT_SETTINGS = {
             'enabled': False,
             'id': ''
         },
-        'lg_tv': {
-            'enabled': False,
-            'ip': '',
-            'mac': ''
+        'tvs': {
+            'blacklist': {
+                'mac_addresses': []
+            },
+            'instances': {}
         }
     },
     'features': {
@@ -35,6 +43,12 @@ DEFAULT_SETTINGS = {
             'jellyfin': []
         }
     },
+    'request_services': {
+        'default': 'auto',  # Values: auto, overseerr, jellyseerr, ombi
+        'plex_override': 'auto',  # Values: auto, overseerr, jellyseerr, ombi
+        'jellyfin_override': 'auto',  # Values: auto, jellyseerr, ombi
+        'emby_override': 'auto'  # Values: auto, jellyseerr, ombi
+    },
     'overseerr': {
         'enabled': False,
         'url': '',
@@ -43,8 +57,12 @@ DEFAULT_SETTINGS = {
     'jellyseerr': {
         'enabled': False,
         'url': '',
-        'api_key': '',
-        'force_use': False
+        'api_key': ''
+    },
+    'ombi': {
+        'enabled': False,
+        'url': '',
+        'api_key': ''
     },
     'tmdb': {
         'enabled': False,  
@@ -66,6 +84,7 @@ ENV_MAPPINGS = {
     'DEFAULT_POSTER_TEXT': ('features', 'default_poster_text', str),
     'PLEX_POSTER_USERS': ('features.poster_users', 'plex', lambda x: [s.strip() for s in x.split(',')]),
     'JELLYFIN_POSTER_USERS': ('features.poster_users', 'jellyfin', lambda x: [s.strip() for s in x.split(',')]),
+    'EMBY_POSTER_USERS': ('features.poster_users', 'emby', lambda x: [s.strip() for s in x.split(',')]),
     
     # Plex ENV
     'PLEX_URL': ('plex', 'url', str),
@@ -77,27 +96,42 @@ ENV_MAPPINGS = {
     'JELLYFIN_API_KEY': ('jellyfin', 'api_key', str),
     'JELLYFIN_USER_ID': ('jellyfin', 'user_id', str),
 
-    # Jelyseerr ENV
+    # Emby ENV
+    'EMBY_URL': ('emby', 'url', str),
+    'EMBY_API_KEY': ('emby', 'api_key', str),
+    'EMBY_USER_ID': ('emby', 'user_id', str),
+
+    # Overseerr/Jellyseerr ENV
+    'OVERSEERR_URL': ('overseerr', 'url', str),
+    'OVERSEERR_API_KEY': ('overseerr', 'api_key', str),
     'JELLYSEERR_URL': ('jellyseerr', 'url', str),
     'JELLYSEERR_API_KEY': ('jellyseerr', 'api_key', str),
-    'JELLYSEERR_FORCE_USE': ('jellyseerr', 'force_use', lambda x: x.upper() == 'TRUE'),
-    
-    # Client ENV
+
+    # Ombi ENV
+    'OMBI_URL': ('ombi', 'url', str),
+    'OMBI_API_KEY': ('ombi', 'api_key', str),    
+
+    # Request Services ENV
+    'REQUEST_SERVICE_DEFAULT': ('request_services', 'default', str),
+    'REQUEST_SERVICE_PLEX': ('request_services', 'plex_override', str),
+    'REQUEST_SERVICE_JELLYFIN': ('request_services', 'jellyfin_override', str),
+    'REQUEST_SERVICE_EMBY': ('request_services', 'emby_override', str),
+
+    # AppleTV ENV
     'APPLE_TV_ID': ('clients.apple_tv', 'id', str),
-    'LGTV_IP': ('clients.lg_tv', 'ip', str),
-    'LGTV_MAC': ('clients.lg_tv', 'mac', str),
-    
+
+    # Dynamic TV Configuration ENV
+    'TV_(.+)_TYPE': ('clients.tvs.instances.$1', 'type', str),
+    'TV_(.+)_IP': ('clients.tvs.instances.$1', 'ip', str),
+    'TV_(.+)_MAC': ('clients.tvs.instances.$1', 'mac', str),
+
     # Feature flags
     'USE_LINKS': ('features', 'use_links', lambda x: x.upper() == 'TRUE'),
     'USE_FILTER': ('features', 'use_filter', lambda x: x.upper() == 'TRUE'),
     'USE_WATCH_BUTTON': ('features', 'use_watch_button', lambda x: x.upper() == 'TRUE'),
     'USE_NEXT_BUTTON': ('features', 'use_next_button', lambda x: x.upper() == 'TRUE'),
     
-    # Overseerr
-    'OVERSEERR_URL': ('overseerr', 'url', str),
-    'OVERSEERR_API_KEY': ('overseerr', 'api_key', str),
-    
-    # TMDB
+    # utils/settings/manager.pyTMDB
     'TMDB_API_KEY': ('tmdb', 'api_key', str),
     
     # Trakt

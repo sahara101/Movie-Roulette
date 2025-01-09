@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 import logging
 from utils.settings import settings
+from utils.trakt_service import token_manager
 
 from utils.path_manager import path_manager
 logger = logging.getLogger(__name__)
@@ -197,7 +198,7 @@ def get_token():
             'grant_type': 'authorization_code'
         }
         logger.info(f"Making token request with data: {request_data}")
-        
+
         response = requests.post('https://api.trakt.tv/oauth/token', json=request_data)
 
         logger.info(f"Token response status: {response.status_code}")
@@ -205,7 +206,11 @@ def get_token():
 
         if response.ok:
             token_data = response.json()
-            if save_tokens(token_data['access_token'], token_data['refresh_token']):
+            # Use the token manager to save tokens
+            if token_manager.save_tokens(
+                access_token=token_data['access_token'],
+                refresh_token=token_data['refresh_token']
+            ):
                 return jsonify({'status': 'success'})
             else:
                 logger.error("Failed to save tokens")

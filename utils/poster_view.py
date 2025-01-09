@@ -75,14 +75,20 @@ def get_poster_data():
         'service': current_movie['service'],
     }
 
-def set_current_movie(movie_data, service, resume_position=0):
+def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'):
     current_time = datetime.now(get_current_timezone())
-    total_duration = timedelta(hours=movie_data['duration_hours'], minutes=movie_data['duration_minutes'])
+    total_duration = timedelta(hours=movie_data['duration_hours'],
+                             minutes=movie_data['duration_minutes'])
 
-    if resume_position > 0:
-        elapsed = timedelta(seconds=resume_position)
-        start_time = current_time - elapsed
-    else:
+    if session_type in ['NEW', 'PAUSE']:
+        if resume_position > 0:
+            # For PAUSE resume, maintain original timeline
+            elapsed = timedelta(seconds=resume_position)
+            start_time = current_time - elapsed
+        else:
+            start_time = current_time
+    else:  # session_type == 'STOP'
+        # For STOP resume, start fresh timeline from now
         start_time = current_time
 
     current_movie = {
@@ -91,7 +97,8 @@ def set_current_movie(movie_data, service, resume_position=0):
         'duration_hours': movie_data['duration_hours'],
         'duration_minutes': movie_data['duration_minutes'],
         'service': service,
-        'resume_position': resume_position
+        'resume_position': resume_position,
+        'session_type': session_type
     }
     save_current_movie(current_movie)
 
@@ -100,16 +107,11 @@ def set_current_movie(movie_data, service, resume_position=0):
     else:
         logger.warning("SocketIO not initialized in poster_view")
 
-    default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
-    if default_poster_manager:
-        default_poster_manager.cancel_default_poster_timer()
-    else:
-        logger.warning("DEFAULT_POSTER_MANAGER not found in app config")
-
 def get_playback_state(movie_id):
     default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
     current_movie = load_current_movie()
     service = current_movie['service'] if current_movie else None
+    session_type = current_movie.get('session_type', 'NEW') if current_movie else 'NEW'    
 
     playback_info = None
 
@@ -117,14 +119,17 @@ def get_playback_state(movie_id):
         jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
         if jellyfin_service:
             playback_info = jellyfin_service.get_playback_info(movie_id)
+    elif service == 'emby':
+        emby_service = current_app.config.get('EMBY_SERVICE')
+        if emby_service:
+            playback_info = emby_service.get_playback_info(movie_id)
     elif service == 'plex':
         plex_service = current_app.config.get('PLEX_SERVICE')
         if plex_service:
             playback_info = plex_service.get_playback_info(movie_id)
-    else:
-        playback_info = None
 
     if playback_info:
+        playback_info['session_type'] = session_type
         current_position = playback_info.get('position', 0)
         total_duration = playback_info.get('duration', 0)
         is_playing = playback_info.get('is_playing', False)
@@ -133,10 +138,10 @@ def get_playback_state(movie_id):
 
         if is_stopped:
             current_state = 'STOPPED'
-        elif total_duration > 0 and (total_duration - current_position) <= 10:
-            current_state = 'ENDED'
         elif is_paused:
             current_state = 'PAUSED'
+        elif total_duration > 0 and (current_position / total_duration) >= 0.90 and is_playing:
+            current_state = 'ENDING'
         elif is_playing:
             current_state = 'PLAYING'
         else:
@@ -146,29 +151,7 @@ def get_playback_state(movie_id):
             default_poster_manager.handle_playback_state(current_state)
         playback_info['status'] = current_state
         return playback_info
-    else:
-        # Fallback to the current movie data if no real-time info is available
-        if current_movie and current_movie['movie']['id'] == movie_id:
-            start_time = datetime.fromisoformat(current_movie['start_time'])
-            duration = timedelta(hours=current_movie['duration_hours'], minutes=current_movie['duration_minutes'])
-            current_time = datetime.now(get_current_timezone())
-            resume_position = current_movie.get('resume_position', 0)
-            elapsed_time = (current_time - start_time).total_seconds()
-            current_position = min(elapsed_time + resume_position, duration.total_seconds())
-            if current_position >= duration.total_seconds() - 10:
-                current_state = 'ENDED'
-            elif elapsed_time >= 0:
-                current_state = 'PLAYING'
-            else:
-                current_state = 'STOPPED'
-            if default_poster_manager:
-                default_poster_manager.handle_playback_state(current_state)
-            return {
-                'status': current_state,
-                'position': current_position,
-                'start_time': start_time.isoformat(),
-                'duration': duration.total_seconds()
-            }
+
     return None
 
 def get_poster_settings():
@@ -180,12 +163,14 @@ def get_poster_settings():
     timezone = os.environ.get('TZ') or features_settings.get('timezone', 'UTC')
     plex_users = os.environ.get('PLEX_POSTER_USERS', '').split(',') if os.environ.get('PLEX_POSTER_USERS') else features_settings.get('poster_users', {}).get('plex', [])
     jellyfin_users = os.environ.get('JELLYFIN_POSTER_USERS', '').split(',') if os.environ.get('JELLYFIN_POSTER_USERS') else features_settings.get('poster_users', {}).get('jellyfin', [])
+    emby_users = os.environ.get('EMBY_POSTER_USERS', '').split(',') if os.environ.get('EMBY_POSTER_USERS') else features_settings.get('poster_users', {}).get('emby', [])
 
     return {
         'custom_text': custom_text,
         'timezone': timezone,
         'plex_users': [u.strip() for u in plex_users if u.strip()],
-        'jellyfin_users': [u.strip() for u in jellyfin_users if u.strip()]
+        'jellyfin_users': [u.strip() for u in jellyfin_users if u.strip()],
+        'emby_users': [u.strip() for u in emby_users if u.strip()]
     }
 
 def handle_timezone_update():

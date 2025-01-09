@@ -45,13 +45,29 @@ class DefaultPosterManager:
             self.is_default_poster_active = False
 
     def set_default_poster(self):
-        logger.debug("Setting default poster")
+        """Set default poster after timer expires"""
+        logger.info("Setting default poster")
         with self.lock:
-            if self.last_state in ['STOPPED', 'ENDED'] and time.time() - self.state_change_time >= 300:
+            if self.last_state in 'STOPPED' and time.time() - self.state_change_time >= 300:
+                # Archive current movie state
+                if os.path.exists(self.current_movie_file):
+                    with open(self.current_movie_file, 'r') as f:
+                        movie_data = json.load(f)
+
+                    # Update session type to STOP for next resume
+                    movie_data['session_type'] = 'STOP'
+
+                    # Save updated state before clearing
+                    with open(self.current_movie_file, 'w') as f:
+                        json.dump(movie_data, f)
+
+                # Now remove the current movie file
                 self.clear_current_movie()
+
                 self.is_default_poster_active = True
                 self.socketio.emit('set_default_poster', {'poster': self.default_poster}, namespace='/poster')
                 logger.info("Default poster set and emitted")
+
 
     def clear_current_movie(self):
         logger.debug("Clearing current movie")
@@ -60,7 +76,10 @@ class DefaultPosterManager:
             logger.info(f"Removed current movie file: {self.current_movie_file}")
 
     def handle_playback_state(self, state):
-        if state in ['STOPPED', 'ENDED']:
+        """Handle playback state changes"""
+        logger.info(f"Handling playback state: {state}")
+
+        if state in 'STOPPED':
             self.start_default_poster_timer(state)
         else:
             if self.last_state != state:

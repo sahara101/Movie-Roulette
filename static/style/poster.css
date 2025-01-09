@@ -47,7 +47,7 @@ body, html {
     flex-grow: 1;
 }
 .paused { color: #FFA500; }
-.ended { color: #FF4500; }
+.ending { color: #FF4500; }
 .stopped { color: #DC143C; }
 .progress-container {
     width: 100%;

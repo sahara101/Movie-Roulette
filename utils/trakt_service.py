@@ -54,26 +54,63 @@ class TokenManager:
             try:
                 with open(TRAKT_TOKEN_FILE, 'r') as f:
                     data = json.load(f)
-                    self.access_token = data.get('access_token', self.access_token)
-                    self.refresh_token = data.get('refresh_token', self.refresh_token)
+                    self.access_token = data.get('access_token')
+                    self.refresh_token = data.get('refresh_token')
                     self.token_expires_at = data.get('expires_at')
+                    
+                # Validate tokens were loaded
+                if not self.access_token or not self.refresh_token:
+                    print("Warning: One or more tokens missing from file")
+                    return False
+                return True
             except Exception as e:
                 print(f"Error loading tokens: {e}")
+                return False
+        return False
 
-    def save_tokens(self):
-        """Save tokens to file"""
+    def save_tokens(self, access_token=None, refresh_token=None):
+        """Save tokens to file and update instance"""
         try:
+            # Update instance if new tokens provided
+            if access_token:
+                self.access_token = access_token
+            if refresh_token:
+                self.refresh_token = refresh_token
+                
+            # Save to file
             with open(TRAKT_TOKEN_FILE, 'w') as f:
                 json.dump({
                     'access_token': self.access_token,
                     'refresh_token': self.refresh_token,
                     'expires_at': self.token_expires_at
                 }, f)
+            return True
         except Exception as e:
             print(f"Error saving tokens: {e}")
+            return False
+
+    def get_valid_access_token(self):
+        """Get a valid access token, refreshing if necessary"""
+        with token_lock:
+            if not self.access_token or not self.refresh_token:
+                self.load_tokens()  # Try reloading tokens
+                if not self.access_token or not self.refresh_token:
+                    print("No valid tokens available")
+                    return None
+                    
+            if self.token_expires_at:
+                expires_at = datetime.fromisoformat(self.token_expires_at)
+                # Refresh if token expires in less than 7 days
+                if expires_at - timedelta(days=7) <= datetime.now():
+                    self.refresh_tokens()
+            return self.access_token
 
     def refresh_tokens(self):
         """Refresh the access token using the refresh token"""
+        if not self.refresh_token:
+            print("No refresh token available")
+            return False
+            
         try:
             response = requests.post(
                 f'{TRAKT_API_URL}/oauth/token',
@@ -89,7 +126,7 @@ class TokenManager:
                 data = response.json()
                 self.access_token = data['access_token']
                 self.refresh_token = data['refresh_token']
-                # Calculate and store expiration time (usually 3 months from now)
+                # Calculate and store expiration time
                 self.token_expires_at = (datetime.now() +
                     timedelta(seconds=data.get('expires_in', 7776000))).isoformat()
                 self.save_tokens()
@@ -100,16 +137,6 @@ class TokenManager:
         except Exception as e:
             print(f"Error refreshing tokens: {e}")
             return False
-
-    def get_valid_access_token(self):
-        """Get a valid access token, refreshing if necessary"""
-        with token_lock:
-            if self.token_expires_at:
-                expires_at = datetime.fromisoformat(self.token_expires_at)
-                # Refresh if token expires in less than 7 days
-                if expires_at - timedelta(days=7) <= datetime.now():
-                    self.refresh_tokens()
-            return self.access_token
 
 # Create a global token manager instance
 token_manager = TokenManager()

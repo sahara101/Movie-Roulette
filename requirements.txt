@@ -14,6 +14,8 @@ pexpect
 PyQt6
 PyQt6-WebEngine
 appdirs
+websocket-client
+wakeonlan
 setuptools==71.0.0
 aiohappyeyeballs==2.4.4
 aiohttp==3.11.10

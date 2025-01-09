@@ -17,15 +17,15 @@ class NativeNotificationHandler(QObject):
         super().__init__(parent)
         self.platform = platform.system()
         print(f"Platform detected: {self.platform}")
-        
+
         if self.platform == 'Darwin':
             try:
-                from Foundation import (NSUserNotification, 
-                                     NSUserNotificationCenter, 
+                from Foundation import (NSUserNotification,
+                                     NSUserNotificationCenter,
                                      NSObject)
                 self.notification_center = NSUserNotificationCenter.defaultUserNotificationCenter()
-                print("macOS notification system initialized") 
- 
+                print("macOS notification system initialized")
+
                 class NotificationDelegate(NSObject):
                     def userNotificationCenter_didActivateNotification_(self, center, notification):
                         user_info = notification.userInfo()
@@ -33,7 +33,7 @@ class NativeNotificationHandler(QObject):
                             url = user_info.get('url')
                             if url:
                                 QDesktopServices.openUrl(QUrl(url))
-                
+
                 self.delegate = NotificationDelegate.alloc().init()
                 self.notification_center.setDelegate_(self.delegate)
                 self.NSUserNotification = NSUserNotification
@@ -44,7 +44,7 @@ class NativeNotificationHandler(QObject):
             self.notification_center = None
 
     def show_update_notification(self, version_info):
-        print(f"Attempting to show notification with info: {version_info}") 
+        print(f"Attempting to show notification with info: {version_info}")
         if self.platform == 'Darwin' and self.notification_center:
             try:
                 print("Notification delivered")
@@ -59,7 +59,7 @@ class NativeNotificationHandler(QObject):
                     'type': 'update',
                     'url': version_info['download_url']
                 })
-                
+
                 self.notification_center.deliverNotification_(notification)
                 return True
             except Exception as e:
