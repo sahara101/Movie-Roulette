@@ -11,3 +11,6 @@ eventlet
 pytz
 python-dotenv
 pexpect
+adb-shell>=0.4.0
+websocket-client
+wakeonlan

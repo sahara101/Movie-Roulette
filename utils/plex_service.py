@@ -4,6 +4,7 @@ import logging
 import json
 import time
 import requests
+from flask import current_app
 from plexapi.server import PlexServer
 from datetime import datetime, timedelta
 from utils.poster_view import set_current_movie
@@ -90,71 +91,20 @@ class PlexService:
 
         logger.info("PlexService initialization completed successfully")
 
-    def initialize_cache_async(self, socketio):
-        """Initialize cache asynchronously with progress updates"""
-        if PlexService._cache_build_in_progress:
-            logger.info("Cache build already in progress, skipping")
-            return
-
-        if self._cache_loaded:
-            logger.info("Cache already loaded, skipping build")
-            return
-
-        PlexService._cache_build_in_progress = True
-        try:
-            all_movies = []
-            for library in self.libraries:
-                all_movies.extend(library.search(unwatched=True))
-
-            total_movies = len(all_movies)
-            self._movies_cache = []
-
-            for i, movie in enumerate(all_movies, 1):
-                try:
-                    metadata = self._fetch_metadata(movie.ratingKey)
-                    if metadata:
-                        self._metadata_cache[str(movie.ratingKey)] = metadata
-
-                    movie_data = self._basic_movie_data(movie)
-                    if metadata:
-                        self._enrich_with_metadata(movie_data, metadata)
-                    self._movies_cache.append(movie_data)
-
-                    # Emit progress
-                    progress = i / total_movies
-                    socketio.emit('loading_progress', {
-                        'progress': progress,
-                        'current': i,
-                        'total': total_movies
-                    })
-
-                except Exception as e:
-                    logger.error(f"Error caching movie {movie.title}: {e}")
-
-            self.save_cache_to_disk()
-            self._cache_loaded = True
-            socketio.emit('loading_complete')
-
-        except Exception as e:
-            logger.error(f"Error in cache initialization: {e}")
-        finally:
-            PlexService._cache_build_in_progress = False
-            self._initializing_cache = False
-
     def _load_from_disk_cache(self):
         """Try to load cache from disk"""
         try:
             if os.path.exists(self.MOVIES_CACHE_FILE) and os.path.exists(self.METADATA_CACHE_FILE):
                 logger.info("Loading cached data from disk...")
-                
+
                 # Load movies cache
                 with open(self.MOVIES_CACHE_FILE, 'r') as f:
                     self._movies_cache = json.load(f)
-                
+
                 # Load metadata cache
                 with open(self.METADATA_CACHE_FILE, 'r') as f:
                     self._metadata_cache = json.load(f)
-                
+
                 # Verify cache is still valid
                 if self._verify_cache_validity():
                     self._cache_loaded = True
@@ -164,12 +114,12 @@ class PlexService:
                     logger.warning("Cache verification failed, will rebuild cache")
                     self._movies_cache = []
                     self._metadata_cache = {}
-                    
+
         except Exception as e:
             logger.error(f"Error loading cache from disk: {e}")
             self._movies_cache = []
             self._metadata_cache = {}
-            
+
         return False
 
     def _verify_cache_validity(self):
@@ -177,11 +127,11 @@ class PlexService:
         try:
             if not self._movies_cache:
                 return False
-                
+
             # Check a few random movies
             sample_size = min(5, len(self._movies_cache))
             sample_movies = random.sample(self._movies_cache, sample_size)
-            
+
             for movie in sample_movies:
                 # Check if movie still exists and unwatched status matches
                 movie_found = False
@@ -196,7 +146,7 @@ class PlexService:
                 if not movie_found:
                     return False
             return True
-            
+
         except Exception as e:
             logger.error(f"Error verifying cache: {e}")
             return False
@@ -208,11 +158,11 @@ class PlexService:
             # Save movies cache
             with open(self.MOVIES_CACHE_FILE, 'w') as f:
                 json.dump(self._movies_cache, f)
-                
+
             # Save metadata cache
             with open(self.METADATA_CACHE_FILE, 'w') as f:
                 json.dump(self._metadata_cache, f)
-                
+
             logger.info(f"Cache saved to disk successfully in {time.time() - start_time:.2f} seconds")
         except Exception as e:
             logger.error(f"Error saving cache to disk: {e}")
@@ -423,7 +373,7 @@ class PlexService:
                         "department": "Writing",
                         "type": "writer",
                         "thumb": writer.get('thumb'),
-                        "job": writer.get('role')  
+                        "job": writer.get('role')
                 })
 
             # Update movie data with both basic and enriched data for all roles
@@ -546,23 +496,28 @@ class PlexService:
         logger.info(f"Cache initialized with {len(self._movies_cache)} movies in {time.time() - start_time:.2f} seconds")
 
     def update_watched_status(self, movie_id):
-        """Remove movie from cache when watched"""
+        """Remove movie from cache when watched and update counts"""
         logger.info(f"Updating watched status for movie {movie_id}")
-    
+
         # Remove from unwatched movies cache only
         self._movies_cache = [m for m in self._movies_cache if str(m['id']) != str(movie_id)]
 
         # Clean up both regular and enriched metadata
         base_key = str(movie_id)
         enriched_key = f"enriched_{movie_id}"
-    
+
         if base_key in self._metadata_cache:
             del self._metadata_cache[base_key]
         if enriched_key in self._metadata_cache:
             del self._metadata_cache[enriched_key]
-        
+
         self.save_cache_to_disk()
-        logger.info(f"Removed movie {movie_id} from unwatched cache")
+    
+        # Ensure CacheManager has updated counts
+        if hasattr(self, 'cache_manager'):
+            self.cache_manager._init_memory_cache()
+        
+        logger.info(f"Removed movie {movie_id} from unwatched cache, new total: {len(self._movies_cache)}")
 
     def add_new_movie(self, movie):
         """Add new unwatched movie to cache"""
@@ -573,7 +528,7 @@ class PlexService:
 
         if hasattr(self, 'cache_manager'):
             self.cache_manager.cache_all_plex_movies()
-        
+
         logger.info(f"Added movie {movie.title} to cache")
 
     def get_movie_data(self, movie):
@@ -614,82 +569,224 @@ class PlexService:
         logger.info(f"Movie '{movie['title']}' loaded from {source} cache")
         return movie
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None):
-        """Filter movies using in-memory cache"""
-        start_time = time.time()
-        logger.info("Starting to filter movies")
-        filtered_movies = self._movies_cache.copy()
-        logger.info(f"Initial movies count: {len(filtered_movies)}")
-        original_count = len(filtered_movies)
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        try:
+            start_time = time.time()
+            logger.info(f"Starting to filter movies with watch_status: {watch_status}")
 
-        if genres:
-            filtered_movies = [
-                movie for movie in filtered_movies
-                if any(genre in movie['genres'] for genre in genres)
-            ]
-            logger.info(f"After genre filter: {len(filtered_movies)} movies (from {original_count})")
+            if not watch_status:
+                watch_status = 'unwatched'
 
-        if years:
-            filtered_movies = [
-                movie for movie in filtered_movies
-                if str(movie['year']) in years
-            ]
-            logger.info(f"After year filter: {len(filtered_movies)} movies")
+            filtered_movies = []
+            if watch_status == 'unwatched':
+                filtered_movies = self._movies_cache.copy()
+                logger.info(f"Using unwatched cache: {len(filtered_movies)} movies")
+            else:
+                try:
+                    from flask import current_app
+                    with current_app.app_context():
+                        cache_manager = current_app.config.get('CACHE_MANAGER')
+                        if not cache_manager:
+                            logger.error("Cache manager not available")
+                            return None
 
-        if pg_ratings:
-            filtered_movies = [
-                movie for movie in filtered_movies
-                if movie['contentRating'] in pg_ratings
-            ]
-            logger.info(f"After rating filter: {len(filtered_movies)} movies")
+                        # Check if all_movies cache exists
+                        if not os.path.exists(cache_manager.all_movies_cache_path):
+                            logger.info("All movies cache not ready, falling back to unwatched")
+                            filtered_movies = self._movies_cache.copy()
+                        else:
+                            all_movies = cache_manager.get_all_plex_movies()
+                            logger.info(f"Got {len(all_movies)} movies from metadata cache")
 
-        logger.debug(f"Filtered {len(self._movies_cache)} movies to {len(filtered_movies)} results in {(time.time() - start_time)*1000:.2f}ms")
+                            if watch_status == 'watched':
+                                unwatched_ids = {str(m['id']) for m in self._movies_cache}
+                                filtered_movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
+                                logger.info(f"Found {len(filtered_movies)} watched movies")
+                            else:  # 'all'
+                                filtered_movies = all_movies
+                                logger.info(f"Using all movies: {len(filtered_movies)}")
 
-        if filtered_movies:
-            movie = random.choice(filtered_movies)
-            source = "memory cache" if self._cache_loaded else "plex"
-            duration = (time.time() - start_time) * 1000
-            logger.info(f"Movie '{movie['title']}' loaded from {source} in {duration:.1f}ms")
-            return movie
-        return None
+                except Exception as e:
+                    logger.error(f"Error accessing cache manager: {e}")
+                    filtered_movies = self._movies_cache.copy()  # Fallback to unwatched
 
-    def get_next_movie(self, genres=None, years=None, pg_ratings=None):
-        """Fast in-memory next movie selection"""
-        start_time = time.time()
-    
-        logger.info("Starting next movie selection")
-        logger.info(f"Current cache size: {len(self._movies_cache)}")
-        logger.info(f"Filter params - genres: {genres}, years: {years}, ratings: {pg_ratings}")
-    
-        result = self.filter_movies(genres, years, pg_ratings)
-    
-        duration = (time.time() - start_time) * 1000
-        logger.info(f"Next movie selection took {duration:.2f}ms")
-        return result
+            if not filtered_movies:
+                logger.error(f"No valid movies found for status: {watch_status}")
+                return None
 
-    def get_genres(self):
-        """Get genres from cache"""
-        all_genres = set()
-        for movie in self._movies_cache:
-            all_genres.update(movie['genres'])
-        return sorted(list(all_genres))
+            logger.info(f"Initial movies count: {len(filtered_movies)}")
 
-    def get_years(self):
-        """Get years from cache"""
-        all_years = set(movie['year'] for movie in self._movies_cache)
-        return sorted(list(all_years), reverse=True)
+            if genres:
+                filtered_movies = [movie for movie in filtered_movies if any(genre in movie.get('genres',[]) for genre in genres)]
+                logger.info(f"After genre filter: {len(filtered_movies)} movies")
 
-    def get_pg_ratings(self):
-        """Get ratings from cache"""
-        ratings = set()
-        for movie in self._movies_cache:
-            if movie['contentRating']:
-                ratings.add(movie['contentRating'])
-        return sorted(list(ratings))
+            if years:
+                filtered_movies = [movie for movie in filtered_movies if str(movie.get('year')) in years]
+                logger.info(f"After year filter: {len(filtered_movies)} movies")
+
+            if pg_ratings:
+                filtered_movies = [movie for movie in filtered_movies if movie.get('contentRating') in pg_ratings]
+                logger.info(f"After rating filter: {len(filtered_movies)} movies")
+
+            if filtered_movies:
+                movie = random.choice(filtered_movies)
+                duration = (time.time() - start_time) * 1000
+                logger.info(f"Movie selection took {duration:.2f}ms")
+                return movie
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in filter_movies: {str(e)}")
+            return None
+
+    def get_next_movie(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        try:
+            start_time = time.time()
+            logger.info(f"Starting next movie selection with watch_status: {watch_status}")
+
+            if not watch_status:
+                watch_status = 'unwatched'
+
+            filtered_movies = []
+            if watch_status == 'unwatched':
+                filtered_movies = self._movies_cache.copy()
+                logger.info(f"Using unwatched cache: {len(filtered_movies)} movies")
+            else:
+                try:
+                    from flask import current_app
+                    with current_app.app_context():
+                        cache_manager = current_app.config.get('CACHE_MANAGER')
+                        if not cache_manager:
+                            logger.error("Cache manager not available")
+                            return None
+
+                        # Check if all_movies cache exists
+                        if not os.path.exists(cache_manager.all_movies_cache_path):
+                            logger.info("All movies cache not ready, falling back to unwatched")
+                            filtered_movies = self._movies_cache.copy()
+                        else:
+                            all_movies = cache_manager.get_all_plex_movies()
+                            logger.info(f"Got {len(all_movies)} movies from metadata cache")
+
+                            if watch_status == 'watched':
+                                unwatched_ids = {str(m['id']) for m in self._movies_cache}
+                                filtered_movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
+                                logger.info(f"Found {len(filtered_movies)} watched movies")
+                            else:  # 'all'
+                                filtered_movies = all_movies
+                                logger.info(f"Using all movies: {len(filtered_movies)}")
+
+                except Exception as e:
+                    logger.error(f"Error accessing cache manager: {e}")
+                    filtered_movies = self._movies_cache.copy()  # Fallback to unwatched
+
+            if not filtered_movies:
+                logger.error(f"No valid movies found for status: {watch_status}")
+                return None
+
+            logger.info(f"Initial movies count: {len(filtered_movies)}")
+            logger.info(f"Filter params - genres: {genres}, years: {years}, ratings: {pg_ratings}, watch_status: {watch_status}")
+
+            if genres:
+                filtered_movies = [movie for movie in filtered_movies if any(genre in movie.get('genres',[]) for genre in genres)]
+                logger.info(f"After genre filter: {len(filtered_movies)} movies")
+
+            if years:
+                filtered_movies = [movie for movie in filtered_movies if str(movie.get('year')) in years]
+                logger.info(f"After year filter: {len(filtered_movies)} movies")
+
+            if pg_ratings:
+                filtered_movies = [movie for movie in filtered_movies if movie.get('contentRating') in pg_ratings]
+                logger.info(f"After rating filter: {len(filtered_movies)} movies")
+
+            if filtered_movies:
+                movie = random.choice(filtered_movies)
+                duration = (time.time() - start_time) * 1000
+                logger.info(f"Next movie selection took {duration:.2f}ms")
+                return movie
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in get_next_movie: {str(e)}")
+            return None
+
+    def get_genres(self, watch_status='unwatched'):
+        """Get genres based on watch status"""
+        try:
+            genres = set()
+            if watch_status == 'unwatched':
+                # Use unwatched cache
+                movies = self._movies_cache
+            else:
+                # Get all movies
+                cache_manager = current_app.config.get('CACHE_MANAGER')
+                all_movies = cache_manager.get_all_plex_movies()
+                if watch_status == 'watched':
+                    # Filter for watched movies by excluding unwatched ones
+                    unwatched_ids = {str(m['id']) for m in self._movies_cache}
+                    movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
+                else:  # 'all'
+                    movies = all_movies
+
+            for movie in movies:
+                if movie.get('genres'):
+                    genres.update(movie['genres'])
+            return sorted(list(genres))
+        except Exception as e:
+            logger.error(f"Error getting genres: {e}")
+            return []
+
+    def get_years(self, watch_status='unwatched'):
+        """Get years based on watch status"""
+        try:
+            years = set()
+            if watch_status == 'unwatched':
+                movies = self._movies_cache
+            else:
+                cache_manager = current_app.config.get('CACHE_MANAGER')
+                all_movies = cache_manager.get_all_plex_movies()
+                if watch_status == 'watched':
+                    unwatched_ids = {str(m['id']) for m in self._movies_cache}
+                    movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
+                else:  # 'all'
+                    movies = all_movies
+
+            for movie in movies:
+                if movie.get('year'):
+                    years.add(movie['year'])
+            return sorted(list(years), reverse=True)
+        except Exception as e:
+            logger.error(f"Error getting years: {e}")
+            return []
+
+    def get_pg_ratings(self, watch_status='unwatched'):
+        """Get PG ratings based on watch status"""
+        try:
+            ratings = set()
+            if watch_status == 'unwatched':
+                movies = self._movies_cache
+            else:
+                cache_manager = current_app.config.get('CACHE_MANAGER')
+                all_movies = cache_manager.get_all_plex_movies()
+                if watch_status == 'watched':
+                    unwatched_ids = {str(m['id']) for m in self._movies_cache}
+                    movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
+                else:  # 'all'
+                    movies = all_movies
+
+            for movie in movies:
+                if movie.get('contentRating'):
+                    ratings.add(movie['contentRating'])
+            return sorted(list(ratings))
+        except Exception as e:
+            logger.error(f"Error getting PG ratings: {e}")
+            return []
 
     def get_clients(self):
         """Get available Plex clients"""
-        return [{"id": client.machineIdentifier, "title": client.title} 
+        return [{"id": client.machineIdentifier, "title": client.title}
                 for client in self.plex.clients()]
 
     def play_movie(self, movie_id, client_id):
@@ -707,7 +804,7 @@ class PlexService:
             if not movie:
                 raise ValueError(f"Movie with id {movie_id} not found in any library")
 
-            client = next((c for c in self.plex.clients() 
+            client = next((c for c in self.plex.clients()
                          if c.machineIdentifier == client_id), None)
             if not client:
                 raise ValueError(f"Unknown client id: {client_id}")
@@ -723,7 +820,7 @@ class PlexService:
                 self.update_watched_status(movie_id)
 
             # Use cached movie data if available
-            movie_data = next((m for m in self._movies_cache 
+            movie_data = next((m for m in self._movies_cache
                              if str(m['id']) == str(movie_id)), None)
             if not movie_data:
                 movie_data = self.get_movie_data(movie)
@@ -748,7 +845,7 @@ class PlexService:
     def get_movie_by_id(self, movie_id):
         """Get movie by ID from cache first, then Plex if needed"""
         # Try cache first
-        cached_movie = next((movie for movie in self._movies_cache 
+        cached_movie = next((movie for movie in self._movies_cache
                            if str(movie['id']) == str(movie_id)), None)
         if cached_movie:
             return cached_movie
@@ -762,6 +859,36 @@ class PlexService:
                 continue
         logger.error(f"Movie with id {movie_id} not found in any library")
         return None
+
+    def get_all_movies_with_metadata(self):
+        """Get all movies with full metadata"""
+        try:
+            # Try loading from metadata cache first
+            metadata_cache_path = '/app/data/plex_metadata_cache.json'
+            if os.path.exists(metadata_cache_path):
+                with open(metadata_cache_path, 'r') as f:
+                    return json.load(f)
+
+            # If no cache, build full movie data
+            all_movies = []
+            for library in self.libraries:
+                movies = library.all()
+                for movie in movies:
+                    try:
+                        movie_data = self.get_movie_data(movie)
+                        if movie_data:
+                            all_movies.append(movie_data)
+                    except Exception as e:
+                        logger.error(f"Error getting data for movie {movie.title}: {e}")
+
+            # Cache the results
+            with open(metadata_cache_path, 'w') as f:
+                json.dump(all_movies, f)
+
+            return all_movies
+        except Exception as e:
+            logger.error(f"Error getting all movies with metadata: {e}")
+            return []
 
     def get_playback_info(self, item_id):
         """Get playback information for a movie"""
@@ -990,3 +1117,45 @@ class PlexService:
             for _ in range(items_to_remove):
                 self._metadata_cache.pop(next(iter(self._metadata_cache)))
             logger.info(f"Cleaned up metadata cache, removed {items_to_remove} items")
+
+    def search_movies(self, query):
+        """Search for movies matching the query"""
+        try:
+            logger.info(f"Searching for movies with query: {query}")
+            results = []
+
+            # Search all movie libraries
+            for library in self.libraries:
+                try:
+                    # Use the Plex search functionality
+                    movies = library.search(title=query, libtype="movie")
+
+                    for movie in movies:
+                        try:
+                            if query.lower() in movie.title.lower():  # Title match check
+                                # Use get_movie_data to get full metadata instead of basic_movie_data
+                                movie_data = self.get_movie_data(movie)
+                                if movie_data:
+                                    results.append(movie_data)
+                        except Exception as e:
+                            logger.error(f"Error processing movie {movie.title} in search results: {e}")
+                            continue
+
+                except Exception as e:
+                    logger.error(f"Error searching library {library.title}: {e}")
+                    continue
+
+            # Remove any duplicates based on movie ID
+            seen_ids = set()
+            unique_results = []
+            for movie in results:
+                if movie['id'] not in seen_ids:
+                    seen_ids.add(movie['id'])
+                    unique_results.append(movie)
+
+            logger.info(f"Found {len(unique_results)} unique movies matching query: {query}")
+            return unique_results
+
+        except Exception as e:
+            logger.error(f"Error in search_movies: {e}")
+            return []

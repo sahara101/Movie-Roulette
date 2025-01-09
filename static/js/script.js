@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     	const devices = await response.json();
     	const powerButton = document.getElementById("btn_power");
     	const nextButton = document.getElementById("btn_next_movie");
-    
+
     	if (powerButton && nextButton) {
             if (devices.length > 0) {
             	powerButton.style.display = 'flex';
@@ -96,15 +96,34 @@ function hideLoadingOverlay() {
 }
 
 socket.on('loading_progress', function(data) {
-    console.log('Received loading progress:', data);
+    const overlay = document.getElementById('loading-overlay');
     const progressBar = document.getElementById('loading-progress');
     const loadingCount = document.querySelector('.loading-count');
+    const loadingStatus = document.querySelector('.loading-status');
 
-    if (progressBar && loadingCount) {
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        window.cacheBuilding = true;
+    }
+
+    if (progressBar) {
         progressBar.style.width = `${data.progress * 100}%`;
+    }
+
+    if (loadingCount && data.total > 0) {
         loadingCount.textContent = `${data.current}/${data.total}`;
     }
-    document.getElementById('loading-overlay').classList.remove('hidden');
+    
+    // Update status text based on progress
+    if (loadingStatus) {
+        if (data.progress >= 0.95) {
+            loadingStatus.textContent = 'Loading into memory';
+        } else if (data.progress >= 0.90) {
+            loadingStatus.textContent = 'Saving cache to disk';
+        } else {
+            loadingStatus.textContent = 'Loading movies';
+        }
+    }
 });
 
 socket.on('loading_complete', async function() {
@@ -112,13 +131,19 @@ socket.on('loading_complete', async function() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) {
         overlay.classList.add('hidden');
+        window.cacheBuilding = false;
+        
+        // Load a random movie first
         await loadRandomMovie();
-	// Check for updates after cache is built
+        
+        // Check for updates
         checkVersion(false);
+        
         // Reinitialize filters if needed
         if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
             console.log('Reinitializing filters after cache build');
             await loadFilterOptions();
+            
             const filterButton = document.getElementById("filterButton");
             const filterDropdown = document.getElementById("filterDropdown");
 
@@ -131,17 +156,17 @@ socket.on('loading_complete', async function() {
                 event.stopPropagation();
                 filterDropdown.classList.toggle("show");
             });
-
+            
             document.addEventListener('click', function(event) {
                 if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
                     filterDropdown.classList.remove("show");
                 }
             });
-
+            
             filterDropdown.addEventListener('click', function(event) {
                 event.stopPropagation();
             });
-
+            
             // Reinitialize other filter-related functionality
             setupFilterEventListeners();
             updateFilters();
@@ -153,6 +178,7 @@ async function getAvailableServices() {
     try {
         const response = await fetch('/available_services');
         availableServices = await response.json();
+	console.log("Available services:", availableServices);
         updateServiceButton();
     } catch (error) {
         console.error("Error getting available services:", error);
@@ -167,6 +193,10 @@ async function getCurrentService() {
             currentService = data.service;
             console.log("Service changed to:", currentService);
             await loadFilterOptions();
+	    console.log("Current and available services:", {
+                current: currentService,
+                available: availableServices
+            }); // Add debug logging
         }
         updateServiceButton();
     } catch (error) {
@@ -175,38 +205,42 @@ async function getCurrentService() {
 }
 
 async function loadRandomMovie() {
+    // Don't try to load if cache is building
+    if (window.cacheBuilding) {
+        console.log('Cache still building, skipping movie load');
+        return;
+    }
+
     try {
-        const response = await fetch(`/random_movie`);
-        if (response.status === 202) {
-            console.log('Loading in progress, waiting for completion');
-            return;
-        }
-        // Add check for cache building
-        if (!response.ok && response.status === 404) {
-            const debug = await fetch('/debug_plex');
-            const data = await debug.json();
-            if (!data.cache_file_exists) {
-                console.log('Cache still building, ignoring 404');
+        const watchStatusSelect = document.getElementById("watchStatusSelect");
+        const watchStatus = watchStatusSelect ? watchStatusSelect.value : 'unwatched';
+
+        const queryParams = new URLSearchParams();
+        queryParams.append('watch_status', watchStatus);
+        const response = await fetch(`/random_movie?${queryParams}`);
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.log('No movies available yet');
                 return;
             }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
+
         const data = await response.json();
-        console.log("Loaded random movie from service:", data.service);
         currentMovie = data.movie;
         updateMovieDisplay(data.movie);
     } catch (error) {
         console.error("Error fetching random movie:", error);
-    } finally {
-        hideLoadingOverlay();
     }
 }
 
 async function loadFilterOptions() {
     try {
         console.log("Loading filter options for service:", currentService);
-        const genresResponse = await fetch(`/get_genres`);
-        const yearsResponse = await fetch(`/get_years`);
+	const watchStatus = document.getElementById("watchStatusSelect").value;
+	const genresResponse = await fetch(`/get_genres?watch_status=${watchStatus}`);
+        const yearsResponse = await fetch(`/get_years?watch_status=${watchStatus}`);
         const pgRatingsResponse = await fetch(`/get_pg_ratings`);
 
         if (!genresResponse.ok || !yearsResponse.ok || !pgRatingsResponse.ok) {
@@ -246,6 +280,12 @@ function populateDropdown(elementId, options) {
         }
     });
     console.log(`${elementId} populated with ${select.options.length} options`);
+}
+
+function closeSearchModal() {
+    document.getElementById('search_modal').classList.add('hidden');
+    document.getElementById('movie_search').value = '';
+    document.getElementById('search_results').innerHTML = '';
 }
 
 function setupEventListeners() {
@@ -330,6 +370,140 @@ function setupEventListeners() {
     if (moviesOverlayClose) {
         moviesOverlayClose.addEventListener('click', closeMoviesOverlay);
     }
+
+    const searchButton = document.getElementById('searchButton');
+    const searchModal = document.getElementById('search_modal');
+    const searchInput = document.getElementById('movie_search');
+    const closeSearchBtn = document.getElementById('search_modal_close');
+
+    if (searchButton && searchModal && searchInput && closeSearchBtn) {
+    	// Search button click
+    	searchButton.addEventListener('click', () => {
+            searchModal.classList.remove('hidden');
+            searchInput.focus();
+    	});
+
+    	// Close button click
+    	closeSearchBtn.addEventListener('click', closeSearchModal);
+
+    	// Handle search input with debounce
+    	let searchTimeout;
+    	searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+            	const query = searchInput.value.trim();
+            	if (query.length >= 2) { // Only search if 2 or more characters
+                    performSearch(query);
+            	} else {
+                    document.getElementById('search_results').innerHTML = '';
+            	}
+            }, 300); // 300ms debounce
+        });
+
+        // Close on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !searchModal.classList.contains('hidden')) {
+                closeSearchModal();
+            }
+        });
+    }
+}
+
+async function performSearch(query) {
+    const searchResults = document.getElementById('search_results');
+    searchResults.className = '';  // Clear any existing classes
+    searchResults.innerHTML = '<div class="loading-indicator">Searching...</div>';
+
+    try {
+        const response = await fetch(`/search_movies?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        if (response.status === 404) {
+            searchResults.innerHTML = `
+                <div class="no-results">
+                    <div>No movies found matching "${query}"</div>
+                    <div>Try adjusting your search term</div>
+                </div>`;
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Search failed');
+        }
+
+        if (!data.results || data.results.length === 0) {
+            searchResults.innerHTML = `
+                <div class="no-results">
+                    <div>No movies found matching "${query}"</div>
+                    <div>Try adjusting your search term</div>
+                </div>`;
+            return;
+        }
+
+        searchResults.className = 'has-results';
+        searchResults.innerHTML = '';
+
+        data.results.forEach(movie => {
+            const movieCard = document.createElement('div');
+            movieCard.className = 'movie-card';
+            movieCard.dataset.movieId = movie.id;
+
+            // Create poster link
+            const posterLink = document.createElement('a');
+            posterLink.href = '#';
+            posterLink.className = 'movie-poster-link';
+
+            // Add poster image
+            const poster = document.createElement('img');
+            if (movie.poster) {
+                poster.src = movie.poster;
+                poster.alt = `${movie.title} Poster`;
+                poster.className = 'movie-poster';
+            } else {
+                poster.src = 'https://www.themoviedb.org/assets/2/v4/glyphicons/basic/glyphicons-basic-38-picture-grey-c2ebdbb057f2a7614185931650f8cee23fa137b93812ccb132b9df511df1cfac.svg';
+                poster.alt = 'No Poster Available';
+                poster.className = 'movie-poster no-poster';
+            }
+            posterLink.appendChild(poster);
+
+            // Create and add title
+            const title = document.createElement('p');
+            title.textContent = movie.title;
+            if (movie.year) {
+                title.textContent += ` (${movie.year})`;
+            }
+
+            // Create watch button
+            const watchButton = document.createElement('button');
+            watchButton.className = 'request-button';
+            watchButton.textContent = 'Watch';
+            watchButton.addEventListener('click', () => {
+                showClientsForPoster(movie.id);
+            });
+
+            // Add event listener to poster link
+            posterLink.addEventListener('click', (e) => {
+                e.preventDefault();
+		currentMovie = {
+                    ...movie,
+                    actors_enriched: movie.actors_enriched,
+                    directors_enriched: movie.directors_enriched,
+                    writers_enriched: movie.writers_enriched
+                };
+                updateMovieDisplay(currentMovie);
+                closeSearchModal();
+            });
+
+            // Assemble movie card in the correct order
+            movieCard.appendChild(posterLink);
+            movieCard.appendChild(title);
+            movieCard.appendChild(watchButton);
+            searchResults.appendChild(movieCard);
+        });
+    } catch (error) {
+        console.error('Search error:', error);
+        searchResults.innerHTML = '<div class="search-error">An error occurred while searching. Please try again.</div>';
+    }
 }
 
 function setupFilterEventListeners() {
@@ -344,6 +518,13 @@ function setupFilterEventListeners() {
 
     if (filterButton && filterDropdown) {
         console.log('Found filter elements, attaching listeners');
+
+	const watchStatusSelect = document.getElementById("watchStatusSelect");
+        if (watchStatusSelect) {
+            watchStatusSelect.addEventListener('change', async function() {
+                await loadFilterOptions();
+            });
+        }
 
         // Remove any existing listeners by cloning and replacing
         const newFilterButton = filterButton.cloneNode(true);
@@ -398,8 +579,10 @@ async function applyFilter() {
     currentFilters.genres = Array.from(document.getElementById("genreSelect").selectedOptions).map(option => option.value);
     currentFilters.years = Array.from(document.getElementById("yearSelect").selectedOptions).map(option => option.value);
     currentFilters.pgRatings = Array.from(document.getElementById("pgRatingSelect").selectedOptions).map(option => option.value);
+    currentFilters.watchStatus = document.getElementById("watchStatusSelect").value || 'unwatched';
 
     await fetchFilteredMovies();
+    await loadFilterOptions();
 }
 
 async function fetchFilteredMovies() {
@@ -408,6 +591,7 @@ async function fetchFilteredMovies() {
         if (currentFilters.genres.length) queryParams.append('genres', currentFilters.genres.join(','));
         if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
         if (currentFilters.pgRatings.length) queryParams.append('pg_ratings', currentFilters.pgRatings.join(','));
+	queryParams.append('watch_status', currentFilters.watchStatus);
 
         const response = await fetch(`/filter_movies?${queryParams}`);
 
@@ -435,10 +619,12 @@ function clearFilter() {
     document.getElementById("genreSelect").selectedIndex = -1;
     document.getElementById("yearSelect").selectedIndex = -1;
     document.getElementById("pgRatingSelect").selectedIndex = -1;
+    document.getElementById("watchStatusSelect").value = "unwatched";
     currentFilters = {
         genres: [],
         years: [],
-        pgRatings: []
+        pgRatings: [],
+	watchStatus: 'unwatched'
     };
     traktFilterMode = 'unwatched';
     plexFilterMode = 'all';
@@ -450,10 +636,14 @@ function clearFilter() {
 
 async function loadNextMovie() {
     try {
+        const watchStatusSelect = document.getElementById("watchStatusSelect");
+        const watchStatus = watchStatusSelect ? watchStatusSelect.value : 'unwatched';
+
         const queryParams = new URLSearchParams();
         if (currentFilters.genres.length) queryParams.append('genres', currentFilters.genres.join(','));
         if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
         if (currentFilters.pgRatings.length) queryParams.append('pg_ratings', currentFilters.pgRatings.join(','));
+        queryParams.append('watch_status', watchStatus);
 
         const url = `/next_movie?${queryParams}`;
         console.log("Requesting next movie with URL:", url);
@@ -717,9 +907,15 @@ async function checkRequestServiceAvailability() {
     try {
         const response = await fetch('/api/overseerr/status');
         const data = await response.json();
+
+        // If Overseerr is selected but we're not using Plex, don't allow it
+        if (data.service === 'overseerr' && currentService !== 'plex') {
+            return { available: false, service: null };
+        }
+
         return {
             available: data.available,
-            service: data.service  // Will be either 'overseerr' or 'jellyseerr'
+            service: data.service  // Will be either 'overseerr', 'jellyseerr', or 'ombi'
         };
     } catch (error) {
         console.error('Error checking request service status:', error);
@@ -1115,7 +1311,7 @@ class ExpandableText {
     	if (!this.element) return;
     	this.element.removeEventListener('click', this.boundToggle);
     	this.element.classList.remove('truncated', 'expanded');
-    
+
     	// Check for mobile and truncation setting
     	const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
     	if (isMobileOrPWA) {
@@ -1132,7 +1328,7 @@ class ExpandableText {
             this.element.style.webkitLineClamp = '1';
             this.element.style.display = '-webkit-box';
     	}
-    
+
     	this.element.style.maxHeight = '';
     	this.element.style.cursor = 'default';
     	this.state.expanded = false;
@@ -1145,7 +1341,7 @@ class ExpandableText {
             void this.element.offsetHeight;
 
             const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
-        
+
             // If on mobile and truncation is disabled, don't truncate
             if (isMobileOrPWA && !window.MOBILE_TRUNCATION) {
             	this.state.truncated = false;
@@ -1369,6 +1565,8 @@ async function createMovieCard(movie) {
         isInLibrary = await isMovieInPlex(movie.id);
     } else if (currentService === 'jellyfin') {
         isInLibrary = await isMovieInJellyfin(movie.id);
+    } else if (currentService === 'emby') {
+        isInLibrary = await isMovieInEmby(movie.id);
     }
 
     if (isInLibrary) {
@@ -1400,6 +1598,7 @@ async function createMovieCard(movie) {
 
     const requestButton = document.createElement('button');
     requestButton.classList.add('request-button');
+    requestButton.dataset.movieId = movie.id;
 
     if (isInLibrary) {
         requestButton.textContent = "Watch";
@@ -1415,17 +1614,29 @@ async function createMovieCard(movie) {
                 requestButton.textContent = "Requested";
                 requestButton.classList.add('requested');
                 requestButton.disabled = true;
-            } else {
-		const serviceName = serviceStatus.service === 'overseerr' ? 'Overseerr' : 'Jellyseerr';
-                requestButton.textContent = `Request (${serviceStatus.service})`;
+	    } else {
+                // Use the proper service name
+                let serviceName = '';
+                switch(serviceStatus.service) {
+                    case 'overseerr':
+                        serviceName = 'Overseerr';
+                        break;
+                    case 'jellyseerr':
+                        serviceName = 'Jellyseerr';
+                        break;
+                    case 'ombi':
+                        serviceName = 'Ombi';
+                        break;
+                }
+		requestButton.textContent = `Request (${serviceName})`;
                 requestButton.addEventListener('click', () => requestMovie(movie.id));
             }
         } else {
             requestButton.textContent = "Request";
             requestButton.disabled = true;
-	    if (currentService === 'jellyfin') {
-                requestButton.title = "Jellyseerr is not configured";
-            } else {
+	    if (currentService === 'jellyfin' || currentService === 'emby') {
+		requestButton.title = "Jellyseerr/Ombi is not configured";
+	    } else if (currentService === 'plex') {
                 requestButton.title = "No request service available";
             }
         }
@@ -1448,6 +1659,20 @@ async function isMovieInJellyfin(movieId) {
         return data.available;
     } catch (error) {
         console.error("Error checking Jellyfin availability:", error);
+        return false;
+    }
+}
+
+async function isMovieInEmby(movieId) {
+    try {
+        const response = await fetch(`/is_movie_in_emby/${movieId}`);
+        if (!response.ok) {
+            throw new Error('Failed to check Emby availability');
+        }
+        const data = await response.json();
+        return data.available;
+    } catch (error) {
+        console.error("Error checking Emby availability:", error);
         return false;
     }
 }
@@ -1600,16 +1825,34 @@ async function openMovieDataOverlay(movieId) {
             overlayContent.appendChild(watchButton);
         } else if (requestServiceStatus.available) {
             const requestButton = document.createElement('button');
-            requestButton.className = 'action-button';
+	    requestButton.className = 'action-button request-button';
+	    requestButton.dataset.movieId = movieId;
             if (isRequested) {
                 requestButton.textContent = 'Requested';
                 requestButton.disabled = true;
                 requestButton.classList.add('requested');
-            } else {
+	    } else {
                 requestButton.id = 'request_movie_button';
-		const serviceName = requestServiceStatus.service === 'overseerr' ? 'Overseerr' : 'Jellyseerr';
-                requestButton.textContent = `Request Movie (${requestServiceStatus.service})`;
-                requestButton.addEventListener('click', () => requestMovie(movieId));
+                requestButton.dataset.movieId = movieId;  // Add data attribute
+		let serviceName;
+                switch(requestServiceStatus.service) {
+                    case 'overseerr':
+                        serviceName = 'Overseerr';
+                        break;
+                    case 'jellyseerr':
+                        serviceName = 'Jellyseerr';
+                        break;
+                    case 'ombi':
+                        serviceName = 'Ombi';
+                        break;
+                    default:
+                        serviceName = requestServiceStatus.service;
+                }
+                requestButton.textContent = `Request (${serviceName})`;
+		requestButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    requestMovie(movieId);
+                });
             }
             overlayContent.appendChild(requestButton);
         } else {
@@ -1679,6 +1922,16 @@ function closeMoviesOverlay() {
 
 async function requestMovie(movieId) {
     try {
+        // Find all request buttons for this movie
+        const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
+        console.log(`Found ${requestButtons.length} request buttons for movie ${movieId}`);
+        
+        // Update buttons to requesting state
+        requestButtons.forEach(button => {
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Requesting...';
+        });
+
         const tokenResponse = await fetch('/api/get_overseerr_csrf', {
             method: 'GET',
             credentials: 'include'
@@ -1705,11 +1958,25 @@ async function requestMovie(movieId) {
             throw new Error(errorData.error || "Failed to request movie.");
         }
 
-        const data = await requestResponse.json();
+        // Update all instances of the request button for this movie
+        requestButtons.forEach(button => {
+            button.innerHTML = 'Requested';
+            button.classList.add('requested');
+            button.disabled = true;
+        });
+
         showToast('Movie requested successfully!', 'success');
     } catch (error) {
         console.error("Error requesting movie:", error);
         showToast(error.message, 'error');
+        
+        // Restore button states on error
+        const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
+        requestButtons.forEach(button => {
+            button.disabled = false;
+            const serviceName = button.textContent.match(/Request \((.*?)\)/)[1];
+            button.innerHTML = `Request (${serviceName})`;
+        });
     }
 }
 
@@ -1786,18 +2053,29 @@ async function getPlexIdFromTmdbId(tmdbId) {
 
 async function playMovieFromPoster(clientId, tmdbId) {
     try {
-        // First get the Plex ID
-        const response = await fetch(`/api/get_plex_id/${tmdbId}`);
-        if (!response.ok) {
-            throw new Error('Failed to get Plex ID');
-        }
-        const data = await response.json();
-        if (!data.plexId) {
-            throw new Error('Movie not found in Plex');
+        let serviceEndpoint;
+        switch(currentService) {
+            case 'plex':
+                serviceEndpoint = '/api/get_plex_id/';
+                break;
+            case 'jellyfin':
+                serviceEndpoint = '/api/get_jellyfin_id/';
+                break;
+            case 'emby':
+                serviceEndpoint = '/api/get_emby_id/';
+                break;
         }
 
-        // Now play using the Plex ID
-        const playResponse = await fetch(`/play_movie/${clientId}?movie_id=${data.plexId}`);
+        const response = await fetch(`${serviceEndpoint}${tmdbId}`);
+        if (!response.ok) {
+            throw new Error(`Failed to get ${currentService} ID`);
+        }
+        const data = await response.json();
+        if (!data.mediaId) {
+            throw new Error(`Movie not found in ${currentService}`);
+        }
+
+        const playResponse = await fetch(`/play_movie/${clientId}?movie_id=${data.mediaId}`);
         const playData = await playResponse.json();
 
         if (playData.status !== "playing") {
@@ -1805,7 +2083,6 @@ async function playMovieFromPoster(clientId, tmdbId) {
         }
 
         setTimeout(() => syncTraktWatched(false), 30000);
-
     } catch (error) {
         console.error("Error playing movie:", error);
         alert("Failed to play movie. Please try again.");
@@ -1896,8 +2173,27 @@ function updateServiceButton() {
     const switchButton = document.getElementById("switch_service");
     if (switchButton) {
         if (availableServices.length > 1) {
-            const otherService = currentService === 'plex' ? 'Jellyfin' : 'Plex';
-            switchButton.querySelector('.service-name').textContent = otherService;
+            const currentIndex = availableServices.indexOf(currentService);
+            const nextService = availableServices.find((service, index) =>
+                index > currentIndex && service !== currentService
+            ) || availableServices[0];
+
+            const serviceNames = {
+                'plex': 'Plex',
+                'jellyfin': 'Jellyfin',
+                'emby': 'Emby'
+            };
+
+            // Restructured HTML for better centering
+            switchButton.innerHTML = `
+                <div class="service-info">
+                    <span class="service-name">${serviceNames[currentService]}</span>
+                    <span class="service-count">${currentIndex + 1}/${availableServices.length}</span>
+                </div>
+                <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
+                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+                </svg>
+            `;
             switchButton.style.display = 'flex';
         } else {
             switchButton.style.display = 'none';
@@ -1912,7 +2208,7 @@ async function switchService() {
         try {
             const response = await fetch('/switch_service');
             const data = await response.json();
-            if (data.service) {
+            if (data.service && data.service !== currentService) {
                 currentService = data.service;
                 console.log("Switched to service:", currentService);
                 updateServiceButton();
@@ -1921,6 +2217,9 @@ async function switchService() {
             }
         } catch (error) {
             console.error("Error switching service:", error);
+            showError("Failed to switch service"); // Add error message to user
+            // Revert button state to show correct next service
+            updateServiceButton();
         }
     }
 }
@@ -1934,21 +2233,36 @@ socket.on('movie_removed', function(data) {
 });
 
 async function refreshMovieCache() {
-    showLoadingOverlay();
+    // First check if this is Plex service
     try {
-        const response = await fetch('/start_loading');
-        const data = await response.json();
-        console.log(data.status);
-        await new Promise((resolve) => {
-            socket.once('loading_complete', resolve);
-        });
-        // After cache is complete, reinitialize services
-        await fetch('/api/reinitialize_services');
-        await loadRandomMovie();
+        const serviceResponse = await fetch('/current_service');
+        const serviceData = await serviceResponse.json();
+
+        // Only show loading and build cache for Plex
+        if (serviceData.service === 'plex') {
+            showLoadingOverlay();
+            try {
+                const response = await fetch('/start_loading');
+                const data = await response.json();
+                console.log(data.status);
+                await new Promise((resolve) => {
+                    socket.once('loading_complete', resolve);
+                });
+                // After cache is complete, reinitialize services
+                await fetch('/api/reinitialize_services');
+                await loadRandomMovie();
+            } catch (error) {
+                console.error('Error refreshing movie cache:', error);
+            } finally {
+                hideLoadingOverlay();
+            }
+        } else {
+            // For non-Plex services, just reinitialize
+            await fetch('/api/reinitialize_services');
+            await loadRandomMovie();
+        }
     } catch (error) {
-        console.error('Error refreshing movie cache:', error);
-    } finally {
-        hideLoadingOverlay();
+        console.error('Error checking service:', error);
     }
 }
 
@@ -1960,10 +2274,12 @@ function handleError(error) {
 
 async function checkAndLoadCache() {
     try {
-        const response = await fetch('/debug_plex');
+        const response = await fetch('/debug_service');
         const data = await response.json();
-        if (data.cached_movies === 0) {
-            console.log('Cache is empty. Starting to load movies...');
+
+        // Only check cache for Plex service
+        if (data.service === 'plex' && data.cached_movies === 0) {
+            console.log('Plex cache is empty. Starting to load movies...');
 
             // First remove existing event listeners to prevent duplicates
             const filterButton = document.getElementById("filterButton");
@@ -2524,9 +2840,9 @@ function showUpdateDialog(updateInfo) {
             </div>
             <div class="dialog-buttons">
                 <button class="cancel-button">Dismiss</button>
-                <a href="${updateInfo.download_url}" 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
+                <a href="${updateInfo.download_url}"
+                   target="_blank"
+                   rel="noopener noreferrer"
                    class="submit-button">View Release</a>
             </div>
         </div>

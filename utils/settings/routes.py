@@ -46,7 +46,7 @@ def check_settings_enabled():
 def settings_page():
     """Render the settings page"""
     settings_disabled = settings.get('system', {}).get('disable_settings', False)
-    
+
     # Check both ENV and settings-configured services
     plex_configured = (
         # Check ENV configuration
@@ -54,7 +54,7 @@ def settings_page():
             os.getenv('PLEX_URL'),
             os.getenv('PLEX_TOKEN'),
             os.getenv('PLEX_MOVIE_LIBRARIES')
-        ]) or 
+        ]) or
         # Check settings configuration
         (settings.get('plex', {}).get('enabled') and
          bool(settings.get('plex', {}).get('url')) and
@@ -77,7 +77,7 @@ def settings_page():
     )
 
     no_services = not (plex_configured or jellyfin_configured)
-    
+
     return render_template(
         'settings.html',
         settings_disabled=settings_disabled,
@@ -138,7 +138,7 @@ def update_settings(category):
                 needs_reinit = False
 
                 # If this is a media service update
-                if category in ['plex', 'jellyfin']:
+                if category in ['plex', 'jellyfin', 'emby']:
                     needs_reinit = True
                     logger.info("Media service settings changed, will reinitialize services")
 
@@ -157,13 +157,45 @@ def update_settings(category):
                         logger.info("Timezone changed, updating poster views")
                         handle_timezone_update()
 
+                # Get PlaybackMonitor from app config
+                playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
+                if playback_monitor:
+                    # Update poster users
+                    features_settings = settings.get('features', {})
+                    poster_users = features_settings.get('poster_users', {})
+
+                    playback_monitor.plex_poster_users = (
+                        poster_users.get('plex', []) if isinstance(poster_users.get('plex'), list)
+                        else os.getenv('PLEX_POSTER_USERS', '').split(',')
+                    )
+
+                    playback_monitor.jellyfin_poster_users = (
+                        poster_users.get('jellyfin', []) if isinstance(poster_users.get('jellyfin'), list)
+                        else os.getenv('JELLYFIN_POSTER_USERS', '').split(',')
+                    )
+
+                    playback_monitor.emby_poster_users = (
+                        poster_users.get('emby', []) if isinstance(poster_users.get('emby'), list)
+                        else os.getenv('EMBY_POSTER_USERS', '').split(',')
+                    )
+
+                    logger.info(f"Updated PlaybackMonitor poster users:")
+                    logger.info(f"Plex: {playback_monitor.plex_poster_users}")
+                    logger.info(f"Jellyfin: {playback_monitor.jellyfin_poster_users}")
+                    logger.info(f"Emby: {playback_monitor.emby_poster_users}")
+
+                # Handle default poster text changes
+                if data.get('default_poster_text') is not None:
+                    logger.info("Default poster text changed, updating poster views")
+                    handle_timezone_update()
+
                 # If these are client settings
                 if category == 'clients':
                     needs_reinit = True
                     logger.info("Client settings changed, will reinitialize services")
 
                 # If these are integration settings
-                if category in ['overseerr', 'jellyseerr', 'tmdb', 'trakt']:
+                if category in ['overseerr', 'jellyseerr', 'ombi', 'tmdb', 'trakt', 'request_services']:
                     needs_reinit = True
                     logger.info("Integration settings changed, will reinitialize services")
 
@@ -177,6 +209,12 @@ def update_settings(category):
                             'message': 'Failed to reinitialize services'
                         }), 500
                     logger.info("Services reinitialization successful")
+
+                    # Update PlaybackMonitor status after service reinitialization
+                    playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
+                    if playback_monitor and hasattr(playback_monitor, 'update_service_status'):
+                        logger.info("Updating PlaybackMonitor service status")
+                        playback_monitor.update_service_status()
 
                 # Force settings to save to disk
                 settings.save_settings()

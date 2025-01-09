@@ -13,20 +13,23 @@
         {% if no_services_configured %}
         <div class="settings-disabled">
             <h1>Service Configuration Required</h1>
-            <p>Settings disabled. No media services are configured. Movie Roulette requires either Plex or Jellyfin to be configured through environment variables:</p>
-            
+            <p>Settings disabled. No media services are configured. Movie Roulette requires either Plex, Jellyfin or Emby to be configured through environment variables:</p>
             <div class="config-help">
                 <p>Required environment variables for Plex:</p>
                 <pre>
 PLEX_URL=http://your-plex-server:32400
 PLEX_TOKEN=your-plex-token
 PLEX_MOVIE_LIBRARIES=Movies,Other Movies</pre>
-                
                 <p>Required environment variables for Jellyfin:</p>
                 <pre>
 JELLYFIN_URL=http://your-jellyfin-server:8096
 JELLYFIN_API_KEY=your-api-key
 JELLYFIN_USER_ID=your-user-id</pre>
+                <p>Required environment variables for Emby:</p>
+                <pre>
+EMBY_URL=http://your-emby-server:8096
+EMBY_API_KEY=your-api-key
+EMBY_USER_ID=your-user-id</pre>
             </div>
         </div>
         {% else %}
@@ -34,7 +37,6 @@ JELLYFIN_USER_ID=your-user-id</pre>
             <h1>Settings Disabled</h1>
             <p>The settings page has been disabled by the administrator.</p>
             <p>System configuration can only be modified through environment variables.</p>
-            
             <a href="/" class="back-button">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -46,15 +48,45 @@ JELLYFIN_USER_ID=your-user-id</pre>
         </div>
         {% endif %}
     {% else %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+		    	<div class="flash-message {{ category }} show">
+                            <div class="flash-content">
+                                <i class="fas fa-exclamation-circle"></i>
+                                {{ message }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
         <div id="settings-root"></div>
         <script src="/static/js/settings.js"></script>
     {% endif %}
-
-    <a href="https://github.com/sahara101/Random-Plex-Movie" target="_blank">
-        <div class="version-label">
+    <div class="bottom-links">
+    	<a href="https://github.com/sahara101/Movie-Roulette" target="_blank" class="version-label">
             <i class="fab fa-github"></i>
             <span>v{{ version }}</span>
-        </div>
-    </a>
+    	</a>
+    	<a href="https://github.com/sahara101/Movie-Roulette/tree/macOS" target="_blank" class="download-badge">
+            <i class="fab fa-apple apple-icon"></i>
+            Download for macOS
+    	</a>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+	// Auto-dismiss flash messages
+    	document.querySelectorAll('.flash-message').forEach(flash => {
+            setTimeout(() => {
+            	if (flash && flash.classList.contains('show')) {
+                    flash.classList.remove('show');
+                    setTimeout(() => flash.remove(), 300);
+            	}
+            }, 5000);
+    	});
+    });
+    </script>
 </body>
 </html>
