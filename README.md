@@ -57,7 +57,7 @@ This project was extended with the assistance of AI tools. The core functionalit
 ### Emby
 - All cast capable devices
 - Apple TV - with turn on function and app start
-- Jellyfin for LGTV (WebOS) - with turn on function and app start
+- Emby for LGTV (WebOS) - with turn on function and app start
 
 ## Quick Start
 
