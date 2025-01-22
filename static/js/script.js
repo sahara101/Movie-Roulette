@@ -2864,7 +2864,7 @@ function showUpdateDialog(updateInfo) {
     });
 }
 
-async function checkVersion() {
+async function checkVersion(manual = false) {
     try {
         const response = await fetch('/api/check_version');
         const data = await response.json();
