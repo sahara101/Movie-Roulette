@@ -2,7 +2,7 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Release](https://img.shields.io/badge/release-v3.2-blue)]()
+[![Release](https://img.shields.io/badge/release-v3.3-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
 [![GHCR Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fsahara101%2FMovie-Roulette%2Fmovie-roulette.json&query=%24.downloads&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
@@ -141,7 +141,8 @@ See [sample-compose.yml](sample-compose.yml) for full configuration options.
 2. **Cinema Poster Mode**
    - Real-time playback status
    - Now Playing display
-   - Custom default text
+   - Screensaver Mode
+   - Custom default text in Default Poster Mode
    - Multiple user monitoring
 
 3. **Homepage Mode**
@@ -226,6 +227,13 @@ Movie Roulette offers two ways to configure the application:
 | `PLEX_POSTER_USERS` | Plex users to monitor | - | ✅ User selector |
 | `JELLYFIN_POSTER_USERS` | Jellyfin users to monitor | - | ✅ User selector |
 | `EMBY_POSTER_USERS` | Emby users to monitor | - | ✅ User selector |
+| `POSTER_MODE` | Type of poster to show when no movie playing | Default | ✅ Settings |
+| `POSTER_DISPLAY_MODE` | When playing a movie, what to show first | first_active| ✅ Settings |
+| `SCREENSAVER_INTERVAL` | How often to update the screensaver | 300 | ✅ Settings |
+| `PREFERRED_POSTER_USER` | Define an user that should always be visible | - | ✅ User selector |
+| `PREFERRED_POSTER_SERVICE` | To which service te above user belongs to | - | ❌ Automatic |
+> Note: `POSTER_MODE` options: `default` or `screensaver` ; 
+> `POSTER_DISPLAY_MODE` options: `first_active` or `preferred_user`
 
 ### Custom Trakt (Optional)
 | Variable | Description | Default | UI Alternative |
