@@ -40,7 +40,9 @@ class TVControlBase(ABC):
             if (instance.get('ip') == self.ip and
                 instance.get('mac') == self.mac and
                 instance.get('type') == self.tv_type):
-                return instance.get('name', instance_id)
+                # Format the name from the instance_id
+                words = instance_id.split('_')
+                return ' '.join(word.capitalize() for word in words)
         return f"{self.manufacturer.upper()} TV ({self.ip})"
 
     def _load_config(self) -> Dict[str, Any]:

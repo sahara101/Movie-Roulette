@@ -728,11 +728,11 @@ document.addEventListener('DOMContentLoaded', function() {
                    	class="submit-button"
                    	target="_blank"
                    	rel="noopener noreferrer">View Release</a>
-            	</div>
+                </div>
             </div>
     	`;
 
-   	 document.body.appendChild(dialog);
+    	document.body.appendChild(dialog);
 
     	// Handle close/dismiss
     	const closeDialog = () => {
@@ -870,6 +870,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'Poster Settings',
                     fields: [
 			{
+            		    key: 'features.poster_mode',
+            		    label: 'Default Poster Mode',
+            		    type: 'select',
+            		    options: [
+                		{ value: 'default', label: 'Static Default Poster' },
+                		{ value: 'screensaver', label: 'Movie Poster Screensaver' }
+            		    ],
+            		    description: 'Choose between showing a static default poster or cycling through your movie posters'
+        		},
+        		{
+            		    key: 'features.screensaver_interval',
+            		    label: 'Screensaver Interval',
+            		    type: 'select',
+            		    options: [
+                		{ value: '60', label: '1 minute' },
+                		{ value: '300', label: '5 minutes' },
+                		{ value: '600', label: '10 minutes' },
+                		{ value: '900', label: '15 minutes' },
+                		{ value: '1800', label: '30 minutes' },
+                		{ value: '3600', label: '1 hour' }
+            		    ],
+            		    description: 'How often the screensaver should change posters'
+        		},
+			{
                     	    key: 'features.timezone',
                     	    label: 'Timezone',
                     	    type: 'custom',
@@ -893,7 +917,24 @@ document.addEventListener('DOMContentLoaded', function() {
     			    label: 'Emby Poster Users',
     			    type: 'custom',
     			    render: renderEmbyUserSelector
-			}
+			},
+			{
+            		    key: 'features.poster_display.mode',
+            		    label: 'Movie Playback Poster Priority',
+            		    type: 'select',
+            		    options: [
+                		{value: 'first_active', label: 'First Active User Takes Priority' },
+                		{ value: 'preferred_user', label: 'Preferred User Takes Priority' }
+            		    ],
+            		    description: 'Choose how to handle multiple authorized users playing movies at the same time'
+        		},
+        		{
+            		    key: 'features.poster_display.preferred_user',
+            		    label: 'Preferred User',
+            		    type: 'custom',
+            		    render: renderPreferredUserSelector
+        		}
+
                     ]
                 }
             ]
@@ -1824,7 +1865,8 @@ document.addEventListener('DOMContentLoaded', function() {
     	container.innerHTML = Object.entries(tvs)
             .filter(([_, tv]) => tv !== undefined && tv !== null && typeof tv === 'object')
             .map(([id, tv]) => {
-            	const name = tv.name || id;
+		// Format instance_id which comes from ENV variable name
+		const name = tv.name || id.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
             	const type = tv.type || 'unknown';
             	const ip = tv.ip || 'Not set';
             	const isEnabled = tv.enabled !== false; // Default to true if not set
@@ -3468,6 +3510,108 @@ document.addEventListener('DOMContentLoaded', function() {
     	dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
         });
+    }
+
+    function renderPreferredUserSelector(container) {
+    	const wrapper = document.createElement('div');
+    	wrapper.className = 'preferred-user-wrapper';
+
+    	// Check if the overall mode is "preferred_user"
+    	const isPreferredMode = getNestedValue(currentSettings, 'features.poster_display.mode') === 'preferred_user';
+
+    	// If the mode isn't "preferred_user", just show a note and exit
+    	if (!isPreferredMode) {
+            const notice = document.createElement('div');
+            notice.className = 'setting-description';
+            notice.textContent = 'Enable "Preferred User" mode to select a preferred user.';
+            wrapper.appendChild(notice);
+            container.appendChild(wrapper);
+            return;
+    	}
+
+    	// Check if "preferred_user" is overridden by env
+    	const isEnvControlled = Boolean(
+      	getNestedValue(currentOverrides, 'features.poster_display.preferred_user')
+    	);
+
+    	// If env-controlled, display "Set by environment variable"
+    	if (isEnvControlled) {
+            const overrideIndicator = document.createElement('div');
+            overrideIndicator.className = 'env-override';
+            overrideIndicator.textContent = 'Set by environment variable';
+            wrapper.appendChild(overrideIndicator);
+    	}
+
+    	// Gather all authorized users from each service
+    	const allUsers = [];
+    	['plex', 'jellyfin', 'emby'].forEach(service => {
+            let serviceUsers = getNestedValue(currentSettings, `features.poster_users.${service}`);
+            // Convert comma-separated string to an array
+            if (typeof serviceUsers === 'string') {
+            	serviceUsers = serviceUsers
+                    .split(',')
+                    .map(u => u.trim())
+                    .filter(Boolean);
+            }
+            // Add each user to allUsers with a reference to its service
+            if (Array.isArray(serviceUsers)) {
+            	serviceUsers.forEach(user => {
+                    allUsers.push({ username: user, service });
+            	});
+            }
+    	});
+
+    	// Create a <select> field for picking the preferred user
+    	const serviceGroup = document.createElement('div');
+    	serviceGroup.className = 'input-group';
+
+    	const select = document.createElement('select');
+    	select.className = 'setting-input';
+    	// Disable if env-controlled
+    	select.disabled = isEnvControlled;
+
+    	// Empty/default option
+    	const emptyOption = document.createElement('option');
+    	emptyOption.value = '';
+    	emptyOption.textContent = '-- Select Preferred User --';
+    	select.appendChild(emptyOption);
+
+    	// Mark the currently preferred user if it’s set
+    	const currentPreferred = getNestedValue(currentSettings, 'features.poster_display.preferred_user');
+
+    	// Populate dropdown with (username + service)
+    	allUsers.forEach(user => {
+            const option = document.createElement('option');
+            const serviceName = user.service.charAt(0).toUpperCase() + user.service.slice(1);
+
+            // Store {username, service} as JSON in value
+            option.value = JSON.stringify({ username: user.username, service: user.service });
+            option.textContent = `${user.username} (${serviceName})`;
+
+            // If this matches the current preferred_user in your config, select it
+            if (
+            	currentPreferred &&
+            	user.username === currentPreferred.username &&
+            	user.service === currentPreferred.service
+            ) {
+            	option.selected = true;
+            }
+
+            select.appendChild(option);
+    	});
+
+    	// Attach a change listener only if NOT env-controlled
+    	if (!isEnvControlled) {
+            select.addEventListener('change', (e) => {
+            	const value = e.target.value ? JSON.parse(e.target.value) : null;
+            	handleSettingChange('features.poster_display.preferred_user', value);
+            });
+    	}
+
+    	// Put everything into the DOM
+    	serviceGroup.appendChild(select);
+    	wrapper.appendChild(serviceGroup);
+    	container.appendChild(wrapper);
     }
 
     // Start initialization

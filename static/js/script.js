@@ -2850,10 +2850,17 @@ function showUpdateDialog(updateInfo) {
 
     document.body.appendChild(dialog);
 
-    // Only handle the Dismiss button click
-    dialog.querySelector('.cancel-button').addEventListener('click', () => {
+    // Handle close/dismiss
+    const closeDialog = () => {
         dialog.remove();
         fetch('/api/dismiss_update').catch(console.error);
+    };
+
+    dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+            closeDialog();
+        }
     });
 }
 
@@ -2862,10 +2869,15 @@ async function checkVersion() {
         const response = await fetch('/api/check_version');
         const data = await response.json();
 
-        if (data.update_available && data.show_popup) {
+        if (data.update_available && (data.show_popup || manual)) {
             showUpdateDialog(data);
+        } else if (manual) {
+            showSuccess('You are running the latest version!');
         }
     } catch (error) {
         console.error('Error checking version:', error);
+        if (manual) {
+            showError('Failed to check for updates');
+        }
     }
 }

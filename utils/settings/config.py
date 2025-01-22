@@ -38,10 +38,17 @@ DEFAULT_SETTINGS = {
         'mobile_truncation': False,
         'homepage_mode': False,
         'timezone': 'UTC',
+        'poster_mode': 'default',  # 'default' or 'screensaver'
+        'screensaver_interval': 300,
         'default_poster_text': '',
         'poster_users': {
             'plex': [],
-            'jellyfin': []
+            'jellyfin': [],
+            'emby': []
+        },
+        'poster_display': {
+            'mode': 'first_active',  # 'first_active' or 'preferred_user'
+            'preferred_user': None   # Will store {username: string, service: string}
         }
     },
     'request_services': {
@@ -82,13 +89,18 @@ DEFAULT_SETTINGS = {
 }
 
 ENV_MAPPINGS = {
-    # Homepage ENV
+    # Features ENV
     'HOMEPAGE_MODE': ('features', 'homepage_mode', lambda x: x.upper() == 'TRUE'),
     'TZ': ('features', 'timezone', str),
     'DEFAULT_POSTER_TEXT': ('features', 'default_poster_text', str),
+    'POSTER_MODE': ('features', 'poster_mode', str),
+    'SCREENSAVER_INTERVAL': ('features', 'screensaver_interval', int),
     'PLEX_POSTER_USERS': ('features.poster_users', 'plex', lambda x: [s.strip() for s in x.split(',')]),
     'JELLYFIN_POSTER_USERS': ('features.poster_users', 'jellyfin', lambda x: [s.strip() for s in x.split(',')]),
     'EMBY_POSTER_USERS': ('features.poster_users', 'emby', lambda x: [s.strip() for s in x.split(',')]),
+    'POSTER_DISPLAY_MODE': ('features.poster_display', 'mode', str),
+    'PREFERRED_POSTER_USER': ('features.poster_display.preferred_user', 'username', str),
+    'PREFERRED_POSTER_SERVICE': ('features.poster_display.preferred_user', 'service', str),
 
     # Plex ENV
     'PLEX_URL': ('plex', 'url', str),

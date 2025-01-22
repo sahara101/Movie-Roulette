@@ -236,7 +236,7 @@ class EmbyService:
             logger.error(f"Error getting unwatched count: {e}")
             return 0
 
-    def get_random_movie(self, watch_status='unwatched'):
+    def get_random_movie(self):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -244,15 +244,8 @@ class EmbyService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear',
-                'IsPlayed': 'false'
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear'
             }
-
-            # Handle watch status
-            if watch_status == 'unwatched':
-                params['IsPlayed'] = 'false'
-            elif watch_status == 'watched':
-                params['IsPlayed'] = 'true'
 
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
@@ -260,12 +253,12 @@ class EmbyService:
 
             if movies.get('Items'):
                 movie_data = self.get_movie_data(movies['Items'][0])
-                logger.debug(f"Fetched unwatched movie data: {movie_data}")
+                logger.info(f"Selected random Emby movie for screensaver: {movie_data.get('title')}")  # Add logging
                 return movie_data
-            logger.warning("No unwatched movies found")
+            logger.warning("No movies found for screensaver")
             return None
         except Exception as e:
-            logger.error(f"Error fetching random unwatched movie: {e}")
+            logger.error(f"Error fetching random movie: {e}")
             return None
 
     def get_movie_data(self, movie):
@@ -550,30 +543,42 @@ class EmbyService:
                 'ItemIds': movie_id,
                 'PlayCommand': 'PlayNow'
             }
+
+            # Get session info to find username
+            username = None
+            try:
+                session_info_url = f"{self.server_url}/Sessions/{session_id}"
+                session_response = requests.get(session_info_url, headers=self.headers)
+                session_response.raise_for_status()
+                session_data = session_response.json()
+                username = session_data.get('UserName')
+                logger.info(f"Playing movie for Emby user: {username}")
+            except:
+                logger.info("Could not determine Emby username for session")
+
             response = requests.post(playback_url, headers=self.headers, params=params)
             response.raise_for_status()
             logger.debug(f"Playing movie {movie_id} on session {session_id}")
-
             self.playback_start_times[movie_id] = datetime.now()
-
             movie_data = self.get_movie_by_id(movie_id)
+        
             if movie_data:
                 start_time = self.playback_start_times[movie_id]
                 end_time = start_time + timedelta(hours=movie_data['duration_hours'],
                                                 minutes=movie_data['duration_minutes'])
-
                 from flask import session
                 session['current_movie'] = movie_data
                 session['movie_start_time'] = start_time.isoformat()
                 session['movie_end_time'] = end_time.isoformat()
                 session['current_service'] = 'emby'
-
+            
             return {
                 "status": "playing",
                 "movie_id": movie_id,
                 "session_id": session_id,
                 "start_time": self.playback_start_times[movie_id].isoformat(),
-                "movie_data": movie_data
+                "movie_data": movie_data,
+                "username": username 
             }
         except Exception as e:
             logger.error(f"Error playing movie: {e}")

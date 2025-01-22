@@ -2377,6 +2377,8 @@ body.homepage-mode #description.truncated::after {
     padding: 20px;
     border-radius: 8px;
     margin: 20px 0;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .changelog h4 {
@@ -2389,6 +2391,7 @@ body.homepage-mode #description.truncated::after {
     color: #EAEAEC;
     white-space: pre-line;
     line-height: 1.6;
+    padding-right: 10px;
 }
 
 .version-info {
