@@ -122,7 +122,7 @@ class JellyfinService:
             logger.error(f"Error getting unwatched count: {e}")
             return 0
 
-    def get_random_movie(self, watch_status='unwatched'):
+    def get_random_movie(self):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -130,28 +130,18 @@ class JellyfinService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating',
-                'IsPlayed': 'false'
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating'
             }
-
-            # Handle watch status
-            if watch_status == 'unwatched':
-                params['IsPlayed'] = 'false'
-            elif watch_status == 'watched':
-                params['IsPlayed'] = 'true'
-
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
             movies = response.json()
-
             if movies.get('Items'):
                 movie_data = self.get_movie_data(movies['Items'][0])
-                logger.debug(f"Fetched movie data: {movie_data}")
                 return movie_data
-            logger.warning("No unwatched movies found")
+            logger.warning("No movies found for screensaver")
             return None
         except Exception as e:
-            logger.warning(f"No movies found with watch_status: {watch_status}")
+            logger.error(f"Error fetching random movie: {e}")
             return None
 
     def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
@@ -567,33 +557,45 @@ class JellyfinService:
                 'ItemIds': movie_id,
                 'PlayCommand': 'PlayNow'
             }
+
+            # Get session info to find username
+            username = None
+            try:
+                session_info_url = f"{self.server_url}/Sessions/{session_id}"
+                session_response = requests.get(session_info_url, headers=self.headers)
+                session_response.raise_for_status()
+                session_data = session_response.json()
+                username = session_data.get('UserName')
+                logger.info(f"Playing movie for Jellyfin user: {username}")
+            except:
+                logger.info("Could not determine Jellyfin username for session")
+
             response = requests.post(playback_url, headers=self.headers, params=params)
             response.raise_for_status()
             logger.debug(f"Playing movie {movie_id} on session {session_id}")
             logger.debug(f"Response: {response.text}")
-
-            # Set the start time for the movie
+        
             self.playback_start_times[movie_id] = datetime.now()
-
-            # Fetch movie data
             movie_data = self.get_movie_by_id(movie_id)
+        
             if movie_data:
                 start_time = self.playback_start_times[movie_id]
-                end_time = start_time + timedelta(hours=movie_data['duration_hours'], minutes=movie_data['duration_minutes'])
-
+                end_time = start_time + timedelta(hours=movie_data['duration_hours'], 
+                                                minutes=movie_data['duration_minutes'])
                 from flask import session
                 session['current_movie'] = movie_data
                 session['movie_start_time'] = start_time.isoformat()
                 session['movie_end_time'] = end_time.isoformat()
                 session['current_service'] = 'jellyfin'
-
+            
             return {
                 "status": "playing",
                 "response": response.text,
                 "movie_id": movie_id,
                 "session_id": session_id,
                 "start_time": self.playback_start_times[movie_id].isoformat(),
-                "movie_data": movie_data
+                "movie_data": movie_data,
+                "username": username 
             }
         except Exception as e:
             logger.error(f"Error playing movie: {e}")

@@ -4,7 +4,6 @@ import logging
 import json
 import traceback
 import os
-from utils.poster_view import handle_timezone_update
 from utils.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -152,10 +151,9 @@ def update_settings(category):
                     needs_reinit = True
                     logger.info("Feature settings changed, will reinitialize services")
 
-                    # Handle timezone changes specifically
-                    if 'timezone' in data:
-                        logger.info("Timezone changed, updating poster views")
-                        handle_timezone_update()
+                    # Update poster settings immediately
+                    from utils.poster_view import handle_settings_update
+                    handle_settings_update(settings.get_all())  
 
                 # Get PlaybackMonitor from app config
                 playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
@@ -187,7 +185,8 @@ def update_settings(category):
                 # Handle default poster text changes
                 if data.get('default_poster_text') is not None:
                     logger.info("Default poster text changed, updating poster views")
-                    handle_timezone_update()
+                    from utils.poster_view import handle_settings_update
+                    handle_settings_update(settings.get_all())
 
                 # If these are client settings
                 if category == 'clients':

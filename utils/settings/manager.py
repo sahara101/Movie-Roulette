@@ -84,6 +84,7 @@ class Settings:
                 if match:
                     # Extract the TV name from the match
                     tv_name = match.group(1)
+                    tv_name = tv_name.lower()
                     # Replace $1 in path with actual TV name
                     actual_path = path_template.replace('$1', tv_name)
                     self._apply_single_env(result, actual_path, key, value, converter)
