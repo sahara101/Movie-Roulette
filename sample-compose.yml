@@ -1,0 +1,81 @@
+services:
+  movie-roulette:
+    image: ghcr.io/sahara101/movie-roulette:latest
+    container_name: movie-roulette
+    environment:
+      # Core Settings
+      DISABLE_SETTINGS: "FALSE"      # Lock Settings page
+
+      # Media Server Configurations - Required if using service
+      # Plex Configuration
+      PLEX_URL: "http://plex.example.com"
+      PLEX_TOKEN: "your-plex-token"
+      PLEX_MOVIE_LIBRARIES: "Movies,4K Movies"  # Comma-separated library names
+
+      # Jellyfin Configuration
+      JELLYFIN_URL: "http://jellyfin.example.com"
+      JELLYFIN_API_KEY: "your-jellyfin-api-key"
+      JELLYFIN_USER_ID: "your-jellyfin-user-id"
+
+      # Emby Configuration
+      EMBY_URL: "http://emby.example.com"
+      EMBY_API_KEY: "your-emby-api-key"
+      EMBY_USER_ID: "your-emby-user-id"
+
+      # Optional Features
+      HOMEPAGE_MODE: "FALSE"         # Homepage widget mode
+      TMDB_API_KEY: "your-tmdb-key"  # Custom TMDb key (optional)
+      USE_LINKS: "TRUE"              # Show links buttons
+      USE_FILTER: "TRUE"             # Show filter button
+      USE_WATCH_BUTTON: "TRUE"       # Show Watch button
+      USE_NEXT_BUTTON: "TRUE"        # Show next button
+      ENABLE_MOBILE_TRUNCATION: "FALSE"  # Truncate descriptions on mobile
+
+      # Request Service Configuration (Optional)
+      # Service URLs and API Keys
+      OVERSEERR_URL: "http://overseerr.example.com"
+      OVERSEERR_API_KEY: "your-overseerr-api-key"
+      
+      JELLYSEERR_URL: "http://jellyseerr.example.com"
+      JELLYSEERR_API_KEY: "your-jellyseerr-api-key"
+      
+      OMBI_URL: "http://ombi.example.com"
+      OMBI_API_KEY: "your-ombi-api-key"
+
+      # Request Service Preferences
+      REQUEST_SERVICE_DEFAULT: "auto"     # Default request service
+      REQUEST_SERVICE_PLEX: "auto"        # Plex override
+      REQUEST_SERVICE_JELLYFIN: "auto"    # Jellyfin override
+      REQUEST_SERVICE_EMBY: "auto"        # Emby override
+
+      # Device Control Configuration (Optional)
+      APPLE_TV_ID: "your-apple-tv-id"     # Apple TV identifier
+
+      # Smart TV Configuration (use letters, numbers, and underscores in NAME)
+      TV_LIVING_ROOM_TYPE: "webos"        # Options: webos, tizen, android
+      TV_LIVING_ROOM_IP: "192.168.1.100"
+      TV_LIVING_ROOM_MAC: "XX:XX:XX:XX:XX:XX"
+
+      # Cinema Poster Configuration (Optional)
+      TZ: "UTC"                           # Poster timezone
+      DEFAULT_POSTER_TEXT: "My Cinema"    # Default text
+      POSTER_MODE: "default"              # Options: default, screensaver
+      POSTER_DISPLAY_MODE: "first_active" # Options: first_active, preferred_user
+      SCREENSAVER_INTERVAL: "300"         # Update interval in seconds
+
+      # User Monitoring Configuration
+      PLEX_POSTER_USERS: "user1,user2"     # Plex users to monitor
+      JELLYFIN_POSTER_USERS: "user1,user2" # Jellyfin users to monitor
+      EMBY_POSTER_USERS: "user1,user2"     # Emby users to monitor
+      PREFERRED_POSTER_USER: "username"    # User that should always be visible
+      PREFERRED_POSTER_SERVICE: "plex"     # Service for preferred user
+
+      # Custom Trakt Configuration (Optional)
+      TRAKT_CLIENT_ID: "your-trakt-client-id"
+      TRAKT_CLIENT_SECRET: "your-trakt-secret"
+      TRAKT_ACCESS_TOKEN: "your-trakt-access-token"
+      TRAKT_REFRESH_TOKEN: "your-trakt-refresh-token"
+
+    volumes:
+      - /path/to/data:/app/data
+    restart: unless-stopped
