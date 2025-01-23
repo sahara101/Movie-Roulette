@@ -1,11 +1,7 @@
-# ============================================================================
-#  Stage 1: Build cryptography wheel only
-# ============================================================================
 FROM python:3.9-slim-bullseye AS builder
 
-ENV CARGO_BUILD_JOBS=4  
+ENV CARGO_BUILD_JOBS=4
 
-# Install build tools (including coreutils for `timeout`)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential python3-dev gcc libffi-dev \
@@ -14,7 +10,6 @@ RUN apt-get update && \
       coreutils && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Rust
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
@@ -22,19 +17,14 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 WORKDIR /build
 
-# Upgrade pip etc.
 RUN pip install --upgrade pip setuptools wheel
 
-# Build only cryptography from source with a 60-min timeout
+# Build cryptography with 60-min timeout
 RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cffi setuptools-rust cryptography==44.0.0
 
-# ============================================================================
-#  Stage 2: Final image – install all Python deps (cryptography from wheel)
-# ============================================================================
 FROM python:3.9-slim-bullseye
 
-# Install any runtime packages you need here
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       arp-scan iputils-ping netcat-openbsd \
@@ -42,15 +32,15 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . .                              # Copy your app source
-COPY --from=builder /wheels /wheels   # Copy only the cryptography wheel
 
-# Install cryptography from local wheel, everything else from PyPI
-RUN pip install /wheels/cryptography-44.0.0-*.whl && \
+# Make sure the build context has your source code:
+COPY . .
+COPY --from=builder /wheels /wheels
+
+RUN pip install --no-cache-dir /wheels/cryptography-44.0.0-*.whl && \
     pip install --no-cache-dir -r requirements.txt && \
     rm -rf /wheels
 
 EXPOSE 4000
 VOLUME /app/data
 CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:4000", "movie_selector:app"]
-
