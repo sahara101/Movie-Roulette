@@ -1,38 +1,40 @@
+# ============================================================================
+#  Stage 1: Build cryptography wheel only
+# ============================================================================
 FROM python:3.9-slim-bullseye AS builder
 
-# Parallelize Rust/C extensions build
-ENV CARGO_BUILD_JOBS=4
+ENV CARGO_BUILD_JOBS=4  # Parallelize Rust builds
 
-# Install build dependencies + coreutils (for timeout)
+# Install build tools (including coreutils for `timeout`)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential python3-dev gcc libffi-dev \
-      curl libssl-dev pkg-config protobuf-compiler \
-      portaudio19-dev libasound2-dev cmake coreutils && \
+      curl libssl-dev pkg-config \
+      portaudio19-dev libasound2-dev cmake \
+      coreutils && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Rust toolchain
+# Install Rust
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 WORKDIR /build
-COPY requirements.txt .
 
-# Upgrade pip & setuptools and then build wheels
+# Upgrade pip etc.
 RUN pip install --upgrade pip setuptools wheel
 
-# Run cryptography build with a 60-minute timeout
+# Build only cryptography from source with a 60-min timeout
 RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cffi setuptools-rust cryptography==44.0.0
 
-# Build remaining dependencies
-RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt
-
-# Final stage: copy wheels and install
+# ============================================================================
+#  Stage 2: Final image – install all Python deps (cryptography from wheel)
+# ============================================================================
 FROM python:3.9-slim-bullseye
 
+# Install any runtime packages you need here
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       arp-scan iputils-ping netcat-openbsd \
@@ -40,14 +42,15 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /wheels /wheels
-COPY . .
+COPY . .                              # Copy your app source
+COPY --from=builder /wheels /wheels   # Copy only the cryptography wheel
 
-RUN pip install --no-index --find-links=/wheels -r requirements.txt \
-    && rm -rf /wheels
+# Install cryptography from local wheel, everything else from PyPI
+RUN pip install /wheels/cryptography-44.0.0-*.whl && \
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /wheels
 
 EXPOSE 4000
 VOLUME /app/data
-
 CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:4000", "movie_selector:app"]
 
