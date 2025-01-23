@@ -3,7 +3,7 @@
 # ============================================================================
 FROM python:3.9-slim-bullseye AS builder
 
-ENV CARGO_BUILD_JOBS=4  # Parallelize Rust builds
+ENV CARGO_BUILD_JOBS=4  
 
 # Install build tools (including coreutils for `timeout`)
 RUN apt-get update && \
