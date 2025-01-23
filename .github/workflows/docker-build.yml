@@ -50,7 +50,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       # Build AMD64 image
       - name: Build and push AMD64
-        #if: false
+        if: false
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -64,7 +64,7 @@ jobs:
             ghcr.io/sahara101/movie-roulette:v3.3.1
       # Build ARM image
       - name: Build and push ARM
-        if: false
+        #if: false
         uses: docker/build-push-action@v5
         with:
           context: .

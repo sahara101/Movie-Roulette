@@ -1,12 +1,17 @@
 FROM python:3.9-slim-bullseye AS builder
 
+# Parallelize Rust/C extensions build
+ENV CARGO_BUILD_JOBS=4
+
+# Install build dependencies + coreutils (for timeout)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    build-essential python3-dev gcc libffi-dev \
-    curl libssl-dev pkg-config \
-    portaudio19-dev libasound2-dev cmake
+      build-essential python3-dev gcc libffi-dev \
+      curl libssl-dev pkg-config \
+      portaudio19-dev libasound2-dev cmake coreutils && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Rust
+# Install Rust toolchain
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
@@ -15,56 +20,34 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 WORKDIR /build
 COPY requirements.txt .
 
-# First build cryptography explicitly with all its dependencies
-RUN pip install --upgrade pip setuptools wheel && \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    cffi setuptools-rust && \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    cryptography==44.0.0 --no-binary cryptography
+# Upgrade pip & setuptools and then build wheels
+RUN pip install --upgrade pip setuptools wheel
 
-# Build all dependencies from the complete list
-RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    aiohappyeyeballs==2.4.4 aiohttp==3.11.9 aiosignal==1.3.1 \
-    annotated-types==0.7.0 async-timeout==5.0.1 attrs==24.2.0 \
-    bidict==0.23.1 blinker==1.9.0 bottle==0.13.2 \
-    bottle-websocket==0.2.9 certifi==2024.8.30 cffi==1.17.1 \
-    chacha20poly1305-reuseable==0.13.2 charset-normalizer==3.4.0 \
-    click==8.1.7 configparser==7.1.0 dnspython==2.7.0 \
-    Eel==0.18.1 eventlet==0.38.0 filetype==1.2.0 \
-    Flask==3.1.0 Flask-SocketIO==5.4.1 frozenlist==1.5.0 \
-    future==1.0.0 gevent==24.11.1 gevent-websocket==0.10.1 \
-    greenlet==3.1.1 gunicorn==23.0.0 h11==0.14.0 \
-    idna==3.10 ifaddr==0.2.0 importlib_metadata==8.5.0 \
-    itsdangerous==2.2.0 Jinja2==3.1.4 MarkupSafe==3.0.2 \
-    mediafile==0.13.0 miniaudio==1.61 multidict==6.1.0 \
-    mutagen==1.47.0 packaging==24.2 pexpect==4.9.0 \
-    PlexAPI==4.16.0 propcache==0.2.1 protobuf==5.29.0 \
-    ptyprocess==0.7.0 pyatv==0.15.1 pycparser==2.22 \
-    pydantic==2.10.3 pydantic_core==2.27.1 pyparsing==3.2.0 \
-    python-dotenv==1.0.1 python-engineio==4.10.1 \
-    python-socketio==5.11.4 pytz==2024.2 pywebostv==0.8.9 \
-    requests==2.32.3 simple-websocket==1.1.0 six==1.16.0 \
-    srptools==1.0.1 tabulate==0.9.0 typing_extensions==4.12.2 \
-    urllib3==2.2.3 Werkzeug==3.1.3 ws4py==0.5.1 wsproto==1.2.0 \
-    yarl==1.18.3 zeroconf==0.136.2 zipp==3.21.0 \
-    zope.event==5.0 zope.interface==7.2 adb-shell==0.4.0 \
-    websocket-client wakeonlan==3.1.0 rsa==4.9.0 \
-    pyasn1>=0.1.0
+# Run cryptography build with a 60-minute timeout
+RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
+    cffi setuptools-rust cryptography==44.0.0
 
+# Build remaining dependencies
+RUN pip wheel --no-deps --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+# Final stage: copy wheels and install
 FROM python:3.9-slim-bullseye
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    arp-scan iputils-ping netcat-openbsd \
-    portaudio19-dev libasound2-dev \
-    && rm -rf /var/lib/apt/lists/*
+      arp-scan iputils-ping netcat-openbsd \
+      portaudio19-dev libasound2-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /wheels /wheels
 COPY . .
+
 RUN pip install --no-index --find-links=/wheels -r requirements.txt \
     && rm -rf /wheels
 
 EXPOSE 4000
 VOLUME /app/data
+
 CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:4000", "movie_selector:app"]
+
