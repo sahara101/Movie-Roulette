@@ -27,12 +27,12 @@ FROM python:3.9-slim-bullseye
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       arp-scan iputils-ping netcat-openbsd \
-      portaudio19-dev libasound2-dev && \
+      portaudio19-dev libasound2-dev \
+      g++ && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Make sure the build context has your source code:
 COPY . .
 COPY --from=builder /wheels /wheels
 
@@ -43,3 +43,4 @@ RUN pip install --no-cache-dir /wheels/cryptography-44.0.0-*.whl && \
 EXPOSE 4000
 VOLUME /app/data
 CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:4000", "movie_selector:app"]
+
