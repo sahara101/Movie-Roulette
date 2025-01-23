@@ -5,15 +5,15 @@ RUN apt-get update && \
       build-essential g++ python3-dev gcc libffi-dev \
       curl libssl-dev pkg-config \
       portaudio19-dev libasound2-dev cmake \
-      coreutils && \
+      coreutils libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
+    PATH=/usr/local/cargo/bin:$PATH \
+    PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/lib/pkgconfig
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 WORKDIR /build
 RUN pip install --upgrade pip setuptools wheel
-# Build cryptography and gevent wheels
 RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cffi setuptools-rust cryptography==44.0.0 && \
     GEVENT_CONFIGURE_KWARGS="--disable-dependency-tracking" \
@@ -24,7 +24,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       arp-scan iputils-ping netcat-openbsd \
       portaudio19-dev libasound2-dev \
-      g++ && \
+      g++ libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
