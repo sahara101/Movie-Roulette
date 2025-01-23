@@ -4,7 +4,7 @@ ENV CARGO_BUILD_JOBS=4
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      build-essential python3-dev gcc libffi-dev \
+      build-essential g++ python3-dev gcc libffi-dev \
       curl libssl-dev pkg-config \
       portaudio19-dev libasound2-dev cmake \
       coreutils && \
@@ -16,10 +16,9 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 WORKDIR /build
-
 RUN pip install --upgrade pip setuptools wheel
 
-# Build cryptography with 60-min timeout
+# Build cryptography from source with a 60-min timeout
 RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
     cffi setuptools-rust cryptography==44.0.0
 
