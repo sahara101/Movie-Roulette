@@ -581,20 +581,23 @@ app.config['initialize_services'] = initialize_services
 # Initialize services
 initialize_services()
 
-# Set the movie service for the default poster manager
-logger.info("Setting up movie service for poster manager...")
-current_service = get_available_service()  # Get current service
-if current_service == 'plex' and PLEX_AVAILABLE and plex:
-    logger.info("Using Plex as movie service for poster manager")
-    # Store cache manager reference 
-    plex.cache_manager = app.config['CACHE_MANAGER']
-    default_poster_manager.set_movie_service(plex)
-elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
-    logger.info("Using Jellyfin as movie service for poster manager")
-    default_poster_manager.set_movie_service(jellyfin)
-elif current_service == 'emby' and EMBY_AVAILABLE and emby:
-    logger.info("Using Emby as movie service for poster manager")
-    default_poster_manager.set_movie_service(emby)
+try:
+   # Set up movie service for poster manager
+   logger.info("Setting up movie service for poster manager...")
+   current_service = get_available_service()  # Get current service
+   if current_service == 'plex' and PLEX_AVAILABLE and plex:
+       logger.info("Using Plex as movie service for poster manager")
+       # Store cache manager reference
+       plex.cache_manager = app.config['CACHE_MANAGER']
+       default_poster_manager.set_movie_service(plex)
+   elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+       logger.info("Using Jellyfin as movie service for poster manager")
+       default_poster_manager.set_movie_service(jellyfin)
+   elif current_service == 'emby' and EMBY_AVAILABLE and emby:
+       logger.info("Using Emby as movie service for poster manager")
+       default_poster_manager.set_movie_service(emby)
+except EnvironmentError:
+   logger.warning("No media services available during initialization")
 
 # Start the PlaybackMonitor
 playback_monitor = PlaybackMonitor(app, interval=10)

@@ -48,7 +48,7 @@ DEFAULT_SETTINGS = {
         },
         'poster_display': {
             'mode': 'first_active',  # 'first_active' or 'preferred_user'
-            'preferred_user': None   # Will store {username: string, service: string}
+            'preferred_user': {}
         }
     },
     'request_services': {
