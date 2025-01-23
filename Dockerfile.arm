@@ -7,7 +7,7 @@ ENV CARGO_BUILD_JOBS=4
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential python3-dev gcc libffi-dev \
-      curl libssl-dev pkg-config \
+      curl libssl-dev pkg-config protobuf-compiler \
       portaudio19-dev libasound2-dev cmake coreutils && \
     rm -rf /var/lib/apt/lists/*
 
