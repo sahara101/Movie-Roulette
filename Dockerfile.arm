@@ -1,7 +1,5 @@
 FROM python:3.9-slim-bullseye AS builder
-
 ENV CARGO_BUILD_JOBS=4
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential g++ python3-dev gcc libffi-dev \
@@ -9,38 +7,31 @@ RUN apt-get update && \
       portaudio19-dev libasound2-dev cmake \
       coreutils && \
     rm -rf /var/lib/apt/lists/*
-
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-
 WORKDIR /build
 RUN pip install --upgrade pip setuptools wheel
-
-# Build cryptography from source with a 60-min timeout
+# Build cryptography and gevent wheels
 RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    cffi setuptools-rust cryptography==44.0.0
+    cffi setuptools-rust cryptography==44.0.0 && \
+    GEVENT_CONFIGURE_KWARGS="--disable-dependency-tracking" \
+    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels gevent
 
 FROM python:3.9-slim-bullseye
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       arp-scan iputils-ping netcat-openbsd \
       portaudio19-dev libasound2-dev \
       g++ && \
     rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
-
 COPY . .
 COPY --from=builder /wheels /wheels
-
-RUN pip install --no-cache-dir /wheels/cryptography-44.0.0-*.whl && \
+RUN pip install --no-cache-dir /wheels/*.whl && \
     pip install --no-cache-dir -r requirements.txt && \
     rm -rf /wheels
-
 EXPOSE 4000
 VOLUME /app/data
 CMD ["gunicorn", "-k", "eventlet", "-w", "1", "-b", "0.0.0.0:4000", "movie_selector:app"]
-
