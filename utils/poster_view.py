@@ -224,6 +224,9 @@ def playback_state(movie_id):
 def poster():
     logger.info("Poster route called")
     try:
+        # Get PlaybackMonitor first
+        playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
+        
         # Check current service first
         from movie_selector import get_available_service
         current_service = session.get('current_service', get_available_service())
@@ -250,7 +253,22 @@ def poster():
         features = poster_settings.get('features', {})
         custom_text = poster_settings['custom_text']
 
-        # Check for active movie first
+        # First check PlaybackMonitor for active movie
+        active_movie = None
+        if playback_monitor and playback_monitor.current_movie_id:
+            if current_service == 'plex' and plex:
+                active_movie = plex.get_movie_by_id(playback_monitor.current_movie_id)
+            elif current_service == 'jellyfin' and jellyfin:
+                active_movie = jellyfin.get_movie_by_id(playback_monitor.current_movie_id)
+            elif current_service == 'emby' and emby:
+                active_movie = emby.get_movie_by_id(playback_monitor.current_movie_id)
+
+            if active_movie:
+                logger.info(f"Active movie found from PlaybackMonitor: {active_movie.get('title')}")
+                # Force update of current_movie.json if needed
+                set_current_movie(active_movie, current_service)
+
+        # Check for active movie from file
         poster_data = get_poster_data()
         if poster_data:
             logger.info("Active movie found - forcing playback mode")
@@ -298,7 +316,7 @@ def poster():
                             proxy_url = f"/proxy/poster/jellyfin/{item_id}"
                         elif emby and emby.server_url in original_url:
                             proxy_url = f"/proxy/poster/emby/{item_id}"
-                    
+
                     if not proxy_url:
                         logger.warning("Could not create proxy URL, using fallback")
                         proxy_url = original_url

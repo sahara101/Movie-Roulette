@@ -733,16 +733,16 @@ def get_current_service():
 def switch_service():
     # Get list of properly configured services
     available_services = []
-    if PLEX_AVAILABLE and bool(PLEX_SETTINGS.get('url') and 
-                              PLEX_SETTINGS.get('token') and 
+    if PLEX_AVAILABLE and bool(PLEX_SETTINGS.get('url') and
+                              PLEX_SETTINGS.get('token') and
                               PLEX_SETTINGS.get('movie_libraries')):
         available_services.append('plex')
-    if JELLYFIN_AVAILABLE and bool(JELLYFIN_SETTINGS.get('url') and 
-                                  JELLYFIN_SETTINGS.get('api_key') and 
+    if JELLYFIN_AVAILABLE and bool(JELLYFIN_SETTINGS.get('url') and
+                                  JELLYFIN_SETTINGS.get('api_key') and
                                   JELLYFIN_SETTINGS.get('user_id')):
         available_services.append('jellyfin')
-    if EMBY_AVAILABLE and bool(EMBY_SETTINGS.get('url') and 
-                              EMBY_SETTINGS.get('api_key') and 
+    if EMBY_AVAILABLE and bool(EMBY_SETTINGS.get('url') and
+                              EMBY_SETTINGS.get('api_key') and
                               EMBY_SETTINGS.get('user_id')):
         available_services.append('emby')
 
@@ -1047,7 +1047,7 @@ def devices():
                 # Format TV name from instance ID
                 words = tv_id.split('_')
                 display_name = ' '.join(word.capitalize() for word in words)
-                
+
                 devices.append({
                     "name": tv_id,
                     "displayName": display_name,  # Use formatted name
@@ -1265,11 +1265,61 @@ def get_plex_id(tmdb_id):
     try:
         all_movies = cache_manager.get_all_plex_movies()
         for movie in all_movies:
-            if str(movie['tmdb_id']) == str(tmdb_id):
-                return jsonify({"plexId": movie['plex_id']})
+            if str(movie.get('tmdb_id')) == str(tmdb_id):
+                return jsonify({"plexId": movie['id']})  # Return the Plex ratingKey as plexId
+        
+        # If we get here, we didn't find the movie
+        logger.warning(f"Movie with TMDb ID {tmdb_id} not found in Plex")
         return jsonify({"error": "Movie not found in Plex"}), 404
+        
     except Exception as e:
         logger.error(f"Error getting Plex ID: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/get_jellyfin_id/<tmdb_id>')
+def get_jellyfin_id(tmdb_id):
+    try:
+        if not JELLYFIN_AVAILABLE or not jellyfin:
+            return jsonify({"error": "Jellyfin not available"}), 404
+
+        cache_path = '/app/data/jellyfin_all_movies.json'
+        if not os.path.exists(cache_path):
+            return jsonify({"error": "Jellyfin cache not found"}), 404
+
+        with open(cache_path, 'r') as f:
+            all_movies = json.load(f)
+
+        for movie in all_movies:
+            if str(movie.get('tmdb_id')) == str(tmdb_id):
+                return jsonify({"jellyfinId": movie['jellyfin_id']})
+
+        return jsonify({"error": "Movie not found in Jellyfin"}), 404
+
+    except Exception as e:
+        logger.error(f"Error getting Jellyfin ID: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/get_emby_id/<tmdb_id>')
+def get_emby_id(tmdb_id):
+    try:
+        if not EMBY_AVAILABLE or not emby:
+            return jsonify({"error": "Emby not available"}), 404
+
+        cache_path = '/app/data/emby_all_movies.json'
+        if not os.path.exists(cache_path):
+            return jsonify({"error": "Emby cache not found"}), 404
+
+        with open(cache_path, 'r') as f:
+            all_movies = json.load(f)
+
+        for movie in all_movies:
+            if str(movie.get('tmdb_id')) == str(tmdb_id):
+                return jsonify({"embyId": movie['emby_id']})
+
+        return jsonify({"error": "Movie not found in Emby"}), 404
+
+    except Exception as e:
+        logger.error(f"Error getting Emby ID: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/tv/scan/<tv_type>')

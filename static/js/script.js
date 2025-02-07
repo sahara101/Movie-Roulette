@@ -113,7 +113,7 @@ socket.on('loading_progress', function(data) {
     if (loadingCount && data.total > 0) {
         loadingCount.textContent = `${data.current}/${data.total}`;
     }
-    
+
     // Update status text based on progress
     if (loadingStatus) {
         if (data.progress >= 0.95) {
@@ -132,18 +132,18 @@ socket.on('loading_complete', async function() {
     if (overlay) {
         overlay.classList.add('hidden');
         window.cacheBuilding = false;
-        
+
         // Load a random movie first
         await loadRandomMovie();
-        
+
         // Check for updates
         checkVersion(false);
-        
+
         // Reinitialize filters if needed
         if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
             console.log('Reinitializing filters after cache build');
             await loadFilterOptions();
-            
+
             const filterButton = document.getElementById("filterButton");
             const filterDropdown = document.getElementById("filterDropdown");
 
@@ -156,17 +156,17 @@ socket.on('loading_complete', async function() {
                 event.stopPropagation();
                 filterDropdown.classList.toggle("show");
             });
-            
+
             document.addEventListener('click', function(event) {
                 if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
                     filterDropdown.classList.remove("show");
                 }
             });
-            
+
             filterDropdown.addEventListener('click', function(event) {
                 event.stopPropagation();
             });
-            
+
             // Reinitialize other filter-related functionality
             setupFilterEventListeners();
             updateFilters();
@@ -477,9 +477,9 @@ async function performSearch(query) {
             const watchButton = document.createElement('button');
             watchButton.className = 'request-button';
             watchButton.textContent = 'Watch';
-            watchButton.addEventListener('click', () => {
-                showClientsForPoster(movie.id);
-            });
+	    watchButton.addEventListener('click', () => {
+	        showClientsForSelected(movie);
+	    });
 
             // Add event listener to poster link
             posterLink.addEventListener('click', (e) => {
@@ -503,6 +503,52 @@ async function performSearch(query) {
     } catch (error) {
         console.error('Search error:', error);
         searchResults.innerHTML = '<div class="search-error">An error occurred while searching. Please try again.</div>';
+    }
+}
+
+async function showClientsForSelected(selectedMovie) {
+    try {
+        const response = await fetch(`/clients`);
+        const clients = await response.json();
+
+        const listContainer = document.getElementById("list_of_clients");
+        listContainer.innerHTML = "";
+
+        if (clients.length === 0) {
+	        listContainer.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
+        } else {
+            clients.forEach(client => {
+                const clientDiv = document.createElement("div");
+                clientDiv.classList.add("client");
+                clientDiv.textContent = client.title;
+                clientDiv.onclick = function() {
+                    playSelectedMovie(client.id, selectedMovie.id);  // Pass the selected movie's ID
+                    closeClientPrompt();
+                };
+                listContainer.appendChild(clientDiv);
+            });
+        }
+
+        document.getElementById("client_prompt").classList.remove("hidden");
+    } catch (error) {
+        console.error("Error fetching clients:", error);
+        alert("Failed to fetch clients. Please try again.");
+    }
+}
+
+async function playSelectedMovie(clientId, movieId) {
+    try {
+        const response = await fetch(`/play_movie/${clientId}?movie_id=${movieId}`);
+        const data = await response.json();
+
+        if (data.status !== "playing") {
+            throw new Error(data.error || "Failed to start playback");
+        }
+
+        setTimeout(() => syncTraktWatched(false), 30000);
+    } catch (error) {
+        console.error("Error playing movie:", error);
+        alert("Failed to play movie. Please try again.");
     }
 }
 
@@ -1461,7 +1507,10 @@ async function renderMovies(movies) {
             moviesContainer.appendChild(card);
         });
 
-        // Apply filters immediately after rendering
+        // Update counts AFTER the movies are rendered
+        await updateFilterCounts();
+        
+        // Then apply filters
         applyAllFilters();
     }
 }
@@ -1571,7 +1620,7 @@ async function createMovieCard(movie) {
 
     if (isInLibrary) {
         const badge = document.createElement('div');
-        badge.classList.add(currentService === 'plex' ? 'plex-badge' : 'jellyfin-badge');
+	badge.classList.add(`${currentService}-badge`);
         badge.textContent = currentService.toUpperCase();
         posterLink.appendChild(badge);
     }
@@ -1647,34 +1696,6 @@ async function createMovieCard(movie) {
     movieCard.appendChild(requestButton);
 
     return movieCard;
-}
-
-async function isMovieInJellyfin(movieId) {
-    try {
-        const response = await fetch(`/is_movie_in_jellyfin/${movieId}`);
-        if (!response.ok) {
-            throw new Error('Failed to check Jellyfin availability');
-        }
-        const data = await response.json();
-        return data.available;
-    } catch (error) {
-        console.error("Error checking Jellyfin availability:", error);
-        return false;
-    }
-}
-
-async function isMovieInEmby(movieId) {
-    try {
-        const response = await fetch(`/is_movie_in_emby/${movieId}`);
-        if (!response.ok) {
-            throw new Error('Failed to check Emby availability');
-        }
-        const data = await response.json();
-        return data.available;
-    } catch (error) {
-        console.error("Error checking Emby availability:", error);
-        return false;
-    }
 }
 
 async function openMoviesOverlay(personId, personType, personName) {
@@ -1925,7 +1946,7 @@ async function requestMovie(movieId) {
         // Find all request buttons for this movie
         const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
         console.log(`Found ${requestButtons.length} request buttons for movie ${movieId}`);
-        
+
         // Update buttons to requesting state
         requestButtons.forEach(button => {
             button.disabled = true;
@@ -1969,7 +1990,7 @@ async function requestMovie(movieId) {
     } catch (error) {
         console.error("Error requesting movie:", error);
         showToast(error.message, 'error');
-        
+
         // Restore button states on error
         const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
         requestButtons.forEach(button => {
@@ -1997,7 +2018,7 @@ async function showClients() {
                 clientDiv.classList.add("client");
                 clientDiv.textContent = client.title;
                 clientDiv.onclick = function() {
-                    playMovie(client.id);
+                    playMovie(client.id);  // Use playMovie directly
                     closeClientPrompt();
                 };
                 listContainer.appendChild(clientDiv);
@@ -2039,53 +2060,74 @@ async function playMovie(clientId) {
 
 async function getPlexIdFromTmdbId(tmdbId) {
     try {
-        const response = await fetch('/is_movie_in_plex/' + tmdbId);
+        const response = await fetch(`/api/get_plex_id/${tmdbId}`);
         const data = await response.json();
-        if (data.plexId) {
-            return data.plexId;
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to get Plex ID');
         }
-        throw new Error('Movie not found in Plex');
+        return data.plexId;
     } catch (error) {
         console.error('Error getting Plex ID:', error);
-        throw error;
+        return null;
     }
 }
 
 async function playMovieFromPoster(clientId, tmdbId) {
     try {
-        let serviceEndpoint;
+        const movieCard = document.querySelector(`.movie-card[data-movie-id="${tmdbId}"]`);
+        let serviceId;
+        let apiEndpoint;
+        
+        // Determine correct endpoint based on service
         switch(currentService) {
             case 'plex':
-                serviceEndpoint = '/api/get_plex_id/';
+                apiEndpoint = '/api/get_plex_id/';
                 break;
             case 'jellyfin':
-                serviceEndpoint = '/api/get_jellyfin_id/';
+                apiEndpoint = '/api/get_jellyfin_id/';
                 break;
             case 'emby':
-                serviceEndpoint = '/api/get_emby_id/';
+                apiEndpoint = '/api/get_emby_id/';
                 break;
+            default:
+                throw new Error(`Unknown service: ${currentService}`);
         }
 
-        const response = await fetch(`${serviceEndpoint}${tmdbId}`);
-        if (!response.ok) {
-            throw new Error(`Failed to get ${currentService} ID`);
+        // First try to get stored ID from card
+        if (movieCard?.dataset[`${currentService}Id`]) {
+            serviceId = movieCard.dataset[`${currentService}Id`];
+        } else {
+            // Fallback to API call if not stored
+            const response = await fetch(`${apiEndpoint}${tmdbId}`);
+            if (!response.ok) {
+                throw new Error(`Failed to get ${currentService} ID`);
+            }
+            const data = await response.json();
+            serviceId = data[`${currentService}Id`] || data.mediaId; // Handle different response formats
+            
+            // Store ID in dataset for future use
+            if (movieCard && serviceId) {
+                movieCard.dataset[`${currentService}Id`] = serviceId;
+            }
         }
-        const data = await response.json();
-        if (!data.mediaId) {
+
+        if (!serviceId) {
             throw new Error(`Movie not found in ${currentService}`);
         }
 
-        const playResponse = await fetch(`/play_movie/${clientId}?movie_id=${data.mediaId}`);
+        const playResponse = await fetch(`/play_movie/${clientId}?movie_id=${serviceId}`);
         const playData = await playResponse.json();
 
         if (playData.status !== "playing") {
             throw new Error(playData.error || "Failed to start playback");
         }
 
+        // Update Trakt after successful playback start
         setTimeout(() => syncTraktWatched(false), 30000);
+        
     } catch (error) {
         console.error("Error playing movie:", error);
-        alert("Failed to play movie. Please try again.");
+        showToast(`Failed to play movie: ${error.message}`, "error");
     }
 }
 
@@ -2301,7 +2343,7 @@ async function checkAndLoadCache() {
     }
 }
 
-let traktFilterMode = 'unwatched'; // 'all', 'watched', or 'unwatched'
+let traktFilterMode = 'all'; // 'all', 'watched', or 'unwatched'
 let watchedMovies = [];
 
 function updateFilters() {
@@ -2370,48 +2412,72 @@ async function setupFilters() {
         sortButtons.appendChild(filterButtons);
     }
 
-    // Create and setup the Library Status dropdown
+    // Get all movies and counts
+    const moviesContainer = document.getElementById('movies_container');
+    const movieCards = moviesContainer ? moviesContainer.querySelectorAll('.movie-card') : [];
+    const totalMovies = movieCards.length;
+    const inLibraryCount = Array.from(movieCards).filter(card => 
+        card.querySelector('.plex-badge, .jellyfin-badge, .emby-badge')
+    ).length;
+    const notInLibraryCount = totalMovies - inLibraryCount;
+
+    // Create Library Status dropdown
     const libraryStatusDropdown = document.createElement('div');
     libraryStatusDropdown.className = 'filter-dropdown-content hidden';
     libraryStatusDropdown.innerHTML = `
         <div class="filter-options">
-            <label><input type="radio" name="libraryStatus" value="all" ${plexFilterMode === 'all' ? 'checked' : ''}>Show All</label>
-            <label><input type="radio" name="libraryStatus" value="inPlex" ${plexFilterMode === 'inPlex' ? 'checked' : ''}>In Library</label>
-            <label><input type="radio" name="libraryStatus" value="notInPlex" ${plexFilterMode === 'notInPlex' ? 'checked' : ''}>Not in Library</label>
+            <label>
+                <input type="radio" name="libraryStatus" value="all" ${plexFilterMode === 'all' ? 'checked' : ''}>
+                Show All <span class="count">(0)</span>
+            </label>
+            <label>
+                <input type="radio" name="libraryStatus" value="inPlex" ${plexFilterMode === 'inPlex' ? 'checked' : ''}>
+                In Library <span class="count">(0)</span>
+            </label>
+            <label>
+                <input type="radio" name="libraryStatus" value="notInPlex" ${plexFilterMode === 'notInPlex' ? 'checked' : ''}>
+                Not in Library <span class="count">(0)</span>
+            </label>
         </div>
     `;
 
-    // Create Watch Status dropdown if button exists
+    // Create Watch Status dropdown
     const watchStatusDropdown = document.createElement('div');
     if (document.getElementById('watchStatusButton')) {
         watchStatusDropdown.className = 'filter-dropdown-content hidden';
         watchStatusDropdown.innerHTML = `
             <div class="filter-options">
-                <label><input type="radio" name="watchStatus" value="all" ${traktFilterMode === 'all' ? 'checked' : ''}>Show All</label>
-                <label><input type="radio" name="watchStatus" value="watched" ${traktFilterMode === 'watched' ? 'checked' : ''}>Show Watched</label>
-                <label><input type="radio" name="watchStatus" value="unwatched" ${traktFilterMode === 'unwatched' ? 'checked' : ''}>Show Unwatched</label>
+                <label>
+                    <input type="radio" name="watchStatus" value="all" ${traktFilterMode === 'all' ? 'checked' : ''}>
+                    Show All <span class="count">(0)</span>
+                </label>
+                <label>
+                    <input type="radio" name="watchStatus" value="watched" ${traktFilterMode === 'watched' ? 'checked' : ''}>
+                    Show Watched <span class="count">(0)</span>
+                </label>
+                <label>
+                    <input type="radio" name="watchStatus" value="unwatched" ${traktFilterMode === 'unwatched' ? 'checked' : ''}>
+                    Show Unwatched <span class="count">(0)</span>
+                </label>
             </div>
         `;
     }
 
-    // Append dropdowns to the movies overlay content
     const moviesOverlayContent = document.getElementById('movies_overlay_content');
     if (moviesOverlayContent) {
         moviesOverlayContent.appendChild(libraryStatusDropdown);
         moviesOverlayContent.appendChild(watchStatusDropdown);
 
-        // Add necessary CSS
-        libraryStatusDropdown.style.position = 'fixed';  // Changed to fixed
-        watchStatusDropdown.style.position = 'fixed';    // Changed to fixed
+        libraryStatusDropdown.style.position = 'fixed';
+        watchStatusDropdown.style.position = 'fixed';
     }
 
-    // Setup click handlers for Library Status
+    // Handle library status button
     const libraryButton = document.getElementById('libraryStatusButton');
     if (libraryButton) {
         libraryButton.addEventListener('click', (e) => {
             e.stopPropagation();
             const rect = libraryButton.getBoundingClientRect();
-            const overlayRect = moviesOverlayContent.getBoundingClientRect();
 
             libraryStatusDropdown.style.top = `${rect.bottom + 4}px`;
             libraryStatusDropdown.style.left = `${rect.left}px`;
@@ -2423,13 +2489,12 @@ async function setupFilters() {
         });
     }
 
-    // Setup click handlers for Watch Status if it exists
+    // Handle watch status button
     const watchButton = document.getElementById('watchStatusButton');
     if (watchButton) {
         watchButton.addEventListener('click', (e) => {
             e.stopPropagation();
             const rect = watchButton.getBoundingClientRect();
-            const overlayRect = moviesOverlayContent.getBoundingClientRect();
 
             watchStatusDropdown.style.top = `${rect.bottom + 4}px`;
             watchStatusDropdown.style.left = `${rect.left}px`;
@@ -2449,18 +2514,83 @@ async function setupFilters() {
         watchButton?.classList.remove('active');
     });
 
-    // Handle filter changes
+    // Handle library status changes
     libraryStatusDropdown.addEventListener('change', (e) => {
         plexFilterMode = e.target.value;
         document.getElementById('libraryStatusButton').classList.add('active');
         applyAllFilters();
     });
 
+    // Handle watch status changes
     if (watchButton) {
         watchStatusDropdown.addEventListener('change', (e) => {
             traktFilterMode = e.target.value;
             watchButton.classList.add('active');
             applyAllFilters();
+        });
+    }
+}
+
+async function updateFilterCounts() {
+    const moviesContainer = document.getElementById('movies_container');
+    const movieCards = moviesContainer ? moviesContainer.querySelectorAll('.movie-card') : [];
+    const visibleCards = Array.from(movieCards).filter(card => card.style.display !== 'none');
+    const totalVisible = visibleCards.length;
+
+    // Update library status counts
+    const inLibraryCount = visibleCards.filter(card =>
+        card.querySelector('.plex-badge, .jellyfin-badge, .emby-badge')
+    ).length;
+    const notInLibraryCount = totalVisible - inLibraryCount;
+
+    // Update watch status counts
+    const watchedMovies = await getWatchedMovies();
+    const watchedCount = visibleCards.filter(card =>
+        watchedMovies.includes(parseInt(card.dataset.movieId))
+    ).length;
+    const unwatchedCount = totalVisible - watchedCount;
+
+    // Update the count displays in dropdowns
+    const updateCounts = (dropdown, counts) => {
+        const labels = dropdown.querySelectorAll('label');
+        labels.forEach(label => {
+            const span = label.querySelector('.count');
+            if (span) {
+                const input = label.querySelector('input');
+                if (input) {
+                    switch (input.value) {
+                        case 'all':
+                            span.textContent = `(${counts.total})`;
+                            break;
+                        case 'inPlex':
+                        case 'watched':
+                            span.textContent = `(${counts.first})`;
+                            break;
+                        case 'notInPlex':
+                        case 'unwatched':
+                            span.textContent = `(${counts.second})`;
+                            break;
+                    }
+                }
+            }
+        });
+    };
+
+    const libraryDropdown = document.querySelector('.filter-dropdown-content');
+    if (libraryDropdown) {
+        updateCounts(libraryDropdown, {
+            total: totalVisible,
+            first: inLibraryCount,
+            second: notInLibraryCount
+        });
+    }
+
+    const watchDropdown = document.querySelectorAll('.filter-dropdown-content')[1];
+    if (watchDropdown) {
+        updateCounts(watchDropdown, {
+            total: totalVisible,
+            first: watchedCount,
+            second: unwatchedCount
         });
     }
 }
@@ -2535,17 +2665,88 @@ async function syncTraktWatched() {
     hideLoadingOverlay();
 }
 
-async function isMovieInPlex(movieId) {
+async function isMovieInService(tmdbId) {
     try {
-        const response = await fetch(`/is_movie_in_plex/${movieId}`);
+        let apiEndpoint;
+        switch(currentService) {
+            case 'plex':
+                apiEndpoint = '/is_movie_in_plex/';
+                break;
+            case 'jellyfin':
+                apiEndpoint = '/is_movie_in_jellyfin/';
+                break;
+            case 'emby':
+                apiEndpoint = '/is_movie_in_emby/';
+                break;
+            default:
+                throw new Error(`Unknown service: ${currentService}`);
+        }
+
+        const response = await fetch(`${apiEndpoint}${tmdbId}`);
         if (!response.ok) {
-            throw new Error('Failed to check Plex availability');
+            return false;
         }
         const data = await response.json();
-        return data.available;
+        return data.available;  // All endpoints return {available: true/false}
+
     } catch (error) {
-        console.error("Error checking Plex availability:", error);
+        console.error(`Error checking ${currentService} availability:`, error);
         return false;
+    }
+}
+
+// Use the unified function for individual service checks
+async function isMovieInJellyfin(tmdbId) {
+    const currentServiceTemp = currentService;
+    currentService = 'jellyfin';
+    const result = await isMovieInService(tmdbId);
+    currentService = currentServiceTemp;
+    return result;
+}
+
+async function isMovieInEmby(tmdbId) {
+    const currentServiceTemp = currentService;
+    currentService = 'emby';
+    const result = await isMovieInService(tmdbId);
+    currentService = currentServiceTemp;
+    return result;
+}
+
+async function isMovieInPlex(tmdbId) {
+    const currentServiceTemp = currentService;
+    currentService = 'plex';
+    const result = await isMovieInService(tmdbId);
+    currentService = currentServiceTemp;
+    return result;
+}
+
+// Keep the getServiceId function separate for playback
+async function getServiceId(tmdbId) {
+    try {
+        let apiEndpoint;
+        switch(currentService) {
+            case 'plex':
+                apiEndpoint = '/api/get_plex_id/';
+                break;
+            case 'jellyfin':
+                apiEndpoint = '/api/get_jellyfin_id/';
+                break;
+            case 'emby':
+                apiEndpoint = '/api/get_emby_id/';
+                break;
+            default:
+                throw new Error(`Unknown service: ${currentService}`);
+        }
+
+        const response = await fetch(`${apiEndpoint}${tmdbId}`);
+        if (!response.ok) {
+            throw new Error(`Failed to get ${currentService} ID`);
+        }
+        const data = await response.json();
+        return data[`${currentService}Id`] || data.mediaId;
+    } catch (error) {
+        console.error(`Error getting ${currentService} ID:`, error);
+        return null;
     }
 }
 

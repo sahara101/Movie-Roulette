@@ -59,9 +59,9 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:latest
-            sahara101/movie-roulette:v3.3.1
+            sahara101/movie-roulette:v3.3.2
             ghcr.io/sahara101/movie-roulette:latest
-            ghcr.io/sahara101/movie-roulette:v3.3.1
+            ghcr.io/sahara101/movie-roulette:v3.3.2
       # Build ARM image
       - name: Build and push ARM
         #if: false
@@ -73,9 +73,9 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:arm-latest
-            sahara101/movie-roulette:arm-v3.3.1
+            sahara101/movie-roulette:arm-v3.3.2
             ghcr.io/sahara101/movie-roulette:arm-latest
-            ghcr.io/sahara101/movie-roulette:arm-v3.3.1
+            ghcr.io/sahara101/movie-roulette:arm-v3.3.2
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
       - name: Move cache

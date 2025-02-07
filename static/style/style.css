@@ -849,6 +849,19 @@ main, #section, #movieContent {
     background-color: #00a4dc;
 }
 
+.emby-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    z-index: 10;
+    background-color: #52B54B; 
+}
+
 #movie_data_overlay_content #watch_movie_button,
 #movie_data_overlay_content #request_movie_button {
     background-color: #E5A00D;

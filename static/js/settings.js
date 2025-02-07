@@ -90,12 +90,12 @@ document.addEventListener('DOMContentLoaded', function() {
     async function handleSettingChange(key, value) {
     	try {
             if (currentOverrides && getNestedValue(currentOverrides, key)) {
-                showError('Cannot modify environment-controlled setting');
-                return;
+            	showError('Cannot modify environment-controlled setting');
+            	return;
             }
 
             if (key.includes('poster_users') && typeof value === 'string') {
-                value = value.split(',').map(item => item.trim()).filter(Boolean);
+            	value = value.split(',').map(item => item.trim()).filter(Boolean);
             }
 
             const category = key.split('.')[0];
@@ -104,34 +104,43 @@ document.addEventListener('DOMContentLoaded', function() {
             let current = updateData;
 
             for (let i = 1; i < keyParts.length - 1; i++) {
-                current[keyParts[i]] = {};
-                current = current[keyParts[i]];
+            	current[keyParts[i]] = {};
+            	current = current[keyParts[i]];
             }
             current[keyParts[keyParts.length - 1]] = value;
 
             console.log('Updating setting:', key, 'with value:', value);
 
             const response = await fetch(`/api/settings/${category}`, {
-                method: 'POST',
-                headers: {
+            	method: 'POST',
+            	headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(updateData)
+            	body: JSON.stringify(updateData)
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to update setting');
+            	const errorData = await response.json();
+            	throw new Error(errorData.message || 'Failed to update setting');
             }
 
             const result = await response.json();
             showSuccess('Setting updated successfully');
             setNestedValue(currentSettings, key, value);
 
-        } catch (error) {
+            // Refresh preferred user selector if poster display mode changes
+            if (key === 'features.poster_display.mode') {
+            	const preferredUserContainer = document.querySelector('.preferred-user-wrapper')?.parentElement;
+            	if (preferredUserContainer) {
+                    preferredUserContainer.innerHTML = '';
+                    renderPreferredUserSelector(preferredUserContainer);
+            	}
+            }
+
+    	} catch (error) {
             console.error('Error updating setting:', error);
             showError(error.message || 'Failed to update setting');
-        }
+    	}
     }
 
     function createTraktIntegration(container) {
