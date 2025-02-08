@@ -30,7 +30,7 @@ For a complete README check the [default-docker](https://github.com/sahara101/Mo
 
 - Native macOS application
 - Supports both Intel and Apple Silicon Macs
-- Integration with Plex and Jellyfin
+- Integration with Plex, Jellyfin and Emby
 - Random movie selection with filters
 - Movie poster display
 - Playback control
