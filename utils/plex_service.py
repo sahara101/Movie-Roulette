@@ -20,12 +20,13 @@ class PlexService:
 
     def __init__(self, url=None, token=None, libraries=None):
         logger.info("Initializing PlexService")
-        logger.info(f"Parameters - URL: {bool(url)}, Token: {bool(token)}, Libraries: {libraries}")
+        logger.info(f"Parameters - URL: {bool(url)}, Token: {bool(token)}, Libraries: [REDACTED]")
 
         # First try settings (from parameters)
         self.PLEX_URL = url
         self.PLEX_TOKEN = token
         self.PLEX_MOVIE_LIBRARIES = libraries if isinstance(libraries, list) else libraries.split(',') if libraries else []
+        self._cache_manager = None
 
         # Cache file paths
         self.MOVIES_CACHE_FILE = path_manager.get_path('plex_unwatched')
@@ -497,7 +498,7 @@ class PlexService:
         logger.info(f"Cache initialized with {len(self._movies_cache)} movies in {time.time() - start_time:.2f} seconds")
 
     def update_watched_status(self, movie_id):
-        """Remove movie from cache when watched"""
+        """Remove movie from cache when watched and update counts"""
         logger.info(f"Updating watched status for movie {movie_id}")
     
         # Remove from unwatched movies cache only
@@ -560,15 +561,52 @@ class PlexService:
 
         return movie_data
 
+    def set_cache_manager(self, cache_manager):
+        self._cache_manager = cache_manager
+
     def get_random_movie(self):
-        """Now uses in-memory cache"""
-        if not self._movies_cache:
-            logger.info("No movies in cache")
+        """Get a random movie from all movies in library (instead of just unwatched)."""
+        try:
+            cache_manager = self._cache_manager
+
+            # Try to get all movies from the cache manager if available
+            if cache_manager:
+                all_movies = cache_manager.get_all_plex_movies()
+                if all_movies:
+                    movie = random.choice(all_movies)
+                    logger.info(f"Selected random movie for screensaver from ALL movies cache: {movie['title']}")
+                    return {
+                        'title': movie['title'],
+                        'poster': movie['poster'],
+                        'contentRating': movie.get('contentRating', ''),
+                        'videoFormat': movie.get('videoFormat', ''),
+                        'audioFormat': movie.get('audioFormat', ''),
+                        'year': movie.get('year', '')
+                    }
+                else:
+                    logger.warning("Cache manager returned no ALL movies, falling back to unwatched cache if available.")
+            else:
+                logger.warning("No cache manager found; falling back to unwatched cache.")
+
+            # Fallback to unwatched cache if we couldn't get anything from the all-movies cache
+            if self._movies_cache:
+                movie = random.choice(self._movies_cache)
+                logger.info(f"Selected random movie for screensaver from UNWATCHED cache fallback: {movie['title']}")
+                return {
+                    'title': movie['title'],
+                    'poster': movie['poster'],
+                    'contentRating': movie.get('contentRating', ''),
+                    'videoFormat': movie.get('videoFormat', ''),
+                    'audioFormat': movie.get('audioFormat', ''),
+                    'year': movie.get('year', '')
+                }
+
+            logger.warning("No movies available for screensaver (both all-movies and unwatched are empty).")
             return None
-        movie = random.choice(self._movies_cache)
-        source = "memory" if self._cache_loaded else "plex"
-        logger.info(f"Movie '{movie['title']}' loaded from {source} cache")
-        return movie
+
+        except Exception as e:
+            logger.error(f"Error getting random movie for screensaver: {e}")
+            return None
 
     def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
         try:
@@ -810,8 +848,23 @@ class PlexService:
             if not client:
                 raise ValueError(f"Unknown client id: {client_id}")
 
-            client.proxyThroughServer()
-            client.playMedia(movie)
+            try:
+                client.proxyThroughServer()
+                client.playMedia(movie)
+            except requests.exceptions.ReadTimeout:
+                logger.warning(f"Timeout while waiting for response from client {client.title}, but play command was sent")
+                # Continue processing since the play command likely succeeded
+            except Exception as e:
+                # Re-raise any other exceptions
+                raise e
+
+            # Get username before playing
+            username = None
+            try:
+                username = client.usernames[0] if client.usernames else None
+                logger.info(f"Playing movie for user: {username} on client: {client.title}")
+            except:
+                logger.info("Could not determine username for client")
 
             # Set the start time for the movie
             self.playback_start_times[movie_id] = datetime.now()
@@ -826,9 +879,7 @@ class PlexService:
             if not movie_data:
                 movie_data = self.get_movie_data(movie)
 
-            if movie_data:
-                set_current_movie(movie_data, service='plex', resume_position=0)
-            return {"status": "playing"}
+            return {"status": "playing", "username": username}  # Add username to response
         except Exception as e:
             logger.error(f"Error playing movie: {e}")
             return {"error": str(e)}
@@ -890,158 +941,6 @@ class PlexService:
         except Exception as e:
             logger.error(f"Error getting all movies with metadata: {e}")
             return []
-
-    def get_playback_info(self, item_id):
-        """Get playback information for a movie"""
-        try:
-            for session in self.plex.sessions():
-                if str(session.ratingKey) == str(item_id):
-                    position_ms = session.viewOffset or 0
-                    duration_ms = session.duration or 0
-                    position_seconds = position_ms / 1000
-                    total_duration_seconds = duration_ms / 1000
-
-                    # Correctly access the playback state
-                    session_state = session.player.state.lower()
-                    is_paused = session_state == 'paused'
-                    is_playing = session_state == 'playing'
-                    is_buffering = session_state == 'buffering'
-
-                    # Handle buffering state
-                    if is_buffering:
-                        is_playing = True
-                        is_paused = False
-
-                    # Use stored start time or current time if not available
-                    if item_id not in self.playback_start_times:
-                        self.playback_start_times[item_id] = datetime.now()
-
-                    start_time = self.playback_start_times[item_id]
-                    end_time = start_time + timedelta(seconds=total_duration_seconds)
-
-                    # Check if movie was just watched and update cache if needed
-                    if session.viewOffset and session.duration:
-                        if (session.viewOffset / session.duration) > 0.9:  # 90% watched
-                            self.update_watched_status(item_id)
-
-                    return {
-                        'id': str(item_id),
-                        'is_playing': is_playing,
-                        'IsPaused': is_paused,
-                        'IsStopped': False,
-                        'position': position_seconds,
-                        'start_time': start_time.isoformat(),
-                        'end_time': end_time.isoformat(),
-                        'duration': total_duration_seconds
-                    }
-            # If no matching session found, the movie is stopped
-            return {
-                'id': str(item_id),
-                'is_playing': False,
-                'IsPaused': False,
-                'IsStopped': True,
-                'position': 0,
-                'start_time': None,
-                'end_time': None,
-                'duration': 0
-            }
-        except Exception as e:
-            logger.error(f"Error fetching playback info: {e}")
-            return None
-
-    def refresh_cache(self, force=False):
-        """Force refresh the cache"""
-        if force:
-            self._movies_cache = []
-            self._metadata_cache = {}
-        self._initialize_cache()
-        self.save_cache_to_disk()
-        logger.info("Cache refreshed successfully")
-
-    def cleanup_metadata_cache(self, max_size=1000):
-        """Clean up metadata cache if it gets too large"""
-        if len(self._metadata_cache) > max_size:
-            # Remove oldest entries to get back to max_size
-            items_to_remove = len(self._metadata_cache) - max_size
-            for _ in range(items_to_remove):
-                self._metadata_cache.pop(next(iter(self._metadata_cache)))
-            logger.info(f"Cleaned up metadata cache, removed {items_to_remove} items")
-
-    def get_clients(self):
-        """Get available Plex clients"""
-        return [{"id": client.machineIdentifier, "title": client.title}
-                for client in self.plex.clients()]
-
-    def play_movie(self, movie_id, client_id):
-        """Play a movie on specified client"""
-        try:
-            movie = None
-            for library in self.libraries:
-                try:
-                    movie = library.fetchItem(int(movie_id))
-                    if movie:
-                        break
-                except:
-                    continue
-
-            if not movie:
-                raise ValueError(f"Movie with id {movie_id} not found in any library")
-
-            client = next((c for c in self.plex.clients()
-                         if c.machineIdentifier == client_id), None)
-            if not client:
-                raise ValueError(f"Unknown client id: {client_id}")
-
-            client.proxyThroughServer()
-            client.playMedia(movie)
-
-            # Set the start time for the movie
-            self.playback_start_times[movie_id] = datetime.now()
-
-            # If movie was watched, update cache
-            if movie.isWatched:
-                self.update_watched_status(movie_id)
-
-            # Use cached movie data if available
-            movie_data = next((m for m in self._movies_cache
-                             if str(m['id']) == str(movie_id)), None)
-            if not movie_data:
-                movie_data = self.get_movie_data(movie)
-
-            if movie_data:
-                set_current_movie(movie_data, service='plex', resume_position=0)
-            return {"status": "playing"}
-        except Exception as e:
-            logger.error(f"Error playing movie: {e}")
-            return {"error": str(e)}
-
-    def get_total_unwatched_movies(self):
-        """Get total count of unwatched movies from cache"""
-        return len(self._movies_cache)
-
-    def get_all_unwatched_movies(self, progress_callback=None):
-        """Get all unwatched movies with metadata"""
-        if progress_callback:
-            progress_callback(1.0)  # Since we're using cache, we're already done
-        return self._movies_cache
-
-    def get_movie_by_id(self, movie_id):
-        """Get movie by ID from cache first, then Plex if needed"""
-        # Try cache first
-        cached_movie = next((movie for movie in self._movies_cache
-                           if str(movie['id']) == str(movie_id)), None)
-        if cached_movie:
-            return cached_movie
-
-        # If not in cache, try Plex
-        for library in self.libraries:
-            try:
-                movie = library.fetchItem(int(movie_id))
-                return self.get_movie_data(movie)
-            except:
-                continue
-        logger.error(f"Movie with id {movie_id} not found in any library")
-        return None
 
     def get_playback_info(self, item_id):
         """Get playback information for a movie"""

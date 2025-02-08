@@ -209,6 +209,8 @@ def initialize_services():
             app.config['CACHE_MANAGER'] = cache_manager
             cache_manager.start()
 
+            plex.set_cache_manager(cache_manager)
+
             logger.info("Plex service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Plex service: {e}")
@@ -333,7 +335,6 @@ def initialize_services():
     else:
         logger.info("Jellyseerr service is disabled or not configured")
 
-    # Add to the services status log
     logger.info(f"- Jellyseerr: {jellyseerr_enabled}")
 
     # Initialize Ombi if enabled
@@ -801,6 +802,24 @@ app.config['initialize_services'] = initialize_services
 # Initialize services
 initialize_services()
 
+try:
+   # Set up movie service for poster manager
+   logger.info("Setting up movie service for poster manager...")
+   current_service = get_available_service()  # Get current service
+   if current_service == 'plex' and PLEX_AVAILABLE and plex:
+       logger.info("Using Plex as movie service for poster manager")
+       # Store cache manager reference
+       plex.cache_manager = app.config['CACHE_MANAGER']
+       default_poster_manager.set_movie_service(plex)
+   elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+       logger.info("Using Jellyfin as movie service for poster manager")
+       default_poster_manager.set_movie_service(jellyfin)
+   elif current_service == 'emby' and EMBY_AVAILABLE and emby:
+       logger.info("Using Emby as movie service for poster manager")
+       default_poster_manager.set_movie_service(emby)
+except EnvironmentError:
+   logger.warning("No media services available during initialization")
+
 # Start the PlaybackMonitor
 playback_monitor = PlaybackMonitor(app, interval=10)
 app.config['PLAYBACK_MONITOR'] = playback_monitor
@@ -948,11 +967,29 @@ def switch_service():
 
     if len(available_services) > 1:
         current = session.get('current_service', 'plex')
-        # Get the next service in the list, cycling back to start if needed
         current_index = available_services.index(current)
         next_index = (current_index + 1) % len(available_services)
         new_service = available_services[next_index]
         session['current_service'] = new_service
+
+        # Update poster manager service
+        if default_poster_manager:
+            new_service_instance = None
+            if new_service == 'plex' and PLEX_AVAILABLE and plex:
+                logger.info("Switching screensaver to Plex service")
+                plex.cache_manager = app.config['CACHE_MANAGER']
+                new_service_instance = plex
+            elif new_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+                logger.info("Switching screensaver to Jellyfin service")
+                new_service_instance = jellyfin
+            elif new_service == 'emby' and EMBY_AVAILABLE and emby:
+                logger.info("Switching screensaver to Emby service")
+                new_service_instance = emby
+
+            if new_service_instance:
+                # This will handle stopping/restarting screensaver if needed
+                default_poster_manager.set_movie_service(new_service_instance)
+
         return jsonify({"service": new_service})
     else:
         return jsonify({"service": get_available_service()})
@@ -1177,9 +1214,7 @@ def play_movie(client_id):
     movie_id = request.args.get('movie_id')
     if not movie_id:
         return jsonify({"error": "No movie selected"}), 400
-
     current_service = session.get('current_service', get_available_service())
-
     try:
         if current_service == 'plex' and PLEX_AVAILABLE:
             result = plex.play_movie(movie_id, client_id)
@@ -1196,9 +1231,9 @@ def play_movie(client_id):
         else:
             return jsonify({"error": "No available media service"}), 400
 
-        if result.get("status") == "playing" and movie_data:
-            set_current_movie(movie_data, current_service)
-
+        # Only set current movie if we have result["username"] from the service
+        if result.get("status") == "playing" and movie_data and result.get("username"):
+            set_current_movie(movie_data, current_service, username=result.get("username"))
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in play_movie: {e}")
@@ -1208,7 +1243,6 @@ def play_movie(client_id):
 def devices():
     """Returns list of all available TV devices"""
     devices = []
-
     # Check Apple TV (still needed)
     apple_tv_id_env = os.getenv('APPLE_TV_ID')
     if apple_tv_id_env:
@@ -1223,16 +1257,19 @@ def devices():
             "displayName": "Apple TV",
             "env_controlled": False
         })
-
     # Add all configured TVs
     tv_instances = settings.get('clients', {}).get('tvs', {}).get('instances', {})
     for tv_id, tv in tv_instances.items():
         # Only add TVs that exist and are enabled
         if tv and not isinstance(tv, str) and tv.get('enabled', True):
             try:
+                # Format TV name from instance ID
+                words = tv_id.split('_')
+                display_name = ' '.join(word.capitalize() for word in words)
+
                 devices.append({
                     "name": tv_id,
-                    "displayName": tv.get('name', 'Unknown TV'),
+                    "displayName": display_name,  # Use formatted name
                     "env_controlled": False,
                     "type": tv.get('type'),
                     "ip": tv.get('ip'),
@@ -1240,7 +1277,6 @@ def devices():
                 })
             except Exception as e:
                 logger.error(f"Error adding TV {tv_id} to devices list: {e}")
-
     logger.debug(f"Available devices: {devices}")
     return jsonify(devices)
 
@@ -1448,11 +1484,60 @@ def get_plex_id(tmdb_id):
     try:
         all_movies = cache_manager.get_all_plex_movies()
         for movie in all_movies:
-            if str(movie['tmdb_id']) == str(tmdb_id):
-                return jsonify({"plexId": movie['plex_id']})
+            if str(movie.get('tmdb_id')) == str(tmdb_id):
+                return jsonify({"plexId": movie['id']})  # Return the Plex ratingKey as plexId
+        # If we get here, we didn't find the movie
+        logger.warning(f"Movie with TMDb ID {tmdb_id} not found in Plex")
         return jsonify({"error": "Movie not found in Plex"}), 404
+
     except Exception as e:
         logger.error(f"Error getting Plex ID: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/get_jellyfin_id/<tmdb_id>')
+def get_jellyfin_id(tmdb_id):
+    try:
+        if not JELLYFIN_AVAILABLE or not jellyfin:
+            return jsonify({"error": "Jellyfin not available"}), 404
+
+        cache_path = path_manager.get_path('jellyfin_movies')
+        if not os.path.exists(cache_path):
+            return jsonify({"error": "Jellyfin cache not found"}), 404
+
+        with open(cache_path, 'r') as f:
+            all_movies = json.load(f)
+
+        for movie in all_movies:
+            if str(movie.get('tmdb_id')) == str(tmdb_id):
+                return jsonify({"jellyfinId": movie['jellyfin_id']})
+
+        return jsonify({"error": "Movie not found in Jellyfin"}), 404
+
+    except Exception as e:
+        logger.error(f"Error getting Jellyfin ID: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/get_emby_id/<tmdb_id>')
+def get_emby_id(tmdb_id):
+    try:
+        if not EMBY_AVAILABLE or not emby:
+            return jsonify({"error": "Emby not available"}), 404
+
+        cache_path = path_manager.get_path('emby_movies')
+        if not os.path.exists(cache_path):
+            return jsonify({"error": "Emby cache not found"}), 404
+
+        with open(cache_path, 'r') as f:
+            all_movies = json.load(f)
+
+        for movie in all_movies:
+            if str(movie.get('tmdb_id')) == str(tmdb_id):
+                return jsonify({"embyId": movie['emby_id']})
+
+        return jsonify({"error": "Movie not found in Emby"}), 404
+
+    except Exception as e:
+        logger.error(f"Error getting Emby ID: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/tv/scan/<tv_type>')

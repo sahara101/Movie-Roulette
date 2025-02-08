@@ -1049,7 +1049,7 @@ select.setting-input option {
 .tv-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 8px;
 }
 
@@ -1057,9 +1057,10 @@ select.setting-input option {
     color: #EAEAEC;
     font-weight: 600;
     font-size: 1.1em;
+    white-space: nowrap;
 }
 
-tv-title-section {
+.tv-title-section {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1075,6 +1076,8 @@ tv-title-section {
 .env-override {
     font-size: 0.85em;
     color: #ffa500;
+    white-space: nowrap;
+    line-height: 1;
 }
 
 .tv-details {

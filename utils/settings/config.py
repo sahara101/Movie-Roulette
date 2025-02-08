@@ -37,10 +37,17 @@ DEFAULT_SETTINGS = {
         'use_next_button': True,
         'homepage_mode': False,
         'timezone': 'UTC',
+        'poster_mode': 'default',  # 'default' or 'screensaver'
+        'screensaver_interval': 300,
         'default_poster_text': '',
         'poster_users': {
             'plex': [],
-            'jellyfin': []
+            'jellyfin': [],
+            'emby': []
+        },
+        'poster_display': {
+            'mode': 'first_active',  # 'first_active' or 'preferred_user'
+            'preferred_user': {}
         }
     },
     'request_services': {
@@ -78,13 +85,18 @@ DEFAULT_SETTINGS = {
 }
 
 ENV_MAPPINGS = {
-    # Homepage ENV
+    # Features ENV
     'HOMEPAGE_MODE': ('features', 'homepage_mode', lambda x: x.upper() == 'TRUE'),
     'TZ': ('features', 'timezone', str),
     'DEFAULT_POSTER_TEXT': ('features', 'default_poster_text', str),
+    'POSTER_MODE': ('features', 'poster_mode', str),
+    'SCREENSAVER_INTERVAL': ('features', 'screensaver_interval', int),
     'PLEX_POSTER_USERS': ('features.poster_users', 'plex', lambda x: [s.strip() for s in x.split(',')]),
     'JELLYFIN_POSTER_USERS': ('features.poster_users', 'jellyfin', lambda x: [s.strip() for s in x.split(',')]),
     'EMBY_POSTER_USERS': ('features.poster_users', 'emby', lambda x: [s.strip() for s in x.split(',')]),
+    'POSTER_DISPLAY_MODE': ('features.poster_display', 'mode', str),
+    'PREFERRED_POSTER_USER': ('features.poster_display.preferred_user', 'username', str),
+    'PREFERRED_POSTER_SERVICE': ('features.poster_display.preferred_user', 'service', str),
     
     # Plex ENV
     'PLEX_URL': ('plex', 'url', str),
@@ -117,6 +129,13 @@ ENV_MAPPINGS = {
     'REQUEST_SERVICE_JELLYFIN': ('request_services', 'jellyfin_override', str),
     'REQUEST_SERVICE_EMBY': ('request_services', 'emby_override', str),
 
+    # Feature flags
+    'USE_LINKS': ('features', 'use_links', lambda x: x.upper() == 'TRUE'),
+    'USE_FILTER': ('features', 'use_filter', lambda x: x.upper() == 'TRUE'),
+    'USE_WATCH_BUTTON': ('features', 'use_watch_button', lambda x: x.upper() == 'TRUE'),
+    'USE_NEXT_BUTTON': ('features', 'use_next_button', lambda x: x.upper() == 'TRUE'),
+    'ENABLE_MOBILE_TRUNCATION': ('features', 'mobile_truncation', lambda x: x.upper() == 'TRUE'),
+
     # AppleTV ENV
     'APPLE_TV_ID': ('clients.apple_tv', 'id', str),
 
@@ -125,13 +144,6 @@ ENV_MAPPINGS = {
     'TV_(.+)_IP': ('clients.tvs.instances.$1', 'ip', str),
     'TV_(.+)_MAC': ('clients.tvs.instances.$1', 'mac', str),
 
-    # Feature flags
-    'USE_LINKS': ('features', 'use_links', lambda x: x.upper() == 'TRUE'),
-    'USE_FILTER': ('features', 'use_filter', lambda x: x.upper() == 'TRUE'),
-    'USE_WATCH_BUTTON': ('features', 'use_watch_button', lambda x: x.upper() == 'TRUE'),
-    'USE_NEXT_BUTTON': ('features', 'use_next_button', lambda x: x.upper() == 'TRUE'),
-    
-    # utils/settings/manager.pyTMDB
     'TMDB_API_KEY': ('tmdb', 'api_key', str),
     
     # Trakt
