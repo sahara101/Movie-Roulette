@@ -10,42 +10,27 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == github.repository_owner
     steps:
-      - name: Check if comment is from repository owner
+      - name: Add donation message
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const eventData = {
-              commentId: null,
-              updateEndpoint: null,
-              params: null
-            };
+            const donationMessage = '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)';
             
             if (context.eventName === 'issue_comment') {
-              eventData.commentId = context.payload.comment.id;
-              eventData.updateEndpoint = 'issues.updateComment';
-              eventData.params = {
+              await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: context.payload.comment.id,
-                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)'
-              };
+                body: context.payload.comment.body + donationMessage
+              });
             } else {
-              eventData.commentId = context.payload.comment.id;
-              eventData.updateEndpoint = 'pulls.updateReviewComment';
-              eventData.params = {
+              await github.rest.pulls.updateReviewComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: context.payload.comment.id,
-                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)'
-              };
+                body: context.payload.comment.body + donationMessage
+              });
             }
             
-            try {
-              const result = await github.rest[eventData.updateEndpoint](eventData.params);
-              console.log('Successfully updated comment with donation message');
-              return result;
-            } catch (error) {
-              console.error('Error updating comment:', error);
-              core.setFailed(error.message);
-            }
+            console.log('Successfully updated comment with donation message');
