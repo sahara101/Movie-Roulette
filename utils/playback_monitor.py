@@ -24,6 +24,9 @@ class PlaybackMonitor(threading.Thread):
         jellyfin_settings = settings.get('jellyfin', {})
         emby_settings = settings.get('emby', {})
 
+        # Initialize user mapping dictionary
+        self.plex_user_mapping = {}
+
         # Check for both settings and ENV availability
         self.plex_available = (
             bool(plex_settings.get('enabled')) or
@@ -64,6 +67,9 @@ class PlaybackMonitor(threading.Thread):
             if not self.plex_service:
                 logger.warning("Plex marked as available but service not found in app config")
                 self.plex_available = False
+            else:
+                # Initialize user mapping on startup
+                self.update_plex_user_mapping()
 
         if self.emby_available:
             self.emby_service = app.config.get('EMBY_SERVICE')
@@ -263,9 +269,16 @@ class PlaybackMonitor(threading.Thread):
         """Internal method to check if user is authorized without logging"""
         if not username:
             return False
-        
+
         if service == 'plex':
-            return username in self.plex_poster_users
+            # Get canonical username if it exists in our mapping
+            canonical_username = self.plex_user_mapping.get(username.lower(), username)
+            authorized_users = [user.lower() for user in self.plex_poster_users]
+            # Check both username and any mapped names
+            return (canonical_username.lower() in authorized_users or 
+                   any(mapped_name.lower() in authorized_users 
+                       for mapped_name, mapped_user in self.plex_user_mapping.items() 
+                       if mapped_user.lower() == canonical_username.lower()))
         elif service == 'jellyfin':
             return username in self.jellyfin_poster_users
         elif service == 'emby':
@@ -280,14 +293,21 @@ class PlaybackMonitor(threading.Thread):
 
         # First check if they're in authorized poster users
         if service == 'plex':
-            is_authorized = username in self.plex_poster_users
+            # Get canonical username if it exists in our mapping
+            canonical_username = self.plex_user_mapping.get(username.lower(), username)
+            authorized_users = [user.lower() for user in self.plex_poster_users]
+            # Check both username and any mapped names
+            is_authorized = (canonical_username.lower() in authorized_users or 
+                           any(mapped_name.lower() in authorized_users 
+                               for mapped_name, mapped_user in self.plex_user_mapping.items() 
+                               if mapped_user.lower() == canonical_username.lower()))
         elif service == 'jellyfin':
             is_authorized = username in self.jellyfin_poster_users
         elif service == 'emby':
             is_authorized = username in self.emby_poster_users
         else:
             is_authorized = False
-    
+
         if not is_authorized:
             logger.info(f"Unauthorized {service} playback by user {username}")
             return False
@@ -295,11 +315,11 @@ class PlaybackMonitor(threading.Thread):
         # Get current display mode
         features_settings = self.settings.get('features', {})
         display_mode = features_settings.get('poster_display', {}).get('mode', 'first_active')
-    
+
         # Get all active sessions once
         active_sessions = self.get_all_sessions()
         authorized_sessions = []
-    
+
         # Count authorized sessions and collect their details
         for service_name, service_sessions in active_sessions.items():
             for session in service_sessions:
@@ -327,24 +347,36 @@ class PlaybackMonitor(threading.Thread):
         # Multiple authorized sessions - check mode
         if display_mode == 'preferred_user':
             preferred = features_settings.get('poster_display', {}).get('preferred_user')
-        
+
+            # Check if this is the preferred user (handling Plex username/full name)
+            is_preferred = False
+            if service == 'plex':
+                preferred_username = preferred.get('username', '').lower()
+                canonical_username = self.plex_user_mapping.get(username.lower(), username)
+                is_preferred = (canonical_username.lower() == preferred_username or 
+                              any(mapped_name.lower() == preferred_username 
+                                  for mapped_name, mapped_user in self.plex_user_mapping.items() 
+                                  if mapped_user.lower() == canonical_username.lower()))
+            else:
+                is_preferred = preferred.get('username') == username
+
             # Check if preferred user is among active sessions
-            preferred_active = any(session['username'] == preferred.get('username') and 
-                                session['service'] == preferred.get('service') 
-                                for session in authorized_sessions)
-        
+            preferred_active = any(session['username'] == preferred.get('username') and
+                                 session['service'] == preferred.get('service')
+                                 for session in authorized_sessions)
+
             # If this is the preferred user, they take over
-            if preferred and preferred.get('username') == username and preferred.get('service') == service:
+            if preferred and is_preferred and preferred.get('service') == service:
                 logger.info(f"Multiple sessions active, preferred user {username} ({service}) takes precedence")
                 if os.path.exists('/app/data/current_movie.json'):
                     os.remove('/app/data/current_movie.json')  # Force new poster
                 return True
-        
+
             # If preferred user is active, block others
             if preferred_active:
                 logger.info(f"Multiple sessions active, user {username} not preferred")
                 return False
-            
+
             # If no preferred user is active, use first_active behavior
             should_update = not os.path.exists('/app/data/current_movie.json')
             if should_update:
@@ -485,8 +517,32 @@ class PlaybackMonitor(threading.Thread):
     def get_username(self, session, service):
         """Helper to extract username from session based on service"""
         if service == 'plex':
-            return session.usernames[0] if session.usernames else None
+            username = session.usernames[0] if session.usernames else None
+            # For Plex, try to get canonical username from mapping
+            if username:
+                return self.plex_user_mapping.get(username.lower(), username)
+            return None
         return session.get('UserName')  # For Jellyfin/Emby
+
+    def update_plex_user_mapping(self):
+        """Update the mapping between Plex usernames and full names"""
+        try:
+            if self.plex_service and self.plex_available:
+                # Always map the server owner
+                account = self.plex_service.plex.myPlexAccount()
+                self.plex_user_mapping[account.username.lower()] = account.username
+                if account.title:  # Map the owner's full name
+                    self.plex_user_mapping[account.title.lower()] = account.username
+
+                # Map all shared users
+                for user in account.users():
+                    self.plex_user_mapping[user.username.lower()] = user.username
+                    if user.title:  # Map each user's full name
+                        self.plex_user_mapping[user.title.lower()] = user.username
+                
+                logger.info(f"Updated Plex user mapping: {self.plex_user_mapping}")
+        except Exception as e:
+            logger.error(f"Error updating Plex user mapping: {e}")
 
     def stop(self):
         self.running = False
