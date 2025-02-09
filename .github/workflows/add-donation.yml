@@ -28,7 +28,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: context.payload.comment.id,
-                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)''
+                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)'
               };
             } else {
               eventData.commentId = context.payload.comment.id;
@@ -37,7 +37,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: context.payload.comment.id,
-                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)''
+                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)'
               };
             }
             
