@@ -15,32 +15,36 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const context = github.context;
-            let commentId, updateEndpoint, params;
+            const eventData = {
+              commentId: null,
+              updateEndpoint: null,
+              params: null
+            };
             
             if (context.eventName === 'issue_comment') {
-              commentId = context.payload.comment.id;
-              updateEndpoint = 'issues.updateComment';
-              params = {
+              eventData.commentId = context.payload.comment.id;
+              eventData.updateEndpoint = 'issues.updateComment';
+              eventData.params = {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                comment_id: commentId,
-                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)'
+                comment_id: context.payload.comment.id,
+                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)''
               };
             } else {
-              commentId = context.payload.comment.id;
-              updateEndpoint = 'pulls.updateReviewComment';
-              params = {
+              eventData.commentId = context.payload.comment.id;
+              eventData.updateEndpoint = 'pulls.updateReviewComment';
+              eventData.params = {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                comment_id: commentId,
-                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)'
+                comment_id: context.payload.comment.id,
+                body: context.payload.comment.body + '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101)''
               };
             }
             
             try {
-              await github.rest[updateEndpoint](params);
+              const result = await github.rest[eventData.updateEndpoint](eventData.params);
               console.log('Successfully updated comment with donation message');
+              return result;
             } catch (error) {
               console.error('Error updating comment:', error);
               core.setFailed(error.message);
