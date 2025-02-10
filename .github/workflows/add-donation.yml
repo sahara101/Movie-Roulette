@@ -15,7 +15,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const donationMessage = '\n\n---\n❤️ If you find this helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101).';
+            const donationMessage = '\n\n---\n❤️ If you find the project helpful, consider [buying me a coffee](https://ko-fi.com/sahara101/donate) or [sponsor on github](https://github.com/sponsors/sahara101).';
             
             if (context.eventName === 'issue_comment') {
               await github.rest.issues.updateComment({
