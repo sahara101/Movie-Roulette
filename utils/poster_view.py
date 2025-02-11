@@ -226,10 +226,17 @@ def poster():
     try:
         # Get PlaybackMonitor first
         playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
-        
-        # Check current service first
-        from movie_selector import get_available_service
-        current_service = session.get('current_service', get_available_service())
+
+        # Get current service more defensively
+        try:
+            from movie_selector import get_available_service
+            current_service = get_available_service()  # Get default first
+            if hasattr(session, 'get'):  # Check if session is available
+                current_service = session.get('current_service', current_service)
+            logger.info(f"Current service: {current_service}")
+        except Exception as e:
+            logger.error(f"Error getting service: {e}", exc_info=True)
+            current_service = 'plex'  # Default to plex if there's an issue
 
         # Get services from app config
         default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
@@ -253,20 +260,34 @@ def poster():
         features = poster_settings.get('features', {})
         custom_text = poster_settings['custom_text']
 
-        # First check PlaybackMonitor for active movie
+        # Force an immediate check for active playback
         active_movie = None
-        if playback_monitor and playback_monitor.current_movie_id:
-            if current_service == 'plex' and plex:
-                active_movie = plex.get_movie_by_id(playback_monitor.current_movie_id)
-            elif current_service == 'jellyfin' and jellyfin:
-                active_movie = jellyfin.get_movie_by_id(playback_monitor.current_movie_id)
-            elif current_service == 'emby' and emby:
-                active_movie = emby.get_movie_by_id(playback_monitor.current_movie_id)
+        if current_service == 'plex' and plex:
+            sessions = plex.plex.sessions()
+            for session_data in sessions:
+                if session_data.type == 'movie' and playback_monitor.is_poster_user(session_data.usernames[0] if session_data.usernames else None, 'plex'):
+                    active_movie = plex.get_movie_by_id(session_data.ratingKey)
+                    break
+        elif current_service == 'jellyfin' and jellyfin:
+            sessions = jellyfin.get_active_sessions()
+            for session_data in sessions:
+                now_playing = session_data.get('NowPlayingItem', {})
+                if now_playing.get('Type') == 'Movie' and playback_monitor.is_poster_user(session_data.get('UserName'), 'jellyfin'):
+                    active_movie = jellyfin.get_movie_by_id(now_playing.get('Id'))
+                    break
+        elif current_service == 'emby' and emby:
+            sessions = emby.get_active_sessions()
+            for session_data in sessions:
+                now_playing = session_data.get('NowPlayingItem', {})
+                if now_playing.get('Type') == 'Movie' and playback_monitor.is_poster_user(session_data.get('UserName'), 'emby'):
+                    active_movie = emby.get_movie_by_id(now_playing.get('Id'))
+                    break
 
-            if active_movie:
-                logger.info(f"Active movie found from PlaybackMonitor: {active_movie.get('title')}")
-                # Force update of current_movie.json if needed
-                set_current_movie(active_movie, current_service)
+        if active_movie:
+            logger.info(f"Active movie found from immediate check: {active_movie.get('title')}")
+            # Force update of current_movie.json
+            set_current_movie(active_movie, current_service)
+            playback_monitor.current_movie_id = active_movie.get('id')
 
         # Check for active movie from file
         poster_data = get_poster_data()
@@ -292,7 +313,6 @@ def poster():
             logger.info("Configuring screensaver mode")
             settings_data = settings.get_all()
 
-            # Add debugging for movie service
             if default_poster_manager.movie_service:
                 logger.info(f"Movie service available: {default_poster_manager.movie_service.__class__.__name__}")
             else:

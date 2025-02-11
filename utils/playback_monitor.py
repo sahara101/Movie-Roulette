@@ -67,9 +67,6 @@ class PlaybackMonitor(threading.Thread):
             if not self.plex_service:
                 logger.warning("Plex marked as available but service not found in app config")
                 self.plex_available = False
-            else:
-                # Initialize user mapping on startup
-                self.update_plex_user_mapping()
 
         if self.emby_available:
             self.emby_service = app.config.get('EMBY_SERVICE')
@@ -88,13 +85,24 @@ class PlaybackMonitor(threading.Thread):
 
         # Get poster display mode settings
         features_settings = settings.get('features', {})
-        poster_display_mode = features_settings.get('poster_display_mode', {})
-        self.display_mode = poster_display_mode.get('mode', 'first_active')
-        self.preferred_users = poster_display_mode.get('preferred_user', {
+        poster_display = features_settings.get('poster_display', {}) 
+        self.display_mode = poster_display.get('mode', 'first_active')
+
+        # Initialize preferred user data
+        preferred_user_config = poster_display.get('preferred_user', {})
+        self.preferred_users = {
             'plex': '',
             'jellyfin': '',
             'emby': ''
-        })
+        }
+        if preferred_user_config:
+            preferred_username = preferred_user_config.get('username', '')
+            preferred_service = preferred_user_config.get('service', '')
+            if preferred_username and preferred_service:
+                self.preferred_users[preferred_service] = preferred_username
+
+        logger.info(f"Initialized with display mode: {self.display_mode}")
+        logger.info(f"Preferred users configuration: {self.preferred_users}")
 
         if os.getenv('PLEX_POSTER_USERS'):
             self.plex_poster_users = [u.strip() for u in os.getenv('PLEX_POSTER_USERS', '').split(',') if u.strip()]
@@ -111,7 +119,8 @@ class PlaybackMonitor(threading.Thread):
         else:
             self.emby_poster_users = poster_users.get('emby', []) if isinstance(poster_users.get('emby'), list) else []
 
-        self.active_streams = {}  # Track all active authorized streams
+        # Stream tracking with timestamps
+        self.active_streams = {}  # Track all active authorized streams with timestamps
         self.current_stream = None  # Currently displayed stream
         self.current_state = None  # Current playback state
         self.is_showing_default = True  # Track if showing default poster
@@ -130,6 +139,27 @@ class PlaybackMonitor(threading.Thread):
         plex_settings = self.settings.get('plex', {})
         jellyfin_settings = self.settings.get('jellyfin', {})
         emby_settings = self.settings.get('emby', {})
+        features_settings = self.settings.get('features', {})
+
+        # Update display mode settings
+        poster_display = features_settings.get('poster_display', {})
+        self.display_mode = poster_display.get('mode', 'first_active')
+    
+        # Update preferred user settings
+        preferred_user_config = poster_display.get('preferred_user', {})
+        self.preferred_users = {
+            'plex': '',
+            'jellyfin': '',
+            'emby': ''
+        }
+        if preferred_user_config:
+            preferred_username = preferred_user_config.get('username', '')
+            preferred_service = preferred_user_config.get('service', '')
+            if preferred_username and preferred_service:
+                self.preferred_users[preferred_service] = preferred_username
+
+        logger.info(f"Updated display mode to: {self.display_mode}")
+        logger.info(f"Updated preferred users configuration: {self.preferred_users}")
 
         # Update availability flags
         self.plex_available = (
@@ -209,23 +239,72 @@ class PlaybackMonitor(threading.Thread):
                     logger.info(f"Current display stream status changed to: {status}")
 
     def select_display_stream(self):
-        """Select which stream to display based on Last Active logic"""
-        if not self.can_switch_streams():
-            return self.current_stream
+        """Select which stream to display based on configured mode and active streams"""
+        # Get all playing streams (filter out stopped ones)
+        playing_streams = {
+            stream_id: stream
+            for stream_id, stream in self.active_streams.items()
+            if stream['status'] == 'PLAYING'
+        }
 
-        if not self.active_streams:
+        if not playing_streams:
             if not self.is_showing_default:
-                logger.info("No active streams, switching to default poster")
+                logger.info("No active playing streams, switching to default poster")
                 self.is_showing_default = True
                 default_poster_manager = self.app.config.get('DEFAULT_POSTER_MANAGER')
                 if default_poster_manager:
                     default_poster_manager.handle_playback_state('STOPPED')
+                self.current_stream = None
             return None
 
-        # Get most recently active stream
-        newest_stream = max(self.active_streams.values(),
-                          key=lambda x: x['last_active'])
-        return newest_stream
+        # Sort streams by start time
+        sorted_streams = sorted(playing_streams.values(), key=lambda x: x.get('first_active', float('inf')))
+
+        # Log current stream selection state
+        logger.info(f"Selecting display stream from {len(playing_streams)} active streams:")
+        for i, stream in enumerate(sorted_streams, 1):
+            logger.info(f"  {i}. {stream['service']} stream: {stream['username']} - {stream['title']}")
+            logger.info(f"     Started: {time.strftime('%H:%M:%S', time.localtime(stream['first_active']))}")
+
+        # If we can't switch streams yet and have a current stream, maintain it
+        if not self.can_switch_streams() and self.current_stream:
+            # Only maintain if the stream is still active
+            if self.current_stream.get('id') in playing_streams:
+                logger.info(f"Maintaining current stream: {self.current_stream.get('title')} ({self.current_stream.get('username')})")
+                return self.current_stream
+            else:
+                logger.info("Current stream is no longer active")
+
+        selected_stream = None
+        if self.display_mode == 'preferred_user':
+            # Try to find preferred user stream first
+            for stream in sorted_streams:
+                service = stream['service']
+                username = stream['username']
+                preferred_username = self.preferred_users.get(service, '')
+            
+                if preferred_username and username == preferred_username:
+                    selected_stream = stream
+                    logger.info(f"Selected preferred user stream: {username} - {stream['title']} ({service})")
+                    break
+
+            # If no preferred user, fall back to first active behavior
+            if not selected_stream:
+                logger.info("No preferred user stream found, falling back to first active")
+                selected_stream = sorted_streams[0]
+        else:  # first_active mode
+            # Always select chronologically first stream
+            selected_stream = sorted_streams[0]
+            logger.info(f"Selected first active stream: {selected_stream['username']} - {selected_stream['title']}")
+
+        # If switching to a different stream, log the transition
+        if self.current_stream and selected_stream:
+            if self.current_stream.get('id') != selected_stream['id']:
+                logger.info(f"Switching display from {self.current_stream['title']} to {selected_stream['title']}")
+
+        # Update current stream
+        self.current_stream = selected_stream
+        return selected_stream
 
     def update_authorized_users(self):
         """Update authorized users list from settings or ENV"""
@@ -248,23 +327,6 @@ class PlaybackMonitor(threading.Thread):
         else:
             self.emby_poster_users = poster_users.get('emby', []) if isinstance(poster_users.get('emby'), list) else []
 
-    def should_update_poster(self, username, service):
-        """Check if this playback should take over the poster display"""
-        if self.display_mode == 'first_active':
-            # Keep existing behavior
-            return not os.path.exists('/app/data/current_movie.json')
-        elif self.display_mode == 'preferred_user':
-            # Get preferred user for this service
-            preferred_user = self.preferred_users.get(service, '')
-            if not preferred_user:
-                # If no preferred user set for service, fall back to first_active behavior
-                return not os.path.exists('/app/data/current_movie.json')
-
-            # If this is the preferred user, they always take over
-            return username == preferred_user
-
-        return False
-
     def _check_authorization(self, username, service):
         """Internal method to check if user is authorized without logging"""
         if not username:
@@ -275,9 +337,9 @@ class PlaybackMonitor(threading.Thread):
             canonical_username = self.plex_user_mapping.get(username.lower(), username)
             authorized_users = [user.lower() for user in self.plex_poster_users]
             # Check both username and any mapped names
-            return (canonical_username.lower() in authorized_users or 
-                   any(mapped_name.lower() in authorized_users 
-                       for mapped_name, mapped_user in self.plex_user_mapping.items() 
+            return (canonical_username.lower() in authorized_users or
+                   any(mapped_name.lower() in authorized_users
+                       for mapped_name, mapped_user in self.plex_user_mapping.items()
                        if mapped_user.lower() == canonical_username.lower()))
         elif service == 'jellyfin':
             return username in self.jellyfin_poster_users
@@ -291,107 +353,17 @@ class PlaybackMonitor(threading.Thread):
             logger.info(f"No username provided for {service} authorization check")
             return False
 
-        # First check if they're in authorized poster users
-        if service == 'plex':
-            # Get canonical username if it exists in our mapping
-            canonical_username = self.plex_user_mapping.get(username.lower(), username)
-            authorized_users = [user.lower() for user in self.plex_poster_users]
-            # Check both username and any mapped names
-            is_authorized = (canonical_username.lower() in authorized_users or 
-                           any(mapped_name.lower() in authorized_users 
-                               for mapped_name, mapped_user in self.plex_user_mapping.items() 
-                               if mapped_user.lower() == canonical_username.lower()))
-        elif service == 'jellyfin':
-            is_authorized = username in self.jellyfin_poster_users
-        elif service == 'emby':
-            is_authorized = username in self.emby_poster_users
-        else:
-            is_authorized = False
-
+        # Use internal authorization check that handles case-insensitive comparison
+        is_authorized = self._check_authorization(username, service)
         if not is_authorized:
             logger.info(f"Unauthorized {service} playback by user {username}")
             return False
 
-        # Get current display mode
-        features_settings = self.settings.get('features', {})
-        display_mode = features_settings.get('poster_display', {}).get('mode', 'first_active')
-
-        # Get all active sessions once
-        active_sessions = self.get_all_sessions()
-        authorized_sessions = []
-
-        # Count authorized sessions and collect their details
-        for service_name, service_sessions in active_sessions.items():
-            for session in service_sessions:
-                # First check if this is a movie session
-                if service_name == 'plex':
-                    if not hasattr(session, 'type') or session.type != 'movie':
-                        continue  # Skip non-movie sessions
-                else:  # Jellyfin/Emby
-                    now_playing = session.get('NowPlayingItem', {})
-                    if now_playing.get('Type') != 'Movie':
-                        continue  # Skip non-movie sessions
-
-                session_username = self.get_username(session, service_name)
-                if self._check_authorization(session_username, service_name):
-                    authorized_sessions.append({
-                        'username': session_username,
-                        'service': service_name
-                    })
-
-        # If only one authorized session, allow it
-        if len(authorized_sessions) <= 1:
-            logger.info(f"Single authorized playback from {username}, allowing display")
-            return True
-
-        # Multiple authorized sessions - check mode
-        if display_mode == 'preferred_user':
-            preferred = features_settings.get('poster_display', {}).get('preferred_user')
-
-            # Check if this is the preferred user (handling Plex username/full name)
-            is_preferred = False
-            if service == 'plex':
-                preferred_username = preferred.get('username', '').lower()
-                canonical_username = self.plex_user_mapping.get(username.lower(), username)
-                is_preferred = (canonical_username.lower() == preferred_username or 
-                              any(mapped_name.lower() == preferred_username 
-                                  for mapped_name, mapped_user in self.plex_user_mapping.items() 
-                                  if mapped_user.lower() == canonical_username.lower()))
-            else:
-                is_preferred = preferred.get('username') == username
-
-            # Check if preferred user is among active sessions
-            preferred_active = any(session['username'] == preferred.get('username') and
-                                 session['service'] == preferred.get('service')
-                                 for session in authorized_sessions)
-
-            # If this is the preferred user, they take over
-            if preferred and is_preferred and preferred.get('service') == service:
-                logger.info(f"Multiple sessions active, preferred user {username} ({service}) takes precedence")
-                if os.path.exists('/app/data/current_movie.json'):
-                    os.remove('/app/data/current_movie.json')  # Force new poster
-                return True
-
-            # If preferred user is active, block others
-            if preferred_active:
-                logger.info(f"Multiple sessions active, user {username} not preferred")
-                return False
-
-            # If no preferred user is active, use first_active behavior
-            should_update = not os.path.exists('/app/data/current_movie.json')
-            if should_update:
-                logger.info(f"Preferred user not active, first active user {username} takes display")
-            return should_update
-
-        else:  # first_active mode
-            should_update = not os.path.exists('/app/data/current_movie.json')
-            if should_update:
-                logger.info(f"Multiple sessions, first active user {username} takes display")
-            else:
-                logger.info(f"Multiple sessions, display already active")
-            return should_update
+        # Always allow authorized users
+        return True
 
     def run(self):
+        """Main monitoring loop with improved stream tracking"""
         last_state = None  # Track last logged state
         last_movie_id = None  # Track last movie ID
         last_log_time = {}  # Track last log time for each type of message
@@ -400,103 +372,191 @@ class PlaybackMonitor(threading.Thread):
         while self.running:
             try:
                 with self.app.app_context():
-                    playback_info = None
-                    service = None
-                    username = None
                     default_poster_manager = self.app.config.get('DEFAULT_POSTER_MANAGER')
-
-                    # Check Jellyfin first
+                    current_streams = {}
+                    
+                    # Check all services and collect active streams
                     if self.jellyfin_available and self.jellyfin_service:
                         jellyfin_sessions = self.jellyfin_service.get_active_sessions()
-
                         for session in jellyfin_sessions:
                             now_playing = session.get('NowPlayingItem', {})
                             username = session.get('UserName')
-                            if now_playing.get('Type') == 'Movie':
-                                if self.is_poster_user(username, 'jellyfin'):
-                                    playback_info = {
-                                        'id': now_playing.get('Id'),
-                                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000
-                                    }
-                                    service = 'jellyfin'
-                                    break
+                            if now_playing.get('Type') == 'Movie' and self.is_poster_user(username, 'jellyfin'):
+                                stream_id = f"jellyfin_{now_playing.get('Id')}"
+                                current_streams[stream_id] = {
+                                    'id': now_playing.get('Id'),
+                                    'service': 'jellyfin',
+                                    'username': username,
+                                    'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000,
+                                    'status': 'PLAYING',
+                                    'title': now_playing.get('Name'),
+                                    'first_active': self.active_streams.get(stream_id, {}).get('first_active', time.time())
+                                }
 
-                    # Check Emby if no Jellyfin playback
-                    if not playback_info and self.emby_available and self.emby_service:
+                    if self.emby_available and self.emby_service:
                         emby_sessions = self.emby_service.get_active_sessions()
-
                         for session in emby_sessions:
                             now_playing = session.get('NowPlayingItem', {})
                             username = session.get('UserName')
-                            if now_playing.get('Type') == 'Movie':
-                                if self.is_poster_user(username, 'emby'):
-                                    playback_info = {
-                                        'id': now_playing.get('Id'),
-                                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000
-                                    }
-                                    service = 'emby'
-                                    break
+                            if now_playing.get('Type') == 'Movie' and self.is_poster_user(username, 'emby'):
+                                stream_id = f"emby_{now_playing.get('Id')}"
+                                current_streams[stream_id] = {
+                                    'id': now_playing.get('Id'),
+                                    'service': 'emby',
+                                    'username': username,
+                                    'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000,
+                                    'status': 'PLAYING',
+                                    'title': now_playing.get('Name'),
+                                    'first_active': self.active_streams.get(stream_id, {}).get('first_active', time.time())
+                                }
 
-                    # Check Plex if no other playback found
-                    if not playback_info and self.plex_available and self.plex_service:
-                        sessions = self.plex_service.plex.sessions()
-
-                        for session in sessions:
+                    if self.plex_available and self.plex_service:
+                        plex_sessions = self.plex_service.plex.sessions()
+                        for session in plex_sessions:
                             username = session.usernames[0] if session.usernames else None
-                            if session.type == 'movie':
-                                if self.is_poster_user(username, 'plex'):
-                                    playback_info = self.plex_service.get_playback_info(session.ratingKey)
-                                    service = 'plex'
+                            if session.type == 'movie' and self.is_poster_user(username, 'plex'):
+                                stream_id = f"plex_{session.ratingKey}"
+                                playback_info = self.plex_service.get_playback_info(session.ratingKey)
+                                current_streams[stream_id] = {
+                                    'id': session.ratingKey,
+                                    'service': 'plex',
+                                    'username': username,
+                                    'position': playback_info.get('position', 0),
+                                    'status': 'PLAYING',
+                                    'title': session.title,
+                                    'first_active': self.active_streams.get(stream_id, {}).get('first_active', time.time())
+                                }
+
+                    # Update active_streams
+                    current_time = time.time()
+                    for stream_id in list(self.active_streams.keys()):
+                        if stream_id not in current_streams:
+                            # Stream is no longer active
+                            if self.active_streams[stream_id]['status'] != 'STOPPED':
+                                self.active_streams[stream_id]['status'] = 'STOPPED'
+                                self.active_streams[stream_id]['stop_time'] = current_time
+                                logger.info(f"Stream stopped: {self.active_streams[stream_id]['username']} ({self.active_streams[stream_id]['service']}) - {self.active_streams[stream_id]['title']}")
+                                
+                                # Log remaining active streams
+                                active_streams = [s for s in self.active_streams.values() if s['status'] == 'PLAYING']
+                                if active_streams:
+                                    logger.info(f"Remaining active streams ({len(active_streams)}):")
+                                    sorted_streams = sorted(active_streams, key=lambda x: x['first_active'])
+                                    for i, stream in enumerate(sorted_streams, 1):
+                                        logger.info(f"  {i}. {stream['service']} stream: {stream['username']} - {stream['title']}")
+                                        logger.info(f"     Started: {time.strftime('%H:%M:%S', time.localtime(stream['first_active']))}")
+                                        if i == 1:
+                                            logger.info(f"     [This stream should now be selected as it started first]")
+                            
+                            # Remove if stopped for more than 5 minutes
+                            if current_time - self.active_streams[stream_id].get('stop_time', 0) > 300:
+                                logger.info(f"Removing inactive stream: {self.active_streams[stream_id]['title']}")
+                                del self.active_streams[stream_id]
+
+                    # Add/update current streams
+                    for stream_id, stream_data in current_streams.items():
+                        is_new_stream = stream_id not in self.active_streams
+                        if is_new_stream:
+                            stream_data['first_active'] = time.time()  # Set initial timestamp for new streams
+                            logger.info(f"New stream started: {stream_data['username']} ({stream_data['service']}) - {stream_data['title']}")
+                        self.active_streams[stream_id] = stream_data
+
+                        # Log stream status changes
+                        if is_new_stream:
+                            # Log new stream
+                            logger.info(f"Playback started: {stream_data['username']} ({stream_data['service']}) - {stream_data['title']}")
+                            
+                            # Get all active streams including the new one
+                            active_streams = [s for s in self.active_streams.values() if s['status'] == 'PLAYING']
+                            sorted_streams = sorted(active_streams, key=lambda x: x['first_active'])
+                            
+                            # Log all ongoing playbacks
+                            logger.info("Playbacks ongoing:")
+                            for i, stream in enumerate(sorted_streams, 1):
+                                prefix = "→" if i == 1 else " "  # Arrow indicates which stream is/will be selected
+                                logger.info(f"{prefix} {stream['username']} ({stream['service']}) - {stream['title']}")
+
+                            # Force update if this is chronologically first or preferred user
+                            should_force = False
+                            if self.display_mode == 'preferred_user':
+                                if stream_data['username'] == self.preferred_users.get(stream_data['service']):
+                                    logger.info(f"Preferred user {stream_data['username']} takes precedence - forcing update")
+                                    should_force = True
+                            elif sorted_streams[0]['id'] == stream_data['id']:
+                                logger.info(f"First active stream - forcing update")
+                                should_force = True
+                            
+                            if should_force and os.path.exists('/app/data/current_movie.json'):
+                                os.remove('/app/data/current_movie.json')
+
+                    # Get all active streams
+                    active_streams = [s for s in self.active_streams.values() if s['status'] == 'PLAYING']
+                    sorted_streams = sorted(active_streams, key=lambda x: x['first_active'])
+
+                    # Select stream to display based on mode
+                    selected_stream = None
+                    if active_streams:
+                        if self.display_mode == 'preferred_user':
+                            # Try to find preferred user stream
+                            for stream in sorted_streams:
+                                if stream['username'] == self.preferred_users.get(stream['service']):
+                                    selected_stream = stream
+                                    logger.info(f"Preferred user {stream['username']} takes precedence")
                                     break
+                        
+                        # If no preferred user or not in preferred mode, use first active
+                        if not selected_stream:
+                            selected_stream = sorted_streams[0]
 
-                    if playback_info:
-                        movie_id = playback_info.get('id')
-                        if movie_id:
-                            movie_data = None
-                            if service == 'jellyfin':
-                                movie_data = self.jellyfin_service.get_movie_by_id(movie_id)
-                            elif service == 'emby':
-                                movie_data = self.emby_service.get_movie_by_id(movie_id)
-                            elif service == 'plex':
-                                movie_data = self.plex_service.get_movie_by_id(movie_id)
+                    # Update display if needed
+                    if selected_stream:
+                        movie_id = selected_stream['id']
+                        service = selected_stream['service']
+                        username = selected_stream['username']
 
-                            if movie_data:
-                                current_state = f"{service}_{movie_id}_{playback_info.get('status')}"
-                                current_time = time.time()
+                        # Get movie data
+                        movie_data = None
+                        if service == 'jellyfin':
+                            movie_data = self.jellyfin_service.get_movie_by_id(movie_id)
+                        elif service == 'emby':
+                            movie_data = self.emby_service.get_movie_by_id(movie_id)
+                        elif service == 'plex':
+                            movie_data = self.plex_service.get_movie_by_id(movie_id)
 
-                                # Only update poster if:
-                                # - We're showing default, OR
-                                # - No current movie, OR
-                                # - Current movie.json doesn't exist, OR
-                                # - Current movie is stopped
-                                can_update = (
-                                    self.is_showing_default or
-                                    self.current_movie_id is None or
-                                    not os.path.exists('/app/data/current_movie.json') or
-                                    (default_poster_manager and default_poster_manager.last_state == 'STOPPED')
-                                )
+                        if movie_data:
+                            current_state = f"{service}_{movie_id}_{selected_stream['status']}"
+                            current_time = time.time()
 
-                                # Update if we can update AND (different movie OR missing state file)
-                                if can_update and (movie_id != self.current_movie_id or not os.path.exists('/app/data/current_movie.json')):
-                                    logger.info(f"New movie or missing state file detected, updating poster: {movie_data.get('title')} ({service})")
-                                    set_current_movie(movie_data, service=service,
-                                                resume_position=playback_info.get('position', 0),
-                                                username=username)
-                                    self.current_movie_id = movie_id
-                                    self.is_showing_default = False
-                                    last_log_time['state'] = current_time
-                                    last_state = current_state
+                            # Log current playback state
+                            logger.info("Playbacks ongoing:")
+                            for i, stream in enumerate(sorted_streams, 1):
+                                prefix = "→" if stream['id'] == movie_id else " "
+                                logger.info(f"{prefix} {stream['username']} ({stream['service']}) - {stream['title']}")
+                                logger.info(f"     Started: {time.strftime('%H:%M:%S', time.localtime(stream['first_active']))}")
 
-                    elif self.current_movie_id is not None:
-                        current_time = time.time()
-                        if current_time - last_log_time.get('no_playback', 0) > log_interval:
-                            logger.info("No active authorized playback detected")
-                            last_log_time['no_playback'] = current_time
-
-                        self.current_movie_id = None
-                        self.is_showing_default = True
-                        if default_poster_manager:
-                            default_poster_manager.handle_playback_state('STOPPED')
+                            # Update poster if needed
+                            if movie_id != self.current_movie_id:
+                                if self.current_movie_id:
+                                    logger.info(f"Switching poster display from {self.current_movie_id} to {movie_id}")
+                                else:
+                                    logger.info(f"Setting initial poster display to {movie_id}")
+                                
+                                logger.info(f"Updating poster to: {movie_data.get('title')} ({service}) - User: {username}")
+                                set_current_movie(movie_data, service=service,
+                                            resume_position=selected_stream.get('position', 0),
+                                            username=username)
+                                self.current_movie_id = movie_id
+                                self.is_showing_default = False
+                                last_log_time['state'] = current_time
+                                last_state = current_state
+                    else:
+                        # No active streams
+                        if self.current_movie_id is not None:
+                            logger.info("No active streams - switching to default poster")
+                            self.current_movie_id = None
+                            self.is_showing_default = True
+                            if default_poster_manager:
+                                default_poster_manager.handle_playback_state('STOPPED')
 
                     time.sleep(self.interval)
             except Exception as e:
@@ -517,32 +577,8 @@ class PlaybackMonitor(threading.Thread):
     def get_username(self, session, service):
         """Helper to extract username from session based on service"""
         if service == 'plex':
-            username = session.usernames[0] if session.usernames else None
-            # For Plex, try to get canonical username from mapping
-            if username:
-                return self.plex_user_mapping.get(username.lower(), username)
-            return None
+            return session.usernames[0] if session.usernames else None
         return session.get('UserName')  # For Jellyfin/Emby
-
-    def update_plex_user_mapping(self):
-        """Update the mapping between Plex usernames and full names"""
-        try:
-            if self.plex_service and self.plex_available:
-                # Always map the server owner
-                account = self.plex_service.plex.myPlexAccount()
-                self.plex_user_mapping[account.username.lower()] = account.username
-                if account.title:  # Map the owner's full name
-                    self.plex_user_mapping[account.title.lower()] = account.username
-
-                # Map all shared users
-                for user in account.users():
-                    self.plex_user_mapping[user.username.lower()] = user.username
-                    if user.title:  # Map each user's full name
-                        self.plex_user_mapping[user.title.lower()] = user.username
-                
-                logger.info(f"Updated Plex user mapping: {self.plex_user_mapping}")
-        except Exception as e:
-            logger.error(f"Error updating Plex user mapping: {e}")
 
     def stop(self):
         self.running = False

@@ -1627,18 +1627,14 @@ def get_plex_users():
         data = request.json
         plex_url = data.get('plex_url')
         plex_token = data.get('plex_token')
-
         if not plex_url or not plex_token:
             return jsonify({"error": "Missing Plex URL or token"}), 400
-
         from plexapi.server import PlexServer
         server = PlexServer(plex_url, plex_token)
-
-        # Get all users who have access to the server
-        users = [user.title for user in server.myPlexAccount().users()]
-        # Add the admin user
-        users.insert(0, server.myPlexAccount().title)
-
+        # Get all users who have access to the server - use username instead of title
+        users = [user.username for user in server.myPlexAccount().users()]
+        # Add the admin user's username
+        users.insert(0, server.myPlexAccount().username)
         return jsonify({"users": users})
     except Exception as e:
         logger.error(f"Error fetching Plex users: {str(e)}")

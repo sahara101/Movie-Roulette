@@ -3364,47 +3364,80 @@ document.addEventListener('DOMContentLoaded', function() {
         container.appendChild(wrapper);
     }
 
-    function showUserSelectionDialog(users, service, inputElement) {
-        const dialog = document.createElement('div');
-        dialog.className = 'trakt-confirm-dialog';
+    async function showUserSelectionDialog(users, service, inputElement) {
+    	if (service === 'plex') {
+            try {
+            	const plexUrl = getNestedValue(currentSettings, 'plex.url');
+            	const plexToken = getNestedValue(currentSettings, 'plex.token');
 
-        const currentUsers = inputElement.value.split(',').map(u => u.trim());
+            	if (!plexUrl || !plexToken) {
+                    showError('Please configure Plex URL and token first');
+                    return;
+            	}
 
-        dialog.innerHTML = `
+            	const response = await fetch('/api/plex/users', {
+                    method: 'POST',
+                    headers: {
+                    	'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                    	plex_url: plexUrl,
+                    	plex_token: plexToken
+                    })
+            	});
+
+            	if (!response.ok) {
+                    throw new Error('Failed to fetch users');
+            	}
+
+            	const data = await response.json();
+            	users = data.users;
+            } catch (error) {
+            	showError(error.message);
+            	return;
+            }
+    	}
+
+    	const dialog = document.createElement('div');
+    	dialog.className = 'trakt-confirm-dialog';
+
+    	const currentUsers = inputElement.value.split(',').map(u => u.trim());
+
+    	dialog.innerHTML = `
             <div class="dialog-content">
-                <h3><i class="fa-solid fa-users"></i> Select ${service.charAt(0).toUpperCase() + service.slice(1)} Users</h3>
-                <div class="user-select">
+            	<h3><i class="fa-solid fa-users"></i> Select ${service.charAt(0).toUpperCase() + service.slice(1)} Users</h3>
+            	<div class="user-select">
                     ${users.map(user => `
-                        <label class="user-option">
+                    	<label class="user-option">
                             <input type="checkbox" value="${user}"
-                                ${currentUsers.includes(user) ? 'checked' : ''}>
+                            	${currentUsers.includes(user) ? 'checked' : ''}>
                             <span>${user}</span>
-                        </label>
+                    	</label>
                     `).join('')}
-                </div>
-                <div class="dialog-buttons">
+            	</div>
+            	<div class="dialog-buttons">
                     <button class="cancel-button">Cancel</button>
                     <button class="submit-button">Save Selection</button>
-                </div>
+            	</div>
             </div>
-        `;
+    	`;
 
-        document.body.appendChild(dialog);
+    	document.body.appendChild(dialog);
 
-        // Handle save
-        dialog.querySelector('.submit-button').addEventListener('click', async () => {
+    	// Handle save
+    	dialog.querySelector('.submit-button').addEventListener('click', async () => {
             const selectedUsers = Array.from(dialog.querySelectorAll('input[type="checkbox"]:checked'))
-                .map(cb => cb.value);
+            	.map(cb => cb.value);
 
             await handleSettingChange(`features.poster_users.${service}`, selectedUsers.join(','));
             inputElement.value = selectedUsers.join(',');
             dialog.remove();
-        });
+    	});
 
-        // Handle cancel
-        dialog.querySelector('.cancel-button').addEventListener('click', () => {
+    	// Handle cancel
+    	dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
-        });
+    	});
     }
 
     function renderTimezoneFieldWithButton(container) {
