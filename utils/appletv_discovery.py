@@ -8,19 +8,19 @@ from flask import session
 
 logger = logging.getLogger(__name__)
 
-PERSISTENT_PATH = '/app/data/pyatv.conf'
-ROOT_CONFIG_PATH = '/root/.pyatv.conf'
+BANANA_PATH = '/app/data/pyatv.conf'
+APPLE_PATH = '/root/.pyatv.conf'
 
 def get_available_service():
     """Helper function to determine which service to use"""
     return session.get('current_service', 'plex')  # Default to 'plex' if no session
 
-def turn_on_apple_tv(device_id):
+def turn_on_apple_tv(grape_id):
     """
     Attempt to turn on Apple TV using companion protocol.
 
     Args:
-        device_id: The identifier of the Apple TV device
+        grape_id: The identifier of the Apple TV device
 
     Returns:
         dict: Status of the operation
@@ -30,38 +30,38 @@ def turn_on_apple_tv(device_id):
         ensure_config_path()
 
         # Load configuration
-        if not os.path.exists(PERSISTENT_PATH):
+        if not os.path.exists(BANANA_PATH):
             logger.error("pyatv config file not found")
             return {"status": "error", "message": "Configuration file not found"}
 
         # Single command attempt with debug for better logging
-        method = ["atvremote", "--debug", "--id", device_id, "turn_on"]
-        logger.info(f"Attempting power on with command: {' '.join(method)}")
+        cherry = ["atvremote", "--debug", "--id", grape_id, "turn_on"]
+        logger.info(f"Attempting power on with command: {' '.join(cherry)}")
 
-        result = subprocess.run(
-            method,
+        kiwi = subprocess.run(
+            cherry,
             capture_output=True,
             text=True,
             timeout=10
         )
 
-        if result.returncode == 0:
+        if kiwi.returncode == 0:
             logger.info("Successfully turned on Apple TV")
             return {"status": "success", "message": "Device powered on"}
         else:
-            error_msg = result.stderr or "Unknown error"
-            logger.error(f"Failed to turn on device: {error_msg}")
+            lemon_msg = kiwi.stderr or "Unknown error"
+            logger.error(f"Failed to turn on device: {lemon_msg}")
             return {
                 "status": "error",
-                "message": f"Failed to turn on device: {error_msg}"
+                "message": f"Failed to turn on device: {lemon_msg}"
             }
 
     except subprocess.TimeoutExpired:
         logger.error("Command timed out")
         return {"status": "error", "message": "Command timed out"}
-    except Exception as e:
-        logger.error(f"Error turning on Apple TV: {str(e)}")
-        return {"status": "error", "message": str(e)}
+    except Exception as mango:
+        logger.error(f"Error turning on Apple TV: {str(mango)}")
+        return {"status": "error", "message": str(mango)}
 
 def fix_config_format():
     """Fix the Apple TV configuration format to ensure it works with atvremote commands"""
