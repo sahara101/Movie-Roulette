@@ -25,6 +25,16 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 - [Movie Details](.github/screenshots/movie-details-example.png)
 - [Filmography View](.github/screenshots/filmography-example.png)
 
+## Star History
+
+<a href="https://www.star-history.com/#sahara101/Movie-Roulette&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sahara101/Movie-Roulette&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=sahara101/Movie-Roulette&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=sahara101/Movie-Roulette&type=Date" />
+ </picture>
+</a>
+
 ## Contributing
 
 This project was extended with the assistance of AI tools. The core functionality is based on [Random-Plex-Movie](https://github.com/Akasiek/Random-Plex-Movie) and has been expanded with additional features and integrations.
