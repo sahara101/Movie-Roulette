@@ -55,6 +55,11 @@
             		<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         	    </svg>
     		</button>
+                <!-- Collection button to notify about unwatched movies in a collection -->
+                <button id="collectionButton" class="collection-button hidden" aria-label="Collection Info">
+		    !
+    		    <span class="badge">0</span>
+                </button>
                 <div id="filterDropdown" class="filter-dropdown">
                     <div class="filter-option">
                         <label for="genreSelect">Genre:</label>
@@ -203,6 +208,20 @@
         <div id="person_details_overlay" class="hidden">
             <div class="person-details-content">
                 <!-- Content will be inserted here dynamically -->
+            </div>
+        </div>
+
+        <!-- Collection modal for displaying collection information -->
+        <div id="collection_modal" class="hidden">
+            <div class="collection-modal-content">
+                <button id="collection_modal_close" class="close-button" aria-label="Close collection info">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                    </svg>
+                </button>
+                <div id="collection_info_container">
+                    <!-- This will be populated by JavaScript when the button is clicked -->
+                </div>
             </div>
         </div>
 

@@ -90,9 +90,28 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
         else:
             logger.warning("PlaybackMonitor not available for authorization check")
 
+    # Check if there's an existing movie file - we'll need to preserve the original start time
+    preserve_start_time = None
+    if os.path.exists(CURRENT_MOVIE_FILE) and session_type != 'NEW':
+        try:
+            with open(CURRENT_MOVIE_FILE, 'r') as f:
+                existing_data = json.load(f)
+                # Only preserve start time if it's the same movie and not a NEW session
+                if existing_data.get('movie', {}).get('id') == movie_data.get('id'):
+                    preserve_start_time = existing_data.get('start_time')
+                    logger.info(f"Preserving original start time: {preserve_start_time}")
+        except Exception as e:
+            logger.error(f"Error reading existing movie file: {e}")
+
     total_duration = timedelta(hours=movie_data['duration_hours'],
                              minutes=movie_data['duration_minutes'])
-    if session_type in ['NEW', 'PAUSE']:
+
+    # Set the start time based on session type
+    if preserve_start_time:
+        # Use the preserved start time if available (for ongoing sessions)
+        start_time = datetime.fromisoformat(preserve_start_time)
+        logger.info(f"Using preserved start time: {start_time}")
+    elif session_type in ['NEW', 'PAUSE']:
         if resume_position > 0:
             elapsed = timedelta(seconds=resume_position)
             start_time = current_time - elapsed
@@ -111,6 +130,12 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
         'session_type': session_type
     }
     save_current_movie(current_movie)
+
+    # Reset default poster status in the manager before sending the movie change
+    default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
+    if default_poster_manager:
+        default_poster_manager.is_default_poster_active = False
+        logger.info("Reset default poster flag before movie change notification")
 
     if socketio:
         socketio.emit('movie_changed', current_movie, namespace='/poster')
@@ -220,6 +245,7 @@ def playback_state(movie_id):
         logger.error(f"Error in playback_state: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
+
 @poster_bp.route('/poster')
 def poster():
     logger.info("Poster route called")
@@ -260,52 +286,122 @@ def poster():
         features = poster_settings.get('features', {})
         custom_text = poster_settings['custom_text']
 
-        # Force an immediate check for active playback
-        active_movie = None
-        if current_service == 'plex' and plex:
-            sessions = plex.plex.sessions()
-            for session_data in sessions:
-                if session_data.type == 'movie' and playback_monitor.is_poster_user(session_data.usernames[0] if session_data.usernames else None, 'plex'):
-                    active_movie = plex.get_movie_by_id(session_data.ratingKey)
-                    break
-        elif current_service == 'jellyfin' and jellyfin:
-            sessions = jellyfin.get_active_sessions()
-            for session_data in sessions:
-                now_playing = session_data.get('NowPlayingItem', {})
-                if now_playing.get('Type') == 'Movie' and playback_monitor.is_poster_user(session_data.get('UserName'), 'jellyfin'):
-                    active_movie = jellyfin.get_movie_by_id(now_playing.get('Id'))
-                    break
-        elif current_service == 'emby' and emby:
-            sessions = emby.get_active_sessions()
-            for session_data in sessions:
-                now_playing = session_data.get('NowPlayingItem', {})
-                if now_playing.get('Type') == 'Movie' and playback_monitor.is_poster_user(session_data.get('UserName'), 'emby'):
-                    active_movie = emby.get_movie_by_id(now_playing.get('Id'))
-                    break
-
-        if active_movie:
-            logger.info(f"Active movie found from immediate check: {active_movie.get('title')}")
-            # Force update of current_movie.json
-            set_current_movie(active_movie, current_service)
-            playback_monitor.current_movie_id = active_movie.get('id')
-
-        # Check for active movie from file
+        # Check if we already have movie data from file FIRST
         poster_data = get_poster_data()
+        active_movie_found = False
+
         if poster_data:
-            logger.info("Active movie found - forcing playback mode")
+            logger.info("Active movie found from file - forcing playback mode")
+            # Ensure default poster flag is reset when we have an active movie
+            if default_poster_manager:
+                default_poster_manager.is_default_poster_active = False
+
+            # Get the actual movie poster URL directly from the JSON file
+            movie_poster_url = None
+            if os.path.exists(CURRENT_MOVIE_FILE):
+                try:
+                    with open(CURRENT_MOVIE_FILE, 'r') as f:
+                        movie_data = json.load(f)
+                        raw_poster_url = movie_data['movie']['poster']
+
+                        # Process the poster URL same as get_current_poster would
+                        if '/library/metadata/' in raw_poster_url:  # Plex
+                            parts = raw_poster_url.split('/library/metadata/')[1].split('?')[0]
+                            movie_poster_url = f"/proxy/poster/plex/{parts}"
+                        elif '/Items/' in raw_poster_url:  # Jellyfin or Emby
+                            item_id = raw_poster_url.split('/Items/')[1].split('/Images')[0]
+                            if jellyfin and jellyfin.server_url in raw_poster_url:
+                                movie_poster_url = f"/proxy/poster/jellyfin/{item_id}"
+                            elif emby and emby.server_url in raw_poster_url:
+                                movie_poster_url = f"/proxy/poster/emby/{item_id}"
+                            else:
+                                movie_poster_url = raw_poster_url
+                        else:
+                            movie_poster_url = raw_poster_url
+                        logger.info(f"Using direct movie poster URL: {movie_poster_url}")
+                except Exception as e:
+                    logger.error(f"Error processing movie poster URL: {e}")
+
+            # Use the direct URL if we have it, otherwise fall back to manager
+            current_poster = movie_poster_url if movie_poster_url else default_poster_manager.get_current_poster()
+            active_movie_found = True
+
             return render_template('poster.html',
                                 movie=poster_data['movie'],
                                 start_time=poster_data['start_time'],
                                 end_time=poster_data['end_time'],
                                 service=poster_data['service'],
-                                current_poster=default_poster_manager.get_current_poster(),
+                                current_poster=current_poster,
                                 custom_text=custom_text,
                                 features={
                                     'poster_mode': 'default',  # Force default mode for active movies
                                     'screensaver_interval': features.get('screensaver_interval', 300)
                                 })
 
-        # If no active movie, proceed with normal logic
+        # Only check for active sessions if we didn't find a movie from file
+        if not active_movie_found:
+            # Force an immediate check for active playback
+            active_movie = None
+            if current_service == 'plex' and plex:
+                sessions = plex.plex.sessions()
+                for session_data in sessions:
+                    if session_data.type == 'movie' and playback_monitor.is_poster_user(session_data.usernames[0] if session_data.usernames else None, 'plex'):
+                        active_movie = plex.get_movie_by_id(session_data.ratingKey)
+                        break
+            elif current_service == 'jellyfin' and jellyfin:
+                sessions = jellyfin.get_active_sessions()
+                for session_data in sessions:
+                    now_playing = session_data.get('NowPlayingItem', {})
+                    if now_playing.get('Type') == 'Movie' and playback_monitor.is_poster_user(session_data.get('UserName'), 'jellyfin'):
+                        active_movie = jellyfin.get_movie_by_id(now_playing.get('Id'))
+                        break
+            elif current_service == 'emby' and emby:
+                sessions = emby.get_active_sessions()
+                for session_data in sessions:
+                    now_playing = session_data.get('NowPlayingItem', {})
+                    if now_playing.get('Type') == 'Movie' and playback_monitor.is_poster_user(session_data.get('UserName'), 'emby'):
+                        active_movie = emby.get_movie_by_id(now_playing.get('Id'))
+                        break
+
+            if active_movie:
+                logger.info(f"Active movie found from immediate check: {active_movie.get('title')}")
+                # Reset default poster flag explicitly
+                if default_poster_manager:
+                    default_poster_manager.is_default_poster_active = False
+                # Force update of current_movie.json
+                set_current_movie(active_movie, current_service)
+                playback_monitor.current_movie_id = active_movie.get('id')
+
+                # Reload poster data after updating
+                poster_data = get_poster_data()
+                if poster_data:
+                    # Get poster URL directly from movie data to avoid initial default poster
+                    movie_poster_url = active_movie.get('poster', '')
+
+                    # Process the URL as needed
+                    if '/library/metadata/' in movie_poster_url:  # Plex
+                        parts = movie_poster_url.split('/library/metadata/')[1].split('?')[0]
+                        movie_poster_url = f"/proxy/poster/plex/{parts}"
+                    elif '/Items/' in movie_poster_url:  # Jellyfin or Emby
+                        item_id = movie_poster_url.split('/Items/')[1].split('/Images')[0]
+                        if jellyfin and jellyfin.server_url in movie_poster_url:
+                            movie_poster_url = f"/proxy/poster/jellyfin/{item_id}"
+                        elif emby and emby.server_url in movie_poster_url:
+                            movie_poster_url = f"/proxy/poster/emby/{item_id}"
+
+                    return render_template('poster.html',
+                                        movie=poster_data['movie'],
+                                        start_time=poster_data['start_time'],
+                                        end_time=poster_data['end_time'],
+                                        service=poster_data['service'],
+                                        current_poster=movie_poster_url,
+                                        custom_text=custom_text,
+                                        features={
+                                            'poster_mode': 'default',  # Force default mode for active movies
+                                            'screensaver_interval': features.get('screensaver_interval', 300)
+                                        })
+
+        # If no active movie, proceed with normal logic for default/screensaver
         current_poster = default_poster_manager.get_current_poster()
 
         # Check screensaver mode only if no active movie

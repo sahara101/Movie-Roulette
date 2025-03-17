@@ -429,7 +429,7 @@ def cached_search_person(name):
     return tmdb_service.search_person_by_name(name)
 
 def enrich_movie_data(movie_data):
-    """Enriches movie data with URLs and correct cast from TMDB"""
+    """Enriches movie data with URLs, correct cast from TMDB, and collection information"""
     current_service = session.get('current_service', get_available_service())
     tmdb_url, trakt_url, imdb_url = fetch_movie_links(movie_data, current_service)
     trailer_url = search_youtube_trailer(movie_data['title'], movie_data['year'])
@@ -490,13 +490,26 @@ def enrich_movie_data(movie_data):
                 list(writers_map.values()),
                 key=lambda x: (not x['is_primary'], x['name'])
             )
+
+        # Add collection information
+        try:
+            from utils.collection_service import collection_service
+            collection_status = collection_service.check_collection_status(tmdb_id, current_service)
+            movie_data['collection_info'] = collection_status
+            logger.info(f"Added collection info for movie {movie_data['title']}: {collection_status['is_in_collection']}")
+        except Exception as e:
+            logger.error(f"Error getting collection info for movie {tmdb_id}: {e}")
+            movie_data['collection_info'] = {'is_in_collection': False, 'previous_movies': []}
     else:
         movie_data.update({
             "actors_enriched": [{"name": name, "id": None, "type": "actor"}
                              for name in movie_data.get('actors', [])],
             "directors_enriched": [{"name": name, "id": None, "type": "director"}
-                                for name in movie_data.get('directors', [])]
+                                for name in movie_data.get('directors', [])],
+            "writers_enriched": [{"name": name, "id": None, "type": "writer"}
+                                for name in movie_data.get('writers', [])]
         })
+        movie_data['collection_info'] = {'is_in_collection': False, 'previous_movies': []}
 
     movie_data.update({
         "tmdb_url": tmdb_url,
@@ -1267,11 +1280,11 @@ def get_plex_id(tmdb_id):
         for movie in all_movies:
             if str(movie.get('tmdb_id')) == str(tmdb_id):
                 return jsonify({"plexId": movie['id']})  # Return the Plex ratingKey as plexId
-        
+
         # If we get here, we didn't find the movie
         logger.warning(f"Movie with TMDb ID {tmdb_id} not found in Plex")
         return jsonify({"error": "Movie not found in Plex"}), 404
-        
+
     except Exception as e:
         logger.error(f"Error getting Plex ID: {str(e)}")
         return jsonify({"error": str(e)}), 500

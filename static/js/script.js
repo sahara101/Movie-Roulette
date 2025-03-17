@@ -45,38 +45,64 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     checkAndLoadCache();
     try {
-    	// Check current client configuration
-    	const response = await fetch('/devices');
-    	const devices = await response.json();
-    	const powerButton = document.getElementById("btn_power");
-    	const nextButton = document.getElementById("btn_next_movie");
-
-    	if (powerButton && nextButton) {
+        // Check current client configuration
+        const response = await fetch('/devices');
+        const devices = await response.json();
+        const powerButton = document.getElementById("btn_power");
+        const nextButton = document.getElementById("btn_next_movie");
+        if (powerButton && nextButton) {
             if (devices.length > 0) {
-            	powerButton.style.display = 'flex';
-		nextButton.style.flex = '';
+                powerButton.style.display = 'flex';
+                nextButton.style.flex = '';
             } else {
-            	powerButton.style.display = 'none';
-		if (window.matchMedia('(max-width: 767px)').matches) {
-		    nextButton.style.flex = '0 0 100%';
+                powerButton.style.display = 'none';
+                if (window.matchMedia('(max-width: 767px)').matches) {
+                    nextButton.style.flex = '0 0 100%';
                     nextButton.style.marginRight = '0';
-		}
+                }
             }
-    	}
+        }
     } catch (error) {
-    	console.error("Error checking devices:", error);
-    	const powerButton = document.getElementById("btn_power");
-    	const nextButton = document.getElementById("btn_next_movie");
-    	if (powerButton && nextButton) {
+        console.error("Error checking devices:", error);
+        const powerButton = document.getElementById("btn_power");
+        const nextButton = document.getElementById("btn_next_movie");
+        if (powerButton && nextButton) {
             powerButton.style.display = 'none';
-	    if (window.matchMedia('(max-width: 767px)').matches) {
+            if (window.matchMedia('(max-width: 767px)').matches) {
                 nextButton.style.flex = '0 0 100%';
                 nextButton.style.marginRight = '0';
             }
-    	}
+        }
     }
     await syncTraktWatched(false);
     startVersionChecker();
+
+    // Hook into the movie display function to handle collection warnings
+    const originalUpdateMovieDisplay = updateMovieDisplay;
+    window.updateMovieDisplay = function(movieData) {
+        // Call the original function first
+        originalUpdateMovieDisplay(movieData);
+        // Then handle collection warning
+        handleCollectionWarning(movieData);
+    };
+
+    // Collection modal close button
+    const closeCollectionModal = document.getElementById('collection_modal_close');
+    if (closeCollectionModal) {
+        closeCollectionModal.addEventListener('click', function() {
+            document.getElementById('collection_modal').classList.add('hidden');
+        });
+    }
+
+    // Click outside to close the collection modal
+    const collectionModal = document.getElementById('collection_modal');
+    if (collectionModal) {
+        collectionModal.addEventListener('click', function(e) {
+            if (e.target === collectionModal) {
+                collectionModal.classList.add('hidden');
+            }
+        });
+    }
 });
 
 document.addEventListener('visibilitychange', function() {
@@ -949,6 +975,287 @@ function updateMovieDisplay(movieData) {
     window.dispatchEvent(new Event('resize'));
 }
 
+function handleCollectionWarning(movieData) {
+    // Get the collection button
+    const collectionButton = document.getElementById('collectionButton');
+
+    // Reset any existing collection warnings
+    const existingWarning = document.querySelector('.collection-warning');
+    if (existingWarning) {
+        existingWarning.remove();
+    }
+
+    // If no collection info, hide button and exit
+    if (!movieData.collection_info || !movieData.collection_info.is_in_collection) {
+        collectionButton.classList.add('hidden');
+        return;
+    }
+
+    const previousMovies = movieData.collection_info.previous_movies || [];
+    const otherMovies = movieData.collection_info.other_movies || [];
+
+    // Filter for unwatched previous movies
+    const unwatchedMovies = previousMovies.filter(movie => !movie.is_watched);
+
+    // Filter for other movies not in library
+    const requestableOtherMovies = otherMovies.filter(movie => !movie.in_library);
+
+    // Show button if there are ANY unwatched previous movies OR requestable other movies
+    if (unwatchedMovies.length === 0 && requestableOtherMovies.length === 0) {
+        collectionButton.classList.add('hidden');
+        return;
+    }
+
+    // Show the collection button
+    collectionButton.classList.remove('hidden');
+
+    // Update badge count to show total number of interesting movies
+    const badge = collectionButton.querySelector('.badge');
+    if (badge) {
+        badge.textContent = unwatchedMovies.length + requestableOtherMovies.length;
+    }
+
+    // Set collection data and click handler
+    collectionButton.dataset.collectionName = movieData.collection_info.collection_name;
+    collectionButton.dataset.collectionId = movieData.collection_info.collection_id;
+    collectionButton.onclick = function() {
+        showCollectionModal(movieData.collection_info, unwatchedMovies, otherMovies);
+    };
+}
+
+async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies) {
+    const modalContainer = document.getElementById('collection_modal');
+    const infoContainer = document.getElementById('collection_info_container');
+
+    // Check if a request service is available
+    const requestServiceStatus = await checkRequestServiceAvailability();
+    const isRequestServiceAvailable = requestServiceStatus.available;
+
+    // Get request service name if available
+    let requestServiceName = "";
+    if (isRequestServiceAvailable) {
+        switch(requestServiceStatus.service) {
+            case 'overseerr':
+                requestServiceName = "Overseerr";
+                break;
+            case 'jellyseerr':
+                requestServiceName = "Jellyseerr";
+                break;
+            case 'ombi':
+                requestServiceName = "Ombi";
+                break;
+            default:
+                requestServiceName = requestServiceStatus.service || "";
+        }
+    }
+
+    // Count movies that need requesting (not in library and not already requested)
+    const moviesToRequest = [
+        ...unwatchedMovies.filter(movie => !movie.in_library && !movie.is_requested),
+        ...(otherMovies ? otherMovies.filter(movie => !movie.in_library && !movie.is_requested) : [])
+    ];
+
+    // Create the modal content
+    infoContainer.innerHTML = `
+        <div class="collection-info-header">
+            <h3>Part of ${collectionInfo.collection_name}</h3>
+        </div>
+        <div class="unwatched-movies">
+            <p>You have ${unwatchedMovies.length} unwatched previous movie${unwatchedMovies.length > 1 ? 's' : ''} in this collection.</p>
+            <ul class="movie-list">
+                ${unwatchedMovies.map(movie => {
+                    const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
+
+                    // Properly formatted ternary operator for status class
+                    const statusClass = movie.in_library ? 'status-in-library' :
+                                      (movie.is_requested ? 'status-requested' : 'status-not-in-library');
+
+                    // Properly formatted ternary operator for status text
+                    const statusText = movie.in_library ? 'In library' :
+                                     (movie.is_requested ? 'Requested' : 'Not in library');
+
+                    return `
+                        <li class="movie-item">
+                            <span class="movie-title">${movie.title}${year}</span>
+                            <span class="movie-status ${statusClass}">${statusText}</span>
+                        </li>
+                    `;
+                }).join('')}
+            </ul>
+        </div>
+        ${otherMovies && otherMovies.length > 0 ? `
+            <div class="other-movies">
+                <h4>Other movies in this collection:</h4>
+                <ul class="movie-list">
+                    ${otherMovies.map(movie => {
+                        const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
+
+                        // Same corrected format for other movies section
+                        const statusClass = movie.in_library ? 'status-in-library' :
+                                          (movie.is_requested ? 'status-requested' : 'status-not-in-library');
+                        const statusText = movie.in_library ? 'In library' :
+                                         (movie.is_requested ? 'Requested' : 'Not in library');
+
+                        return `
+                            <li class="movie-item">
+                                <span class="movie-title">${movie.title}${year}</span>
+                                <span class="movie-status ${statusClass}">${statusText}</span>
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+            </div>
+        ` : ''}
+        <div class="action-buttons">
+            ${unwatchedMovies.some(movie => movie.in_library) ?
+                `<button class="action-button watch-button" id="watch_collection_movie">Watch Previous Movie</button>` : ''}
+            ${moviesToRequest.length > 0 ?
+                `<button class="action-button request-button${!isRequestServiceAvailable ? ' disabled' : ''}"
+                     id="request_collection_movies"
+                     ${!isRequestServiceAvailable ? 'disabled' : ''}
+                     title="${isRequestServiceAvailable ?
+                        `Request using ${requestServiceName}` :
+                        currentService === 'plex' ?
+                            'No request service available' :
+                            'Appropriate request service not configured'}">
+                    Request Missing Movies
+                 </button>` : ''}
+            <button class="action-button dismiss-button" id="dismiss_collection">Dismiss</button>
+        </div>
+    `;
+
+    // Show the modal
+    modalContainer.classList.remove('hidden');
+
+    // Add event listeners for the buttons
+    const dismissButton = document.getElementById('dismiss_collection');
+    if (dismissButton) {
+        dismissButton.addEventListener('click', () => {
+            modalContainer.classList.add('hidden');
+        });
+    }
+
+    const watchButton = document.getElementById('watch_collection_movie');
+    if (watchButton) {
+        watchButton.addEventListener('click', () => {
+            // Get the first unwatched movie that's in the library
+            const movieToWatch = unwatchedMovies.find(movie => movie.in_library);
+            if (movieToWatch && typeof showClientsForPoster === 'function') {
+                showClientsForPoster(movieToWatch.id);
+                modalContainer.classList.add('hidden');
+            }
+        });
+    }
+
+    // Only add request button listener if request service is available
+    const requestButton = document.getElementById('request_collection_movies');
+    if (requestButton && isRequestServiceAvailable) {
+        requestButton.addEventListener('click', () => {
+            if (moviesToRequest.length > 0 && typeof requestPreviousMovies === 'function') {
+                requestPreviousMovies(moviesToRequest);
+                modalContainer.classList.add('hidden');
+            }
+        });
+    }
+
+    // Close button event listener
+    document.getElementById('collection_modal_close').addEventListener('click', () => {
+        modalContainer.classList.add('hidden');
+    });
+}
+
+async function requestPreviousMovies(movies) {
+    if (!movies || movies.length === 0) return;
+
+    try {
+        // Show confirmation dialog if there are multiple movies
+        if (movies.length > 1) {
+            // Create styled confirmation dialog instead of using browser confirm()
+            const confirmDialog = document.createElement('div');
+            confirmDialog.className = 'trakt-confirm-dialog'; // Reuse existing dialog style
+            confirmDialog.innerHTML = `
+                <div class="dialog-content">
+                    <h3>Request Multiple Movies</h3>
+                    <p>Are you sure you want to request ${movies.length} movies from this collection?</p>
+                    <div class="dialog-buttons">
+                        <button class="cancel-button">Cancel</button>
+                        <button class="submit-button">Request Movies</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(confirmDialog);
+
+            // Create a promise that will be resolved when the user makes a choice
+            return new Promise((resolve) => {
+                // Handle cancel button
+                const cancelButton = confirmDialog.querySelector('.cancel-button');
+                cancelButton.addEventListener('click', () => {
+                    confirmDialog.remove();
+                    resolve(false);
+                });
+
+                // Handle submit/confirm button
+                const submitButton = confirmDialog.querySelector('.submit-button');
+                submitButton.addEventListener('click', async () => {
+                    confirmDialog.remove();
+
+                    // Now continue with the request process
+                    // No loading overlay, just process the requests
+
+                    let successCount = 0;
+                    for (const movie of movies) {
+                        try {
+                            await requestMovie(movie.id, false); // Don't show individual notifications
+                            successCount++;
+                        } catch (error) {
+                            console.error(`Error requesting movie ${movie.title}:`, error);
+                        }
+                    }
+
+                    // Show a single summary notification
+                    if (successCount > 0) {
+                        showToast(`Successfully requested ${successCount} movie${successCount > 1 ? 's' : ''}!`, 'success');
+
+                        // Remove or update the collection warning
+                        const existingWarning = document.querySelector('.collection-warning');
+                        if (existingWarning) {
+                            existingWarning.remove();
+                        }
+                    } else {
+                        showToast('Failed to request movies. Please try again.', 'error');
+                    }
+
+                    resolve(true);
+                });
+
+                // Handle click outside dialog to cancel
+                confirmDialog.addEventListener('click', (e) => {
+                    if (e.target === confirmDialog) {
+                        confirmDialog.remove();
+                        resolve(false);
+                    }
+                });
+            });
+        } else {
+            // Single movie, no confirmation needed
+            try {
+                await requestMovie(movies[0].id, true); // Use the regular notification for single movie
+
+                // Remove or update the collection warning
+                const existingWarning = document.querySelector('.collection-warning');
+                if (existingWarning) {
+                    existingWarning.remove();
+                }
+            } catch (error) {
+                // Error handling already done in requestMovie function
+                console.error(`Error requesting movie: ${error.message}`);
+            }
+        }
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'error');
+    }
+}
+
 async function checkRequestServiceAvailability() {
     try {
         const response = await fetch('/api/overseerr/status');
@@ -1509,7 +1816,7 @@ async function renderMovies(movies) {
 
         // Update counts AFTER the movies are rendered
         await updateFilterCounts();
-        
+
         // Then apply filters
         applyAllFilters();
     }
@@ -1590,6 +1897,7 @@ async function createMovieCard(movie) {
     movieCard.dataset.year = movie.release_date?.substring(0, 4) || '0';
     movieCard.dataset.rating = movie.vote_average || '0';
 
+    // Create poster container
     const posterLink = document.createElement('a');
     posterLink.href = '#';
     posterLink.classList.add('movie-poster-link');
@@ -1609,6 +1917,7 @@ async function createMovieCard(movie) {
         }
     });
 
+    // Check if movie is in library and add badge if it is
     let isInLibrary = false;
     if (currentService === 'plex') {
         isInLibrary = await isMovieInPlex(movie.id);
@@ -1620,11 +1929,12 @@ async function createMovieCard(movie) {
 
     if (isInLibrary) {
         const badge = document.createElement('div');
-	badge.classList.add(`${currentService}-badge`);
+        badge.classList.add(`${currentService}-badge`);
         badge.textContent = currentService.toUpperCase();
         posterLink.appendChild(badge);
     }
 
+    // Add poster image or placeholder
     if (movie.poster_path) {
         const poster = document.createElement('img');
         poster.src = `https://image.tmdb.org/t/p/w200${movie.poster_path}`;
@@ -1642,9 +1952,36 @@ async function createMovieCard(movie) {
         posterLink.appendChild(poster);
     }
 
-    const movieTitle = document.createElement('p');
-    movieTitle.textContent = movie.title;
+    // Create info container for title and character/job 
+    const infoContainer = document.createElement('div');
+    infoContainer.className = 'movie-info';
 
+    // Add movie title
+    const movieTitle = document.createElement('p');
+    movieTitle.className = 'movie-title';
+    movieTitle.textContent = movie.title;
+    infoContainer.appendChild(movieTitle);
+
+    const characterInfo = document.createElement('p');
+    characterInfo.className = 'movie-character';
+
+    // Add character or job info if available
+    if (movie.character) {
+    	let characterText = movie.character;
+    	characterText = characterText.replace(/\n/g, ' ').trim();
+    	characterInfo.textContent = `as ${characterText}`;
+    } else if (movie.job) {
+    	let jobText = movie.job;
+    	jobText = jobText.replace(/\n/g, ' ').trim();
+    	characterInfo.textContent = jobText;
+    } else {
+    	characterInfo.innerHTML = '&nbsp;'; // Non-breaking space
+    	characterInfo.style.visibility = 'hidden'; // Hide but keep the space
+    }
+
+    infoContainer.appendChild(characterInfo);
+
+    // Create request/watch button
     const requestButton = document.createElement('button');
     requestButton.classList.add('request-button');
     requestButton.dataset.movieId = movie.id;
@@ -1663,7 +2000,7 @@ async function createMovieCard(movie) {
                 requestButton.textContent = "Requested";
                 requestButton.classList.add('requested');
                 requestButton.disabled = true;
-	    } else {
+            } else {
                 // Use the proper service name
                 let serviceName = '';
                 switch(serviceStatus.service) {
@@ -1677,22 +2014,23 @@ async function createMovieCard(movie) {
                         serviceName = 'Ombi';
                         break;
                 }
-		requestButton.textContent = `Request (${serviceName})`;
+                requestButton.textContent = `Request (${serviceName})`;
                 requestButton.addEventListener('click', () => requestMovie(movie.id));
             }
         } else {
             requestButton.textContent = "Request";
             requestButton.disabled = true;
-	    if (currentService === 'jellyfin' || currentService === 'emby') {
-		requestButton.title = "Jellyseerr/Ombi is not configured";
-	    } else if (currentService === 'plex') {
+            if (currentService === 'jellyfin' || currentService === 'emby') {
+                requestButton.title = "Jellyseerr/Ombi is not configured";
+            } else if (currentService === 'plex') {
                 requestButton.title = "No request service available";
             }
         }
     }
 
+    // Assemble the movie card
     movieCard.appendChild(posterLink);
-    movieCard.appendChild(movieTitle);
+    movieCard.appendChild(infoContainer);
     movieCard.appendChild(requestButton);
 
     return movieCard;
@@ -1941,7 +2279,7 @@ function closeMoviesOverlay() {
     }
 }
 
-async function requestMovie(movieId) {
+async function requestMovie(movieId, showNotification = true) {
     try {
         // Find all request buttons for this movie
         const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
@@ -1986,18 +2324,29 @@ async function requestMovie(movieId) {
             button.disabled = true;
         });
 
-        showToast('Movie requested successfully!', 'success');
+        // Only show toast notification if specifically requested
+        if (showNotification) {
+            showToast('Movie requested successfully!', 'success');
+        }
+
+        return true;
     } catch (error) {
         console.error("Error requesting movie:", error);
-        showToast(error.message, 'error');
+
+        // Only show toast notification if specifically requested
+        if (showNotification) {
+            showToast(error.message, 'error');
+        }
 
         // Restore button states on error
         const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
         requestButtons.forEach(button => {
             button.disabled = false;
-            const serviceName = button.textContent.match(/Request \((.*?)\)/)[1];
-            button.innerHTML = `Request (${serviceName})`;
+            const serviceName = button.textContent.match(/Request \((.*?)\)/)?.[1] || '';
+            button.innerHTML = serviceName ? `Request (${serviceName})` : 'Request';
         });
+
+        throw error;
     }
 }
 
@@ -2077,7 +2426,7 @@ async function playMovieFromPoster(clientId, tmdbId) {
         const movieCard = document.querySelector(`.movie-card[data-movie-id="${tmdbId}"]`);
         let serviceId;
         let apiEndpoint;
-        
+
         // Determine correct endpoint based on service
         switch(currentService) {
             case 'plex':
@@ -2104,7 +2453,7 @@ async function playMovieFromPoster(clientId, tmdbId) {
             }
             const data = await response.json();
             serviceId = data[`${currentService}Id`] || data.mediaId; // Handle different response formats
-            
+
             // Store ID in dataset for future use
             if (movieCard && serviceId) {
                 movieCard.dataset[`${currentService}Id`] = serviceId;
@@ -2124,7 +2473,7 @@ async function playMovieFromPoster(clientId, tmdbId) {
 
         // Update Trakt after successful playback start
         setTimeout(() => syncTraktWatched(false), 30000);
-        
+
     } catch (error) {
         console.error("Error playing movie:", error);
         showToast(`Failed to play movie: ${error.message}`, "error");
@@ -2416,7 +2765,7 @@ async function setupFilters() {
     const moviesContainer = document.getElementById('movies_container');
     const movieCards = moviesContainer ? moviesContainer.querySelectorAll('.movie-card') : [];
     const totalMovies = movieCards.length;
-    const inLibraryCount = Array.from(movieCards).filter(card => 
+    const inLibraryCount = Array.from(movieCards).filter(card =>
         card.querySelector('.plex-badge, .jellyfin-badge, .emby-badge')
     ).length;
     const notInLibraryCount = totalMovies - inLibraryCount;
@@ -2606,7 +2955,7 @@ async function applyAllFilters() {
             const movieId = card.dataset.movieId;
             const isWatched = watchedMovies.includes(parseInt(movieId));
             const isHiddenBySearch = card.dataset.hiddenBySearch === 'true';
-            const hasServiceBadge = card.querySelector('.plex-badge, .jellyfin-badge') !== null;
+            const hasServiceBadge = card.querySelector('.plex-badge, .jellyfin-badge, .emby-badge') !== null;
 
             let shouldShowByTrakt = true;
             let shouldShowByPlex = true;
@@ -2809,10 +3158,8 @@ function createSortControls() {
     yearButton.className = 'sort-button active';
     yearButton.dataset.sort = 'year';
     yearButton.innerHTML = `
-        Year
-        <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7 14l5-5 5 5z"/>
-        </svg>
+    	<span class="sort-text">Year</span>
+    	<span class="sort-direction">(Newest)</span>
     `;
 
     // Create Rating sort button
@@ -2820,10 +3167,8 @@ function createSortControls() {
     ratingButton.className = 'sort-button';
     ratingButton.dataset.sort = 'rating';
     ratingButton.innerHTML = `
-        Rating
-        <svg class="sort-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7 14l5-5 5 5z"/>
-        </svg>
+    	<span class="sort-text">Rating</span>
+    	<span class="sort-direction">(Highest)</span>
     `;
 
     sortContainer.appendChild(yearButton);
@@ -2841,12 +3186,15 @@ function toggleSort(type) {
     buttons.forEach(button => {
         if (button.dataset.sort === type) {
             button.classList.add('active');
+
             if (currentSort === `${type}_desc`) {
                 currentSort = `${type}_asc`;
                 button.classList.remove('desc');
+                updateSortButtonText(button, type, 'asc');
             } else {
                 currentSort = `${type}_desc`;
                 button.classList.add('desc');
+                updateSortButtonText(button, type, 'desc');
             }
         } else {
             button.classList.remove('active', 'desc');
@@ -2854,6 +3202,43 @@ function toggleSort(type) {
     });
 
     sortMovies();
+}
+
+function updateSortButtonText(button, type, direction) {
+    let textSpan = button.querySelector('.sort-text');
+    let directionSpan = button.querySelector('.sort-direction');
+
+    if (!textSpan) {
+        textSpan = document.createElement('span');
+        textSpan.className = 'sort-text';
+        button.prepend(textSpan);
+    }
+
+    if (!directionSpan) {
+        directionSpan = document.createElement('span');
+        directionSpan.className = 'sort-direction';
+        button.appendChild(directionSpan);
+    }
+
+    if (type === 'year') {
+        textSpan.textContent = 'Year';
+        directionSpan.textContent = direction === 'desc' ? '(Newest)' : '(Oldest)';
+    } else if (type === 'rating') {
+        textSpan.textContent = 'Rating';
+        directionSpan.textContent = direction === 'desc' ? '(Highest)' : '(Lowest)';
+    }
+}
+
+function initializeSortButtons() {
+    document.querySelectorAll('.sort-button').forEach(button => {
+        const type = button.dataset.sort;
+        if (button.classList.contains('active')) {
+            const direction = button.classList.contains('desc') ? 'desc' : 'asc';
+            updateSortButtonText(button, type, direction);
+        } else {
+            updateSortButtonText(button, type, 'desc');
+        }
+    });
 }
 
 function sortMovies() {

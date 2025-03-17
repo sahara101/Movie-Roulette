@@ -41,12 +41,12 @@ class DefaultPosterManager:
         with self.lock:
             old_mode = self.poster_mode
             old_interval = self.screensaver_interval
-        
+
             # Get settings from features section
             features = settings.get('features', {})
             configured_mode = features.get('poster_mode', 'default')
             custom_text = features.get('default_poster_text', '')
-        
+
             # Handle interval - could be string or int
             interval_value = features.get('screensaver_interval', 300)
             try:
@@ -55,18 +55,18 @@ class DefaultPosterManager:
             except (ValueError, TypeError):
                 logger.error(f"Invalid interval value: {interval_value}, using default")
                 new_interval = 300
-            
+
             logger.info(f"Configuring poster manager:")
             logger.info(f"- Old mode: {old_mode} -> New mode: {configured_mode}")
             logger.info(f"- Old interval: {old_interval} -> New interval: {new_interval}")
             logger.info(f"- Movie service available: {bool(self.movie_service)}")
-        
+
             # Check if there's an active movie
             has_active_movie = os.path.exists(self.current_movie_file)
-        
+
             # Reset state before changing modes
             self.stop_screensaver()
-        
+
             if configured_mode == 'default':
                 # Switching TO default mode
                 self.poster_mode = 'default'
@@ -75,12 +75,12 @@ class DefaultPosterManager:
                     'poster': self.default_poster,
                     'custom_text': custom_text
                 }, namespace='/poster')
-            
+
             elif configured_mode == 'screensaver' and not has_active_movie:
                 # Switching TO screensaver mode
                 self.screensaver_interval = new_interval
                 self.poster_mode = 'screensaver'
-            
+
                 if self.movie_service:
                     logger.info("Starting screensaver immediately with first movie")
                     try:
@@ -115,7 +115,7 @@ class DefaultPosterManager:
             if service == self.movie_service:
                 logger.info("Movie service already set, skipping initialization")
                 return
-            
+
             logger.info(f"Setting movie service to {service.__class__.__name__}")
             self.movie_service = service
 
@@ -177,7 +177,7 @@ class DefaultPosterManager:
         if hasattr(self, 'screensaver_event'):
             self.screensaver_event.set()  # Stop any existing loop
             time.sleep(0.1)  # Give time for the old loop to clean up
-        
+
         self.screensaver_event = threading.Event()
         current_instance = self.screensaver_event  # Track this instance
 
@@ -334,12 +334,41 @@ class DefaultPosterManager:
 
     def get_current_poster(self):
         with self.lock:
+            # First check if a movie JSON file exists (this takes priority)
+            if os.path.exists(self.current_movie_file):
+                try:
+                    with open(self.current_movie_file, 'r') as f:
+                        current_movie = json.load(f)
+                        poster_url = current_movie['movie']['poster']
+
+                        # If we have a movie file, default poster should not be active
+                        self.is_default_poster_active = False
+
+                        # Proxy the URL if needed
+                        jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
+                        emby_service = current_app.config.get('EMBY_SERVICE')
+
+                        if '/library/metadata' in poster_url:  # Plex
+                            parts = poster_url.split('/library/metadata/')[1].split('?')[0]
+                            return f"/proxy/poster/plex/{parts}"
+                        elif '/Items/' in poster_url:  # Both Jellyfin and Emby
+                            item_id = poster_url.split('/Items/')[1].split('/Images')[0]
+                            if jellyfin_service and jellyfin_service.server_url in poster_url:
+                                return f"/proxy/poster/jellyfin/{item_id}"
+                            elif emby_service and emby_service.server_url in poster_url:
+                                return f"/proxy/poster/emby/{item_id}"
+                        return poster_url
+                except Exception as e:
+                    logger.error(f"Error reading current movie file: {e}")
+                    # Fall through to other checks on error
+
+            # Then check screensaver mode
             if self.poster_mode == 'screensaver' and self.current_screensaver_poster:
                 url = self.current_screensaver_poster
-                # Get services from app config
+                # Process URL for screensaver as before...
                 jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
                 emby_service = current_app.config.get('EMBY_SERVICE')
-            
+
                 if '/library/metadata' in url:  # Plex
                     parts = url.split('/library/metadata/')[1].split('?')[0]
                     return f"/proxy/poster/plex/{parts}"
@@ -351,29 +380,10 @@ class DefaultPosterManager:
                         return f"/proxy/poster/emby/{item_id}"
                 return url
 
+            # Finally, default poster if nothing else matched
             if self.is_default_poster_active:
                 return self.default_poster
-            
-            if os.path.exists(self.current_movie_file):
-                with open(self.current_movie_file, 'r') as f:
-                    current_movie = json.load(f)
-                    poster_url = current_movie['movie']['poster']
-                
-                    # Get services from app config
-                    jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
-                    emby_service = current_app.config.get('EMBY_SERVICE')
-                
-                    if '/library/metadata' in poster_url:  # Plex
-                        parts = poster_url.split('/library/metadata/')[1].split('?')[0]
-                        return f"/proxy/poster/plex/{parts}"
-                    elif '/Items/' in poster_url:  # Both Jellyfin and Emby
-                        item_id = poster_url.split('/Items/')[1].split('/Images')[0]
-                        if jellyfin_service and jellyfin_service.server_url in poster_url:
-                            return f"/proxy/poster/jellyfin/{item_id}"
-                        elif emby_service and emby_service.server_url in poster_url:
-                            return f"/proxy/poster/emby/{item_id}"
-                    return poster_url
-                
+
             return self.default_poster
 
     def reset_state(self):

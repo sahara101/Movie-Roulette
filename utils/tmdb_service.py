@@ -9,19 +9,19 @@ logger = logging.getLogger(__name__)
 
 class TMDBService:
     """Centralized service for TMDB API operations"""
-    
+
     # Built-in API key - replace with your actual key
     DEFAULT_API_KEY = "896235c937dfa129af11760d5e57c366"
     BASE_URL = "https://api.themoviedb.org/3"
-    
+
     def __init__(self):
         self.initialize_service()
-    
+
     def initialize_service(self):
         """Initialize or reinitialize service with current settings"""
         self._clear_caches()
         logger.info("TMDB service initialized")
-        
+
     def _clear_caches(self):
         """Clear all cached data"""
         self.get_api_key.cache_clear()
@@ -29,11 +29,16 @@ class TMDBService:
         self.get_person_details.cache_clear()
         self.get_movie_details.cache_clear()
         self.get_movie_credits.cache_clear()
+        # Clear new collection-related caches
+        if hasattr(self, 'get_collection_details'):
+            self.get_collection_details.cache_clear()
+        if hasattr(self, 'get_movie_collection_info'):
+            self.get_movie_collection_info.cache_clear()
 
     def clear_cache(self):
         """Public method to clear all caches"""
         self._clear_caches()
-        
+
     @lru_cache(maxsize=1)
     def get_api_key(self):
         """Get the TMDB API key with priority:
@@ -46,13 +51,13 @@ class TMDBService:
         if env_key:
             logger.debug("Using TMDB API key from environment")
             return env_key
-            
+
         # Check user configuration
         tmdb_settings = settings.get('tmdb', {})
         if tmdb_settings.get('enabled') and tmdb_settings.get('api_key'):
             logger.debug("Using TMDB API key from user settings")
             return tmdb_settings['api_key']
-            
+
         # Fall back to built-in key
         logger.debug("Using built-in TMDB API key")
         return self.DEFAULT_API_KEY
@@ -87,7 +92,7 @@ class TMDBService:
             if data:
                 # Get external IDs in a separate request
                 external_ids = self.get_person_external_ids(person_id)
-                
+
                 return {
                     'id': data.get('id'),
                     'name': data.get('name'),
@@ -117,10 +122,10 @@ class TMDBService:
         """Make a request to TMDB API with proper error handling"""
         if params is None:
             params = {}
-        
+
         params['api_key'] = self.get_api_key()
         url = f"{self.BASE_URL}/{endpoint}"
-        
+
         try:
             response = requests.get(url, params=params)
             response.raise_for_status()
@@ -200,10 +205,10 @@ class TMDBService:
         try:
             movie_credits_url = f"person/{person_id}/movie_credits"
             credits = self._make_request(movie_credits_url)
-        
+
             if credits:
                 movies = []
-            
+
                 # Add crew credits with department info
                 if 'crew' in credits:
                     for crew_entry in credits['crew']:
@@ -213,7 +218,7 @@ class TMDBService:
                                 'department': crew_entry.get('department', ''),
                                 'job': crew_entry.get('job', '')
                             })
-            
+
                 # Add cast credits
                 if 'cast' in credits:
                     cast_movies = [
@@ -227,7 +232,7 @@ class TMDBService:
                         if cast_entry.get('media_type') == 'movie'
                     ]
                     movies.extend(cast_movies)
-            
+
                 return movies
             return None
         except Exception as e:
@@ -263,6 +268,23 @@ class TMDBService:
             logger.error(f"Error getting Trakt URL: {e}")
 
         return tmdb_url, None, imdb_url
+
+    # New collection-related methods
+    @lru_cache(maxsize=100)
+    def get_collection_details(self, collection_id):
+        """Get detailed information about a movie collection by ID"""
+        logger.debug(f"Getting collection details for ID: {collection_id}")
+        return self._make_request(f"collection/{collection_id}")
+
+    @lru_cache(maxsize=100)
+    def get_movie_collection_info(self, movie_id):
+        """Check if a movie belongs to a collection and return collection info"""
+        logger.debug(f"Checking if movie ID {movie_id} belongs to a collection")
+        movie = self.get_movie_details(movie_id)
+        if movie and movie.get('belongs_to_collection'):
+            collection_id = movie['belongs_to_collection']['id']
+            return self.get_collection_details(collection_id)
+        return None
 
 # Create a singleton instance
 tmdb_service = TMDBService()
