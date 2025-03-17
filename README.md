@@ -24,6 +24,7 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 - [Cast & Crew Details](.github/screenshots/cast-example.png)
 - [Movie Details](.github/screenshots/movie-details-example.png)
 - [Filmography View](.github/screenshots/filmography-example.png)
+- [Collection View](.github/screenshots/collection-view.png)
 
 ## Star History
 
