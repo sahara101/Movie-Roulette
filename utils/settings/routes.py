@@ -4,17 +4,19 @@ import logging
 import json
 import traceback
 import os
+import requests 
+import uuid     
 from utils.version import VERSION
+from utils.auth import auth_bp, auth_manager
+from utils.emby_service import authenticate_emby_server_direct
 
 logger = logging.getLogger(__name__)
 
-# Define the blueprint
 settings_bp = Blueprint('settings', __name__)
 
 def initialize_services():
     """Initialize or reinitialize media services"""
     try:
-        # Get the initialize_services function from the main app
         init_func = current_app.config.get('initialize_services')
         if init_func and callable(init_func):
             return init_func()
@@ -42,19 +44,17 @@ def check_settings_enabled():
     return None
 
 @settings_bp.route('/settings')
+@auth_manager.require_auth 
 def settings_page():
     """Render the settings page"""
     settings_disabled = settings.get('system', {}).get('disable_settings', False)
 
-    # Check both ENV and settings-configured services
     plex_configured = (
-        # Check ENV configuration
         all([
             os.getenv('PLEX_URL'),
             os.getenv('PLEX_TOKEN'),
             os.getenv('PLEX_MOVIE_LIBRARIES')
         ]) or
-        # Check settings configuration
         (settings.get('plex', {}).get('enabled') and
          bool(settings.get('plex', {}).get('url')) and
          bool(settings.get('plex', {}).get('token')) and
@@ -62,13 +62,11 @@ def settings_page():
     )
 
     jellyfin_configured = (
-        # Check ENV configuration
         all([
             os.getenv('JELLYFIN_URL'),
             os.getenv('JELLYFIN_API_KEY'),
             os.getenv('JELLYFIN_USER_ID')
         ]) or
-        # Check settings configuration
         (settings.get('jellyfin', {}).get('enabled') and
          bool(settings.get('jellyfin', {}).get('url')) and
          bool(settings.get('jellyfin', {}).get('api_key')) and
@@ -84,9 +82,12 @@ def settings_page():
         version=VERSION
     )
 
+from flask import session 
+
 @settings_bp.route('/api/settings', methods=['GET'])
+@auth_manager.require_auth 
 def get_settings():
-    """Get all settings, marking which ones are from ENV"""
+    """Get all settings, merging user-specific overrides and marking ENV controls"""
     disabled_check = check_settings_enabled()
     if disabled_check:
         return disabled_check
@@ -94,6 +95,28 @@ def get_settings():
     try:
         all_settings = settings.get_all()
         env_overrides = settings.get_env_overrides()
+
+        username = session.get('username')
+        if username:
+            user_data = auth_manager.db.get_user(username)
+            if user_data:
+                trakt_env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
+                                     settings.is_field_env_controlled('trakt.client_id') or \
+                                     settings.is_field_env_controlled('trakt.client_secret') or \
+                                     settings.is_field_env_controlled('trakt.access_token') or \
+                                     settings.is_field_env_controlled('trakt.refresh_token')
+
+                if not trakt_env_controlled and 'trakt_enabled' in user_data:
+                    if 'trakt' not in all_settings:
+                        all_settings['trakt'] = {} 
+                    user_trakt_enabled = user_data.get('trakt_enabled')
+                    if user_trakt_enabled is not None:
+                         logger.debug(f"Applying user '{username}' specific trakt_enabled: {user_trakt_enabled}")
+                         all_settings['trakt']['enabled'] = user_trakt_enabled
+                    else:
+                         all_settings['trakt']['enabled'] = settings.get('trakt', {}).get('enabled', False)
+
+
         return jsonify({
             'settings': all_settings,
             'env_overrides': env_overrides
@@ -103,6 +126,7 @@ def get_settings():
         return jsonify({'error': str(e)}), 500
 
 @settings_bp.route('/api/settings/<category>', methods=['POST'])
+@auth_manager.require_admin
 def update_settings(category):
     """Update settings that aren't controlled by ENV"""
     disabled_check = check_settings_enabled()
@@ -112,7 +136,6 @@ def update_settings(category):
     try:
         data = request.json
 
-        # Check if specific field is controlled by ENV
         for key in data:
             field_path = f"{category}.{key}"
             logger.info(f"Checking field {field_path} for ENV control")
@@ -122,43 +145,61 @@ def update_settings(category):
                     'status': 'error',
                     'message': f'Field {key} is controlled by environment variable'
                 }), 400
+                
+        needs_admin_setup = False
+        if category == 'auth' and data.get('enabled') is True:
+            plex_enabled = settings.get('plex', {}).get('enabled', False)
+            jellyfin_enabled = settings.get('jellyfin', {}).get('enabled', False)
+            emby_enabled = settings.get('emby', {}).get('enabled', False)
 
-        # Validate and update
+            if not (plex_enabled or jellyfin_enabled or emby_enabled):
+                logger.warning("Attempted to enable authentication without a configured media service.")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Please enable and configure a media service (Plex, Jellyfin, or Emby) before enabling authentication.'
+                }), 400
+
+            if not auth_manager.auth_enabled or auth_manager.needs_admin():
+                needs_admin_setup = True
+                logger.info("Auth being enabled with no admin user, will redirect to setup")
+
         try:
             if settings.update(category, data):
                 logger.info(f"Settings updated successfully for category {category}")
+                
+                if category == 'auth' and 'enabled' in data:
+                    auth_manager.update_auth_enabled(data['enabled'])
+                    
+                if needs_admin_setup:
+                    return jsonify({
+                        'status': 'redirect',
+                        'message': 'Authentication enabled, admin setup required',
+                        'redirect': url_for('auth.setup')
+                    })
 
-                # Clear TMDB cache if TMDB settings changed
                 if category == 'tmdb':
                     from utils.tmdb_service import tmdb_service
                     tmdb_service.clear_cache()
 
-                # Check if we need to reinitialize services
                 needs_reinit = False
 
-                # If this is a media service update
                 if category in ['plex', 'jellyfin', 'emby']:
                     needs_reinit = True
                     logger.info("Media service settings changed, will reinitialize services")
 
-                # If this is a homepage mode update
                 if category == 'homepage' and 'mode' in data:
                     needs_reinit = True
                     logger.info("Homepage mode changed, will reinitialize services")
 
-                # If these are feature settings
                 if category == 'features':
                     needs_reinit = True
                     logger.info("Feature settings changed, will reinitialize services")
 
-                    # Update poster settings immediately
                     from utils.poster_view import handle_settings_update
                     handle_settings_update(settings.get_all())  
 
-                # Get PlaybackMonitor from app config
                 playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
                 if playback_monitor:
-                    # Update poster users
                     features_settings = settings.get('features', {})
                     poster_users = features_settings.get('poster_users', {})
 
@@ -182,23 +223,19 @@ def update_settings(category):
                     logger.info(f"Jellyfin: {playback_monitor.jellyfin_poster_users}")
                     logger.info(f"Emby: {playback_monitor.emby_poster_users}")
 
-                # Handle default poster text changes
                 if data.get('default_poster_text') is not None:
                     logger.info("Default poster text changed, updating poster views")
                     from utils.poster_view import handle_settings_update
                     handle_settings_update(settings.get_all())
 
-                # If these are client settings
                 if category == 'clients':
                     needs_reinit = True
                     logger.info("Client settings changed, will reinitialize services")
 
-                # If these are integration settings
                 if category in ['overseerr', 'jellyseerr', 'ombi', 'tmdb', 'trakt', 'request_services']:
                     needs_reinit = True
                     logger.info("Integration settings changed, will reinitialize services")
 
-                # Perform reinitialization if needed
                 if needs_reinit:
                     success = initialize_services()
                     if not success:
@@ -209,13 +246,11 @@ def update_settings(category):
                         }), 500
                     logger.info("Services reinitialization successful")
 
-                    # Update PlaybackMonitor status after service reinitialization
                     playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
                     if playback_monitor and hasattr(playback_monitor, 'update_service_status'):
                         logger.info("Updating PlaybackMonitor service status")
                         playback_monitor.update_service_status()
 
-                # Force settings to save to disk
                 settings.save_settings()
                 logger.info("Settings saved to disk")
 
@@ -241,9 +276,62 @@ def update_settings(category):
         }), 500
 
 @settings_bp.route('/api/settings/status')
+@auth_manager.require_auth 
 def settings_status():
     """Get the current status of the settings page"""
     return jsonify({
         'disabled': is_settings_disabled(),
         'env_controlled': bool(settings.get_env_overrides().get('system.disable_settings', False))
     })
+
+@settings_bp.route('/api/settings/emby/authenticate', methods=['POST'])
+@auth_manager.require_auth 
+def authenticate_emby_settings():
+    """Authenticate with provided Emby details and return credentials"""
+    disabled_check = check_settings_enabled()
+    if disabled_check:
+        return disabled_check
+
+    data = request.json
+    url = data.get('url')
+    username = data.get('username')
+    password = data.get('password')
+
+    if not all([url, username, password]):
+        return jsonify({'success': False, 'message': 'URL, Username, and Password are required'}), 400
+
+    try:
+        success, result = authenticate_emby_server_direct(url, username, password)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Authentication successful!',
+                **result 
+            })
+        else:
+            status_code = 400 
+            if "Invalid username or password" in result:
+                status_code = 401 
+            elif "timed out" in result:
+                status_code = 408 
+            elif "unexpected response format" in result:
+                 status_code = 502 
+            elif "returned an error" in result or "returned status code" in result:
+                 status_code = 502 
+
+            return jsonify({'success': False, 'message': result}), status_code
+
+    except Exception as e: 
+        logger.error(f"Unexpected error in /api/settings/emby/authenticate route: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'An unexpected error occurred: {e}'}), 500
+        return jsonify({'success': False, 'message': 'Connection timed out'}), 408
+    except requests.exceptions.RequestException as e: 
+        logger.error(f"Error during Emby settings authentication to {url}: {e}")
+        error_message = f"Could not connect or communicate with Emby server at {url}. Please check the URL and network."
+        if "Name or service not known" in str(e) or "Connection refused" in str(e):
+             error_message = f"Could not resolve or connect to Emby server at {url}. Please check the URL."
+        return jsonify({'success': False, 'message': error_message}), 400
+    except Exception as e: 
+        logger.error(f"Unexpected error during Emby settings authentication: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'An unexpected error occurred: {e}'}), 500

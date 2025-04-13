@@ -64,7 +64,6 @@ class CollectionService:
         if not collection or 'parts' not in collection:
             return []
 
-        # Get today's date for checking unreleased movies
         today = datetime.now().strftime('%Y-%m-%d')
 
         parts = sorted(
@@ -72,13 +71,12 @@ class CollectionService:
             key=lambda x: x.get('release_date', '9999-99-99')
         )
 
-        # Find current movie's index
         current_movie_index = next(
             (i for i, part in enumerate(parts) if part['id'] == int(tmdb_id)),
             -1
         )
 
-        if current_movie_index <= 0:  # Movie is the first or not found
+        if current_movie_index <= 0:  
             return []
 
         previous_movies = [
@@ -90,7 +88,6 @@ class CollectionService:
         """Check if a movie has been requested in the appropriate request service for the current media service"""
         from utils.settings import settings
 
-        # Get current media service
         current_service = getattr(self, '_current_service', None)
         if not current_service:
             try:
@@ -100,27 +97,21 @@ class CollectionService:
                 current_service = 'plex'
 
         try:
-            # Get request service configuration
             request_config = settings.get('request_services', {})
             default_service = request_config.get('default', 'auto')
             service_override = request_config.get(f'{current_service}_override', 'auto')
 
-            # Determine the actual service to use
             request_service = service_override if service_override != 'auto' else default_service
 
-            # Special case: Overseerr only works with Plex
             if request_service == 'overseerr' and current_service != 'plex':
                 logger.warning(f"Overseerr configured for {current_service} but only works with Plex")
                 return False
 
-            # If still 'auto', use reasonable defaults based on what's configured
             if request_service == 'auto':
-                # Check if services are enabled
                 overseerr_enabled = settings.get('overseerr', {}).get('enabled', False)
                 jellyseerr_enabled = settings.get('jellyseerr', {}).get('enabled', False)
                 ombi_enabled = settings.get('ombi', {}).get('enabled', False)
 
-                # Choose appropriate service
                 if current_service == 'plex' and overseerr_enabled:
                     request_service = 'overseerr'
                 elif jellyseerr_enabled:
@@ -128,9 +119,9 @@ class CollectionService:
                 elif ombi_enabled:
                     request_service = 'ombi'
                 else:
-                    return False  # No compatible service configured
+                    logger.info(f"No compatible request service configured for {current_service}") 
+                    return False  
 
-            # Now check the specific configured service
             logger.debug(f"Checking request status with service: {request_service} for tmdb_id={tmdb_id}")
 
             if request_service == 'overseerr':
@@ -169,6 +160,7 @@ class CollectionService:
         except Exception as e:
             logger.error(f"Error determining request service: {e}")
 
+        logger.info(f"check_request_status for {tmdb_id} returning: False") 
         return False
 
     def check_collection_status(self, tmdb_id, current_service):
@@ -184,7 +176,6 @@ class CollectionService:
         """
         logger.info(f"Checking collection status for movie {tmdb_id} on {current_service}")
 
-        # Get movie details and collection info
         movie_details = tmdb_service.get_movie_details(tmdb_id)
         if not movie_details or not movie_details.get('belongs_to_collection'):
             return {
@@ -204,7 +195,6 @@ class CollectionService:
                 'previous_movies': []
             }
 
-        # Get today's date for checking unreleased movies
         today = datetime.now().strftime('%Y-%m-%d')
 
         parts = sorted(
@@ -212,13 +202,11 @@ class CollectionService:
             key=lambda x: x.get('release_date', '9999-99-99')
         )
 
-        # Find current movie's index
         current_movie_index = next(
             (i for i, part in enumerate(parts) if part['id'] == int(tmdb_id)),
             -1
         )
 
-        # If the movie isn't part of the collection or is first, no previous movies
         if current_movie_index <= 0:
             return {
                 'is_in_collection': True,
@@ -232,16 +220,15 @@ class CollectionService:
             if part.get('release_date') and part.get('release_date', '9999-99-99') <= today
         ]
 
-        # Get all other movies in the collection
         other_movies = [
             part for part in parts
             if part['id'] != int(tmdb_id) and part not in previous_movies
         ]
 
-        # Process previous movies with library and request status
+        logger.info(f"Identified {len(previous_movies)} previous movies and {len(other_movies)} other movies for {tmdb_id}") 
+
         result_previous = []
         for movie in previous_movies:
-            # Check if movie is in the library
             in_library = False
             try:
                 if current_service == 'plex':
@@ -253,12 +240,11 @@ class CollectionService:
             except Exception as e:
                 logger.error(f"Error checking library status for movie {movie['id']}: {e}")
 
-            # Check if movie is watched in Trakt
             is_watched = self._is_movie_watched(movie['id'])
 
-            # Check if movie is already requested
             is_requested = self.check_request_status(movie['id'])
 
+            logger.info(f"Previous movie {movie['id']} ({movie['title']}): In Library={in_library}, Watched={is_watched}, Requested={is_requested}") 
             result_previous.append({
                 'id': movie['id'],
                 'title': movie['title'],
@@ -269,10 +255,8 @@ class CollectionService:
                 'is_requested': is_requested
             })
 
-        # Process other movies with library and request status
         result_other = []
         for movie in other_movies:
-            # Check if movie is in the library
             in_library = False
             try:
                 if current_service == 'plex':
@@ -284,9 +268,9 @@ class CollectionService:
             except Exception as e:
                 logger.error(f"Error checking library status for movie {movie['id']}: {e}")
 
-            # Check if movie is already requested
             is_requested = self.check_request_status(movie['id'])
 
+            logger.info(f"Other movie {movie['id']} ({movie['title']}): In Library={in_library}, Requested={is_requested}") 
             result_other.append({
                 'id': movie['id'],
                 'title': movie['title'],
@@ -304,44 +288,58 @@ class CollectionService:
             'previous_movies': result_previous,
             'other_movies': result_other
         }
+        logger.info(f"Final collection status for {tmdb_id}: {json.dumps(final_result, indent=2)}") 
+        return final_result
 
     def _is_movie_in_plex(self, tmdb_id):
         """Check if a movie exists in the Plex library"""
         try:
             cache_path = '/app/data/plex_all_movies.json'
+            logger.info(f"_is_movie_in_plex: Checking for {tmdb_id} using cache path: {cache_path}") 
+            found = False 
             if os.path.exists(cache_path):
                 with open(cache_path, 'r') as f:
                     all_movies = json.load(f)
-                return any(str(m.get('tmdb_id')) == str(tmdb_id) for m in all_movies)
-            return False
+                found = any(str(m.get('tmdb_id')) == str(tmdb_id) for m in all_movies) 
+            logger.info(f"_is_movie_in_plex: Found status for {tmdb_id}: {found}") 
+            return found 
         except Exception as e:
             logger.error(f"Error checking Plex library for movie {tmdb_id}: {e}")
+            logger.info(f"_is_movie_in_plex: Returning False due to error for {tmdb_id}") 
             return False
 
     def _is_movie_in_jellyfin(self, tmdb_id):
         """Check if a movie exists in the Jellyfin library"""
         try:
             cache_path = '/app/data/jellyfin_all_movies.json'
+            logger.info(f"_is_movie_in_jellyfin: Checking for {tmdb_id} using cache path: {cache_path}") 
+            found = False
             if os.path.exists(cache_path):
                 with open(cache_path, 'r') as f:
                     all_movies = json.load(f)
-                return any(str(m.get('tmdb_id')) == str(tmdb_id) for m in all_movies)
-            return False
+                found = any(str(m.get('tmdb_id')) == str(tmdb_id) for m in all_movies)
+            logger.info(f"_is_movie_in_jellyfin: Found status for {tmdb_id}: {found}") 
+            return found
         except Exception as e:
             logger.error(f"Error checking Jellyfin library for movie {tmdb_id}: {e}")
+            logger.info(f"_is_movie_in_jellyfin: Returning False due to error for {tmdb_id}") 
             return False
 
     def _is_movie_in_emby(self, tmdb_id):
         """Check if a movie exists in the Emby library"""
         try:
             cache_path = '/app/data/emby_all_movies.json'
+            logger.info(f"_is_movie_in_emby: Checking for {tmdb_id} using cache path: {cache_path}") 
+            found = False
             if os.path.exists(cache_path):
                 with open(cache_path, 'r') as f:
                     all_movies = json.load(f)
-                return any(str(m.get('tmdb_id')) == str(tmdb_id) for m in all_movies)
-            return False
+                found = any(str(m.get('tmdb_id')) == str(tmdb_id) for m in all_movies)
+            logger.info(f"_is_movie_in_emby: Found status for {tmdb_id}: {found}") 
+            return found
         except Exception as e:
             logger.error(f"Error checking Emby library for movie {tmdb_id}: {e}")
+            logger.info(f"_is_movie_in_emby: Returning False due to error for {tmdb_id}") 
             return False
 
     def _is_movie_watched(self, tmdb_id):
@@ -349,10 +347,13 @@ class CollectionService:
         try:
             from utils.trakt_service import get_local_watched_movies
             watched_movies = get_local_watched_movies()
-            return int(tmdb_id) in watched_movies
+            logger.info(f"_is_movie_watched: Checking {tmdb_id} against {len(watched_movies)} watched movies.") 
+            found = int(tmdb_id) in watched_movies
+            logger.info(f"_is_movie_watched: Found status for {tmdb_id}: {found}") 
+            return found
         except Exception as e:
             logger.error(f"Error checking Trakt watched status for movie {tmdb_id}: {e}")
+            logger.info(f"_is_movie_watched: Returning False due to error for {tmdb_id}") 
             return False
 
-# Create a singleton instance
 collection_service = CollectionService()

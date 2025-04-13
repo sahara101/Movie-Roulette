@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="orientation" content="portrait">
+    <meta name="screen-orientation" content="portrait">
+    <title>Setup - Movie Roulette</title>
+    <link rel="stylesheet" href="/static/style/login.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/icons/favicon.ico">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card setup-card">
+            <div class="logo-section">
+                <img src="/static/icons/icon-192x192.png" alt="Movie Roulette Logo" class="app-logo">
+                <h1>Welcome to Movie Roulette</h1>
+            </div>
+
+            <div class="setup-description">
+                <p>Authentication has been enabled. Please set the password for the default admin account.</p>
+            </div>
+
+            <form action="/setup" method="POST" class="login-form">
+                {% if error %}
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label for="username">Admin Username</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-user-shield"></i>
+                        <input type="text" id="username" name="username" placeholder="Enter admin username" required>
+                    </div>
+                    {# Removed fixed username description #}
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="confirm_password" name="confirm_password" required>
+                    </div>
+                    <div class="password-match-indicator" id="password-match">
+                        <i class="fas fa-circle-check"></i> Passwords match
+                    </div>
+                </div>
+
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# Added CSRF token #}
+                <button type="submit" class="login-button">
+                    <i class="fas fa-user-plus"></i>
+                    Create Admin Account
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const password = document.getElementById('password');
+            const confirmPassword = document.getElementById('confirm_password');
+            const matchIndicator = document.getElementById('password-match');
+
+            function checkPasswordMatch() {
+                if (confirmPassword.value === '') {
+                    matchIndicator.style.display = 'none';
+                    return;
+                }
+
+                if (password.value === confirmPassword.value) {
+                    matchIndicator.classList.remove('mismatch');
+                    matchIndicator.classList.add('match');
+                    matchIndicator.innerHTML = '<i class="fas fa-circle-check"></i> Passwords match';
+                } else {
+                    matchIndicator.classList.remove('match');
+                    matchIndicator.classList.add('mismatch');
+                    matchIndicator.innerHTML = '<i class="fas fa-circle-xmark"></i> Passwords do not match';
+                }
+
+                matchIndicator.style.display = 'block';
+            }
+
+            if (password && confirmPassword && matchIndicator) {
+                password.addEventListener('input', checkPasswordMatch);
+                confirmPassword.addEventListener('input', checkPasswordMatch);
+            }
+        });
+    </script>
+</body>
+</html>

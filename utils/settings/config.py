@@ -37,6 +37,8 @@ DEFAULT_SETTINGS = {
         'use_next_button': True,
         'mobile_truncation': False,
         'homepage_mode': False,
+        'enable_movie_logos': True, 
+        'load_movie_on_start': False, 
         'timezone': 'UTC',
         'poster_mode': 'default',  # 'default' or 'screensaver'
         'screensaver_interval': 300,
@@ -85,6 +87,13 @@ DEFAULT_SETTINGS = {
     },
     'system': {
         'disable_settings': False
+    }
+}
+
+AUTH_SETTINGS = {
+    'auth': {
+        'enabled': False,
+        'session_lifetime': 86400
     }
 }
 
@@ -139,7 +148,8 @@ ENV_MAPPINGS = {
     'USE_WATCH_BUTTON': ('features', 'use_watch_button', lambda x: x.upper() == 'TRUE'),
     'USE_NEXT_BUTTON': ('features', 'use_next_button', lambda x: x.upper() == 'TRUE'),
     'ENABLE_MOBILE_TRUNCATION': ('features', 'mobile_truncation', lambda x: x.upper() == 'TRUE'),
-
+    'ENABLE_MOVIE_LOGOS': ('features', 'enable_movie_logos', lambda x: x.upper() == 'TRUE'),
+    'LOAD_MOVIE_ON_START': ('features', 'load_movie_on_start', lambda x: x.upper() == 'TRUE'),
     # AppleTV ENV
     'APPLE_TV_ID': ('clients.apple_tv', 'id', str),
 
@@ -159,4 +169,9 @@ ENV_MAPPINGS = {
 
     # Settings
     'DISABLE_SETTINGS': ('system', 'disable_settings', lambda x: x.upper() == 'TRUE'),
+}
+
+AUTH_ENV_MAPPINGS = {
+    'AUTH_ENABLED': ('auth', 'enabled', lambda x: x.upper() == 'TRUE'),
+    'AUTH_SESSION_LIFETIME': ('auth', 'session_lifetime', int)
 }

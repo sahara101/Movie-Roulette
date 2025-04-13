@@ -1,0 +1,429 @@
+/* Account Button in Header */
+.header-right {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.account-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+.account-button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.account-button i {
+    font-size: 18px;
+}
+
+#username-display {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Account Dropdown */
+.account-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: #fff;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    min-width: 180px;
+    z-index: 1000;
+    display: none;
+    overflow: hidden;
+    margin-top: 5px;
+}
+
+.account-dropdown.active {
+    display: block;
+}
+
+.account-dropdown-item {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    color: #333;
+    transition: background-color 0.2s;
+}
+
+.account-dropdown-item:hover {
+    background-color: #f5f5f5;
+}
+
+.account-dropdown-item i {
+    width: 16px;
+    text-align: center;
+}
+
+.account-dropdown-separator {
+    height: 1px;
+    background-color: #eee;
+    margin: 4px 0;
+}
+
+/* Change Password Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 450px;
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    font-size: 18px;
+    font-weight: 500;
+    color: #333;
+    margin: 0;
+}
+
+.close-modal {
+    font-size: 24px;
+    font-weight: 500;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.2s;
+}
+
+.close-modal:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Form Elements in Modal */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #1e88e5;
+    box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+}
+
+/* Buttons */
+.button-primary {
+    padding: 10px 16px;
+    background-color: #1e88e5;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.button-primary:hover {
+    background-color: #1565c0;
+}
+
+.button-secondary {
+    padding: 10px 16px;
+    background-color: transparent;
+    color: #666;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.button-secondary:hover {
+    background-color: #f5f5f5;
+}
+
+/* Error Message */
+.error-message {
+    background-color: #ffebee;
+    color: #d32f2f;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.error-message i {
+    font-size: 16px;
+}
+
+/* Notification */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 4px;
+    background-color: #323232;
+    color: white;
+    font-size: 14px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 2000;
+    display: none;
+}
+
+.notification.success {
+    background-color: #43a047;
+}
+
+.notification.error {
+    background-color: #d32f2f;
+}
+
+.notification.info {
+    background-color: #1e88e5;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .modal-content {
+        width: calc(100% - 40px);
+        max-width: none;
+        margin: 0 20px;
+    }
+
+    .account-button {
+        padding: 6px 8px;
+    }
+
+    #username-display {
+        display: none;
+    }
+}
+
+/* User menu in nav */
+.user-menu {
+    position: relative;
+    cursor: pointer;
+}
+
+.user-menu-trigger {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.user-name {
+    display: none; 
+}
+
+.user-dropdown {
+    position: absolute;
+    top: 100%;  
+    right: 0;
+    background-color: #3A3C41;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    min-width: 180px;
+    z-index: 1001;
+    display: none;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+/* Only show dropdown when active class is present */
+.user-menu.active .user-dropdown {
+    display: block;
+}
+
+.dropdown-item {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #EAEAEC;
+    text-decoration: none;
+    transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(229, 160, 13, 0.2);
+}
+
+.dropdown-item i {
+    color: #E5A00D;
+    width: 16px;
+    text-align: center;
+}
+
+#change-password-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#change-password-modal.hidden {
+    display: none;
+}
+
+.change-password-content {
+    background-color: #3A3C41;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 8px;
+    padding: 20px;
+    position: relative;
+}
+
+#change-password-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+}
+
+#change-password-close svg {
+    width: 100%;
+    height: 100%;
+    fill: #999;
+}
+
+#change-password-close:hover svg {
+    fill: #E5A00D;
+}
+
+.change-password-form h3 {
+    color: #E5A00D;
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    padding-right: 30px;
+}
+
+.change-password-form .form-group {
+    margin-bottom: 15px;
+}
+
+.change-password-form label {
+    display: block;
+    margin-bottom: 5px;
+    color: #EAEAEC;
+}
+
+.change-password-form input {
+    width: 100%;
+    padding: 10px;
+    background-color: #282A2D;
+    border: 1px solid #4A4C51;
+    color: #EAEAEC;
+    border-radius: 4px;
+}
+
+.change-password-form input:focus {
+    outline: none;
+    border-color: #E5A00D;
+}
+
+.password-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.password-actions button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.password-actions button:first-child {
+    background-color: #4A4C51;
+    color: #EAEAEC;
+}
+
+.password-actions button:last-child {
+    background-color: #E5A00D;
+    color: #222;
+}
+
+.error-message {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: #DC2626;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+/* For larger screens */
+@media (min-width: 768px) {
+    .user-name {
+        display: inline; 
+    }
+}

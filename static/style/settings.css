@@ -73,17 +73,17 @@
     align-items: center;
     justify-content: center;
     width: 8rem;
-    height: 40px; 
+    height: 40px;
     padding: 8px 16px;
-    border-radius: 8px; 
+    border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
     gap: 8px;
-    white-space: nowrap;  
+    white-space: nowrap;
 }
 
 .donate-button, .back-button {
-    font-size: 1rem; 
+    font-size: 1rem;
 }
 
 .donate-button i, .back-button svg {
@@ -102,13 +102,13 @@
 }
 
 .donate-button i, .back-button i {
-    font-size: 1.25rem;  
+    font-size: 1.25rem;
 }
 
 .donate-button i {
-    font-size: 10px !important;  
-    width: auto !important;     
-    height: auto !important;   
+    font-size: 10px !important;
+    width: auto !important;
+    height: auto !important;
 }
 
 .back-button {
@@ -199,7 +199,7 @@
 .setting-input,
 .env-override,
 .current-config {
-    width: calc(100% - 2px);  /* Account for borders */
+    width: calc(100% - 2px);  
     max-width: 100%;
     margin-left: 0;
     margin-right: 0;
@@ -603,7 +603,7 @@
        justify-content: space-between;
        gap: 16px;
    }
-   
+
    .header-controls .dropdown,
    .header-controls .dropdown .donate-button,
    .header-controls .back-button {
@@ -641,7 +641,7 @@
 
     .donate-button i {
         position: relative;
-        top: 2px; 
+        top: 2px;
         display: flex;
         align-items: center;
     }
@@ -657,7 +657,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 12rem;  /* Same as other configure buttons */
+    width: 12rem;  
     gap: 8px;
     background-color: #E5A00D;
     color: #282A2D;
@@ -1208,10 +1208,10 @@ select.setting-input option {
     color: #EAEAEC;
     min-width: 60px;
     font-size: 0.9em;
-    margin: 0;  /* Remove any default margin */
-    display: flex;  /* This helps with alignment */
-    align-items: center;  /* This helps with alignment */
-    line-height: 1;  /* This helps with alignment */
+    margin: 0;  
+    display: flex;  
+    align-items: center;  
+    line-height: 1;  
 }
 
 .tv-action {
@@ -1510,11 +1510,11 @@ select.setting-input option {
     gap: 4px;
     align-items: flex-end;
     z-index: 100;
-    pointer-events: none; 
+    pointer-events: none;
 }
 
 .download-badge, .version-label {
-    pointer-events: auto;  /* Re-enable clicking for the actual buttons */
+    pointer-events: auto;  
     display: inline-flex;
     align-items: center;
     gap: 2px;
@@ -1540,7 +1540,7 @@ select.setting-input option {
 
 .version-label {
     position: relative;
-    z-index: 1;  
+    z-index: 1;
 }
 
 @media (max-width: 640px) {
@@ -1570,4 +1570,255 @@ select.setting-input option {
 
 .changelog::-webkit-scrollbar-thumb:hover {
     background: #5A5C61;
+}
+
+
+.admin-required {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-light);
+}
+
+.admin-required i {
+    font-size: 48px;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.admin-required h3 {
+    margin-bottom: 10px;
+    font-size: 24px;
+}
+
+.admin-required p {
+    font-size: 16px;
+}
+
+/* User Management Styles */
+.user-management-wrapper {
+    margin-top: 24px;
+}
+
+.users-container {
+    background-color: #282A2D;
+    border: 1px solid #4A4C51;
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.user-notice {
+    font-size: 0.9em;
+    color: #9CA3AF;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background-color: rgba(229, 160, 13, 0.1);
+    border-left: 3px solid #E5A00D;
+    border-radius: 0 4px 4px 0;
+}
+
+.user-notice i {
+    margin-right: 6px;
+    color: #E5A00D;
+}
+
+.user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background-color: #3A3C41;
+    border-radius: 4px;
+    border: 1px solid #4A4C51;
+    transition: border-color 0.2s;
+}
+
+.user-item:hover {
+    border-color: #E5A00D;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.user-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #EAEAEC;
+}
+
+.admin-badge,
+.service-type-badge {
+    font-size: 0.8em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.admin-badge {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
+.service-type-badge.local {
+    background-color: #4A4C51;
+    color: #EAEAEC;
+}
+
+.service-type-badge.plex {
+    background-color: #e5a00d; 
+    color: #282A2D;
+}
+
+.service-type-badge.jellyfin {
+    background-color: #7b4697; 
+    color: #ffffff;
+}
+
+.service-type-badge.emby {
+    background-color: #52b54b; 
+    color: #ffffff;
+}
+
+.user-meta {
+    font-size: 0.85em;
+    color: #9CA3AF;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.user-meta span {
+    display: block;
+}
+
+.user-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.user-action {
+    background: none;
+    border: none;
+    color: #9CA3AF;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 1.1em;
+    transition: color 0.2s;
+}
+
+.user-action:hover {
+    color: #EAEAEC;
+}
+
+.user-action.delete:hover {
+    color: #EF4444;
+}
+
+.loading-users, .no-users {
+    text-align: center;
+    color: #9CA3AF;
+    padding: 20px;
+}
+
+/* Role Badge Styles */
+.role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+    line-height: 1.4; 
+}
+
+.role-badge.admin {
+    background-color: #DC2626; 
+    color: white;
+}
+
+.role-badge.owner {
+    background-color: #D97706; 
+    color: white;
+}
+
+.role-badge.user {
+    background-color: #4A4C51; 
+    color: #EAEAEC;
+}
+
+/* Generic Settings Modal Styles */
+.settings-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75); 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+/* Reuse existing dialog content style but ensure it applies */
+.settings-modal .dialog-content {
+    background-color: #3A3C41;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
+}
+
+/* Style input groups within the modal */
+.settings-modal .input-group {
+    margin-bottom: 16px; 
+}
+
+.settings-modal .input-group label {
+    display: block;
+    color: #EAEAEC;
+    margin-bottom: 6px; 
+    font-weight: 500;
+    font-size: 0.9em;
+}
+
+.settings-modal .setting-input {
+    width: 100%; 
+    box-sizing: border-box; 
+}
+
+.settings-modal .error-message {
+    padding: 10px 14px; 
+    margin-bottom: 16px;
+    font-size: 0.9em;
+}
+
+.settings-modal .dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px; 
+}
+
+.settings-modal .cancel-button,
+.settings-modal .submit-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
 }

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Successful</title>
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #222222;
+            color: #EAEAEC;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .success-container {
+            padding: 30px;
+            background-color: #3A3C41;
+            border-radius: 8px;
+            max-width: 400px;
+        }
+        h1 {
+            color: #E5A00D;
+        }
+        .icon {
+            font-size: 48px;
+            color: #E5A00D;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="icon">✓</div>
+        <h1>Authentication Successful</h1>
+        <p>You've successfully authenticated with Plex. This window will close automatically.</p>
+    </div>
+    <script>
+        setTimeout(function() {
+            window.close();
+        }, 2000);
+    </script>
+</body>
+</html>

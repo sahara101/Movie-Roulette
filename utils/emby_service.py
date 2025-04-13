@@ -13,19 +13,255 @@ from .settings import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def authenticate_emby_user(username, password):
+   """
+   Authenticates a user directly against the configured Emby server.
+   Returns (True, auth_data) on success, (False, error_message) on failure.
+   auth_data contains {'AccessToken': ..., 'UserId': ...}
+   """
+   server_url = settings.get('emby', {}).get('url') or os.getenv('EMBY_URL') 
+   if not server_url:
+       logger.error("Emby server URL is not configured.")
+       return False, "Emby server URL is not configured."
+
+   try:
+
+       auth_url = f"{server_url}/Users/AuthenticateByName"
+       auth_data = {
+           "Username": username,
+           "Pw": password,
+       }
+
+       device_id = str(uuid.uuid4()) 
+       auth_header = (f'MediaBrowser Client="Movie Roulette Auth", '
+                      f'Device="Movie Roulette", '
+                      f'DeviceId="{device_id}", '
+                      f'Version="1.0.0"')
+
+       headers = {
+           'X-Emby-Authorization': auth_header,
+           'Content-Type': 'application/json',
+           'Accept': 'application/json'
+       }
+
+       logger.info(f"Attempting Emby authentication for user '{username}' at {server_url}")
+       response = requests.post(auth_url, json=auth_data, headers=headers, timeout=10) 
+
+       if response.status_code == 401:
+            logger.warning(f"Emby authentication failed for user '{username}': Invalid credentials.")
+            return False, "Invalid username or password."
+       elif response.status_code == 404: 
+            logger.error(f"Emby authentication endpoint not found ({auth_url}). Check Emby server version or URL.")
+            return False, "Authentication endpoint not found on Emby server."
+
+       response.raise_for_status() 
+
+       data = response.json()
+
+       if 'AccessToken' not in data or 'User' not in data or 'Id' not in data['User']:
+            logger.error(f"Emby authentication response for '{username}' is missing expected fields: {data}")
+            return False, "Authentication succeeded but received an unexpected response from Emby."
+
+       auth_result = {
+           'AccessToken': data['AccessToken'],
+           'UserId': data['User']['Id'],
+           'UserName': data['User'].get('Name', username) 
+       }
+
+       logger.info(f"Emby authentication successful for user '{username}' (ID: {auth_result['UserId']})")
+       return True, auth_result
+
+   except requests.exceptions.Timeout:
+       logger.error(f"Timeout connecting to Emby server at {server_url} for authentication.")
+       return False, "Connection to Emby server timed out."
+   except requests.exceptions.RequestException as e:
+       logger.error(f"Error during Emby authentication request for user '{username}': {e}")
+       if isinstance(e, requests.exceptions.ConnectionError):
+            return False, f"Could not connect to Emby server at {server_url}. Please check the URL and network."
+       return False, f"An error occurred communicating with the Emby server: {e}"
+   except Exception as e:
+       logger.error(f"Unexpected error during Emby authentication for user '{username}': {e}", exc_info=True)
+       return False, f"An unexpected error occurred during authentication: {e}"
+
+def authenticate_emby_server_direct(url, username, password):
+   """
+   Authenticates directly against a specific Emby server URL.
+   Used for testing/configuring settings.
+   Returns (True, {'api_key': ..., 'user_id': ...}) on success,
+   (False, error_message) on failure.
+   """
+   if not all([url, username, password]):
+       return False, "URL, Username, and Password are required"
+
+   try:
+       test_auth_url = f"{url.rstrip('/')}/Users/AuthenticateByName"
+       test_auth_data = { "Username": username, "Pw": password }
+       device_id = str(uuid.uuid4()) 
+       auth_header = (f'MediaBrowser Client="Movie Roulette Settings Test", '
+                      f'Device="Movie Roulette", DeviceId="{device_id}", Version="1.0.0"')
+       headers = {
+           'X-Emby-Authorization': auth_header,
+           'Content-Type': 'application/json',
+           'Accept': 'application/json'
+       }
+
+       logger.info(f"Attempting direct Emby authentication to {url} for user {username}")
+       response = requests.post(test_auth_url, json=test_auth_data, headers=headers, timeout=10)
+
+       if response.status_code == 200:
+            auth_response_data = response.json()
+            if 'AccessToken' in auth_response_data and 'User' in auth_response_data and 'Id' in auth_response_data['User']:
+                api_key = auth_response_data['AccessToken']
+                user_id = auth_response_data['User']['Id']
+                logger.info(f"Direct Emby authentication successful for {username} at {url}")
+                return True, {'api_key': api_key, 'user_id': user_id}
+            else:
+                logger.warning(f"Direct Emby authentication to {url} succeeded but response format unexpected: {auth_response_data}")
+                return False, "Authentication succeeded but received an unexpected response format from Emby."
+       elif response.status_code == 401:
+           logger.warning(f"Direct Emby authentication failed for {username} at {url}: Invalid credentials")
+           return False, "Invalid username or password"
+       elif response.status_code == 404:
+            logger.error(f"Direct Emby authentication endpoint not found ({test_auth_url}). Check Emby server URL.")
+            return False, "Authentication endpoint not found on Emby server. Check URL."
+       else:
+           logger.error(f"Direct Emby authentication failed for {username} at {url}: Status {response.status_code}, Response: {response.text[:200]}")
+           try:
+               response.raise_for_status()
+           except requests.exceptions.HTTPError as http_err:
+                return False, f"Emby server returned an error: {http_err}"
+           return False, f"Emby server returned status code {response.status_code}"
+
+   except requests.exceptions.Timeout:
+       logger.error(f"Timeout connecting to Emby server at {url} for direct authentication.")
+       return False, "Connection to Emby server timed out."
+   except requests.exceptions.RequestException as e:
+       logger.error(f"Error during direct Emby authentication request to {url}: {e}")
+       error_message = f"Could not connect or communicate with Emby server at {url}. Please check the URL and network."
+       if isinstance(e, requests.exceptions.ConnectionError):
+            if "Name or service not known" in str(e) or "Connection refused" in str(e):
+                error_message = f"Could not resolve or connect to Emby server at {url}. Please check the URL."
+            elif "CERTIFICATE_VERIFY_FAILED" in str(e):
+                 error_message = f"SSL certificate verification failed for {url}. Check server setup or disable SSL verification (not recommended)."
+       return False, error_message
+   except Exception as e:
+       logger.error(f"Unexpected error during direct Emby authentication: {e}", exc_info=True)
+       return False, f"An unexpected error occurred: {e}"
+
+def authenticate_with_emby_connect(username, password):
+    """
+    Authenticates with Emby Connect using username/password and retrieves servers.
+    Based on the original implementation.
+    Returns (True, {'servers': [...], 'connect_user_id': ...}) on success,
+    (False, error_message) on failure.
+    """
+    connect_auth_url = "https://connect.emby.media/service/user/authenticate"
+    app_name = "MovieRoulette" 
+    app_version = "1.0"
+
+    try:
+        auth_payload = {
+            "nameOrEmail": username,
+            "rawpw": password 
+        }
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Application': f'{app_name}/{app_version}', 
+            'Accept': 'application/json' 
+        }
+
+        logger.info(f"Attempting Emby Connect authentication for user {username}")
+        response = requests.post(connect_auth_url, json=auth_payload, headers=headers, timeout=15)
+
+        if response.status_code == 401:
+             logger.warning(f"Emby Connect authentication failed for {username}: Invalid credentials.")
+             return False, "Invalid Emby Connect username or password."
+        elif response.status_code != 200:
+             logger.error(f"Emby Connect authentication failed for {username}: Status {response.status_code}, Response: {response.text[:200]}")
+             error_msg = f"Emby Connect authentication failed with status code {response.status_code}"
+             try:
+                 error_data = response.json()
+                 if error_data and isinstance(error_data, dict) and 'message' in error_data:
+                     error_msg = f"Emby Connect authentication failed: {error_data['message']} (Status: {response.status_code})"
+                 response.raise_for_status() 
+             except requests.exceptions.HTTPError as http_err:
+                 error_msg = f"Emby Connect authentication failed: {http_err}"
+             except json.JSONDecodeError:
+                 pass 
+             return False, error_msg
+
+        auth_data = response.json()
+        connect_token = auth_data.get('AccessToken')
+        connect_user_id = auth_data.get('User', {}).get('Id')
+
+        if not connect_token or not connect_user_id:
+            logger.error(f"Emby Connect authentication succeeded for {username} but response missing token or user ID: {auth_data}")
+            return False, "Authentication succeeded but received an unexpected response from Emby Connect."
+
+        logger.info(f"Emby Connect authentication successful for {username} (Connect User ID: {connect_user_id})")
+
+        connect_servers_url = f"https://connect.emby.media/service/servers?userId={connect_user_id}" 
+        server_headers = {
+            'X-Application': f'{app_name}/{app_version}', 
+            'X-Connect-UserToken': connect_token,
+            'Accept': 'application/json' 
+        }
+
+        logger.info(f"Fetching linked servers for Emby Connect user {connect_user_id}")
+        response = requests.get(connect_servers_url, headers=server_headers, timeout=15)
+
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch Emby Connect servers for {connect_user_id}: Status {response.status_code}, Response: {response.text[:200]}")
+            error_msg = f"Failed to fetch linked servers with status code {response.status_code}"
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as http_err:
+                 error_msg = f"Failed to fetch linked servers: {http_err}"
+            return False, error_msg
+
+        servers_data = response.json()
+        if not isinstance(servers_data, list):
+             logger.error(f"Received unexpected format for server list: {servers_data}")
+             return False, "Received unexpected format for server list from Emby Connect."
+
+        logger.info(f"Successfully fetched {len(servers_data)} servers for Emby Connect user {connect_user_id}")
+
+        formatted_servers = []
+        for server in servers_data:
+             server_url = server.get('LocalAddress') or server.get('RemoteAddress') or server.get('Url')
+             formatted_servers.append({
+                 'id': server.get('SystemId'),
+                 'name': server.get('Name'),
+                 'local_url': server.get('LocalAddress'),
+                 'remote_url': server.get('RemoteAddress') or server.get('Url'),
+                 'access_key': server.get('AccessKey'),
+                 'connect_server_id': server.get('ConnectServerId')
+             })
+
+        return True, {'servers': formatted_servers, 'connect_user_id': connect_user_id}
+
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout during Emby Connect request for user {username}.")
+        return False, "Connection to Emby Connect timed out."
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error during Emby Connect request for user {username}: {e}")
+        return False, f"Could not connect or communicate with Emby Connect: {e}"
+    except Exception as e:
+        logger.error(f"Unexpected error during Emby Connect process: {e}", exc_info=True)
+        return False, f"An unexpected error occurred during Emby Connect process: {e}"
+
 class EmbyService:
     def __init__(self, url=None, api_key=None, user_id=None, update_interval=600):
-        # Try settings first, then fall back to ENV
-        self.server_url = url or settings.get('emby', 'url') or os.getenv('EMBY_URL')
-        self.api_key = api_key or settings.get('emby', 'api_key') or os.getenv('EMBY_API_KEY')
-        self.user_id = user_id or settings.get('emby', 'user_id') or os.getenv('EMBY_USER_ID')
+        emby_settings = settings.get('emby', {})
+        self.server_url = url or emby_settings.get('url') or os.getenv('EMBY_URL')
+        self.api_key = api_key or emby_settings.get('api_key') or os.getenv('EMBY_API_KEY')
+        self.user_id = user_id or emby_settings.get('user_id') or os.getenv('EMBY_USER_ID')
 
-        # Only validate if service is enabled
-        if settings.get('emby', 'enabled'):
+        if settings.get('emby', {}).get('enabled'): 
             if not all([self.server_url, self.api_key, self.user_id]):
-                raise ValueError("Emby URL, API key, and user ID are required when enabled")
+                 logger.error(f"EmbyService validation failed: URL={self.server_url}, Key={'******' if self.api_key else 'None'}, UserID={self.user_id}")
+                 raise ValueError("Emby URL, API key, and user ID are required when enabled")
 
-        # Initialize headers
         self._update_headers()
 
         self.update_interval = update_interval
@@ -45,62 +281,9 @@ class EmbyService:
             'Content-Type': 'application/json'
         }
 
-    def authenticate_with_connect(self, username, password):
-        """Authenticate with Emby Connect using username/password"""
-        try:
-            connect_url = "https://connect.emby.media/service/user/authenticate"
-            data = {
-                "nameOrEmail": username,
-                "rawpw": password
-            }
-            headers = {
-                'Content-Type': 'application/json',
-                'X-Application': 'MovieRoulette/1.0'
-            }
-
-            response = requests.post(connect_url, json=data, headers=headers)
-            response.raise_for_status()
-            connect_data = response.json()
-
-            if 'AccessToken' not in connect_data:
-                raise ValueError("No access token in response")
-
-            # Get user's servers
-            servers_url = f"https://connect.emby.media/service/servers?userId={connect_data['User']['Id']}"
-            servers_headers = {
-                'X-Application': 'MovieRoulette/1.0',
-                'X-Connect-UserToken': connect_data['AccessToken']
-            }
-
-            servers_response = requests.get(servers_url, headers=servers_headers)
-            servers_response.raise_for_status()
-            servers = servers_response.json()
-
-            if not servers:
-                raise ValueError("No Emby servers found for this account")
-
-            # Return the server list and connect data for frontend selection
-            return {
-                "status": "servers_available",
-                "connect_user_id": connect_data['User']['Id'],
-                "connect_token": connect_data['AccessToken'],
-                "servers": [{
-                    "id": server.get('SystemId'),
-                    "name": server.get('Name'),
-                    "url": server.get('Url'),
-                    "local_url": server.get('LocalAddress'),
-                    "access_key": server.get('AccessKey')
-                } for server in servers]
-            }
-
-        except Exception as e:
-            logger.error(f"Error in Emby Connect authentication: {e}")
-            raise
-
     def authenticate(self, username, password):
         """Direct authentication with Emby server"""
         try:
-            # Get server info first (required for auth)
             server_info_url = f"{self.server_url}/System/Info/Public"
             response = requests.get(server_info_url)
             response.raise_for_status()
@@ -110,7 +293,7 @@ class EmbyService:
                 "Username": username,
                 "Pw": password,
                 "Password": password,
-                "PasswordMd5": "",  # Leave empty for plain password auth
+                "PasswordMd5": "",  
                 "AuthenticationScheme": "Username"
             }
 
@@ -171,10 +354,10 @@ class EmbyService:
                         self.cache_all_emby_movies()
                         self.last_cache_update = current_time
                         logger.info("Emby cache update completed")
-                time.sleep(60)  # Check every minute
+                time.sleep(60)  
             except Exception as e:
                 logger.error(f"Error in Emby cache update loop: {e}")
-                time.sleep(5)  # Short sleep on error
+                time.sleep(5)  
 
     def cache_all_emby_movies(self):
         """Cache all movies for Emby badge checking"""
@@ -205,7 +388,6 @@ class EmbyService:
                     "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb')
                 })
 
-            # Save to disk atomically
             temp_path = f"{self.cache_path}.tmp"
             with open(temp_path, 'w') as f:
                 json.dump(all_movies, f)
@@ -226,7 +408,7 @@ class EmbyService:
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
-                'IsPlayed': 'false'  # Get only unwatched movies
+                'IsPlayed': 'false'  
             }
             response = requests.get(movies_url, headers=self.headers, params=params)
             response.raise_for_status()
@@ -253,7 +435,7 @@ class EmbyService:
 
             if movies.get('Items'):
                 movie_data = self.get_movie_data(movies['Items'][0])
-                logger.info(f"Selected random Emby movie for screensaver: {movie_data.get('title')}")  # Add logging
+                logger.info(f"Selected random Emby movie for screensaver: {movie_data.get('title')}")  
                 return movie_data
             logger.warning("No movies found for screensaver")
             return None
@@ -263,25 +445,22 @@ class EmbyService:
 
     def get_movie_data(self, movie):
         run_time_ticks = movie.get('RunTimeTicks', 0)
-        total_minutes = run_time_ticks // 600000000  # Convert ticks to minutes
+        total_minutes = run_time_ticks // 600000000  
         hours = total_minutes // 60
         minutes = total_minutes % 60
 
-        # Extract video and audio format information
         video_format = "Unknown"
         audio_format = "Unknown"
 
         if 'MediaSources' in movie and movie['MediaSources']:
             media_source = movie['MediaSources'][0]
 
-            # Video format extraction
             video_streams = [s for s in media_source.get('MediaStreams', [])
                            if s.get('Type') == 'Video']
             if video_streams:
                 video_stream = video_streams[0]
                 height = video_stream.get('Height', 0)
 
-                # Resolution detection
                 if height <= 480:
                     resolution = "SD"
                 elif height <= 720:
@@ -293,7 +472,6 @@ class EmbyService:
                 else:
                     resolution = "Unknown"
 
-                # HDR detection
                 hdr_types = []
                 if 'HDR' in str(video_stream):
                     if 'DolbyVision' in str(video_stream):
@@ -310,14 +488,12 @@ class EmbyService:
                     video_format_parts.append('/'.join(hdr_types))
                 video_format = ' '.join(video_format_parts)
 
-            # Audio format extraction
             audio_streams = [s for s in media_source.get('MediaStreams', [])
                            if s.get('Type') == 'Audio']
             if audio_streams:
                 audio_stream = audio_streams[0]
                 codec = audio_stream.get('Codec', '').upper()
 
-                # Map Emby codec names to display names
                 codec_map = {
                     'AC3': 'Dolby Digital',
                     'EAC3': 'Dolby Digital Plus',
@@ -330,11 +506,9 @@ class EmbyService:
 
                 audio_format = codec_map.get(codec, codec)
 
-                # Detect Atmos
                 if any(s in str(audio_stream) for s in ['Atmos', 'ATMOS']):
                     audio_format = 'Dolby Atmos'
 
-                # Add channel layout if available
                 channels = audio_stream.get('Channels', 0)
                 if channels > 0:
                     layout_map = {
@@ -346,10 +520,8 @@ class EmbyService:
                     layout = layout_map.get(channels, f"{channels}ch")
                     audio_format = f"{audio_format} {layout}"
 
-        # Process people (cast & crew)
         all_people = movie.get('People', [])
 
-        # Process and enrich person data with proper departments
         directors = [
             {
                 "name": p.get('Name', ''),
@@ -418,23 +590,20 @@ class EmbyService:
                 'IsPlayed': 'false'
             }
 
-            # Log incoming parameters
             logger.info(f"Filter movies called with - genres: {genres}, years: {years}, pg_ratings: {pg_ratings}")
 
-            # Handle watch status
             if watch_status == 'unwatched':
                 params['IsPlayed'] = 'false'
             elif watch_status == 'watched':
                 params['IsPlayed'] = 'true'
 
-            # Handle empty lists as None
             genres = genres if genres and genres[0] else None
             years = years if years and years[0] else None
             pg_ratings = pg_ratings if pg_ratings and pg_ratings[0] else None
 
             if genres:
                 params['Genres'] = '|'.join(genres)
-                logger.info(f"Using genres in request: {params['GenreIds']}")
+                logger.info(f"Using genres in request: {params['Genres']}") 
 
             if years:
                 params['Years'] = years
@@ -444,7 +613,6 @@ class EmbyService:
                 params['OfficialRatings'] = '|'.join(pg_ratings)
                 logger.info(f"Using ratings in request: {params['OfficialRatings']}")
 
-            # Log final request
             response = requests.get(movies_url, headers=self.headers, params=params)
             logger.info(f"Response status code: {response.status_code}")
 
@@ -500,131 +668,101 @@ class EmbyService:
                 'duration': 0
             }
         except Exception as e:
-            logger.error(f"Error fetching playback info: {e}")
-            return None
+            logger.error(f"Error getting playback info: {e}")
+            return {
+                'is_playing': False,
+                'IsPaused': False,
+                'IsStopped': True,
+                'position': 0,
+                'start_time': None,
+                'duration': 0,
+                'error': str(e)
+            }
 
     def get_clients(self):
+        """Get list of playable clients/sessions"""
         try:
             sessions_url = f"{self.server_url}/Sessions"
             response = requests.get(sessions_url, headers=self.headers)
             response.raise_for_status()
             sessions = response.json()
+            logger.debug(f"Raw /Sessions response from Emby: {json.dumps(sessions, indent=2)}") 
 
-            logger.debug(f"Raw sessions data: {json.dumps(sessions, indent=2)}")
-
-            castable_clients = []
+            clients = []
             for session in sessions:
-                # Emby specific check for remote control capability
-                if session.get('SupportsRemoteControl', False) and session.get('DeviceName') != 'Emby Server':
-                    client = {
-                        "title": session.get('DeviceName', 'Unknown Device'),
-                        "id": session.get('Id'),
-                        "client": session.get('Client', 'Unknown'),
-                        "username": session.get('UserName'),
-                        "device_id": session.get('DeviceId'),
-                        "supports_media_control": session.get('SupportsMediaControl', False),
-                    }
-                    castable_clients.append(client)
-
-            if not castable_clients:
-                logger.warning("No castable clients found.")
-            else:
-                logger.info(f"Found {len(castable_clients)} castable clients")
-
-            return castable_clients
+                if session.get('SupportsRemoteControl') and session.get('DeviceName') and 'Movie Roulette' not in session.get('DeviceName'):
+                     clients.append({
+                         'id': session['Id'],
+                         'name': session.get('DeviceName', 'Unknown Device'), 
+                         'user': session.get('UserName', 'Unknown User')
+                     })
+            return clients
         except Exception as e:
             logger.error(f"Error fetching clients: {e}")
             return []
 
     def play_movie(self, movie_id, session_id):
+        """Play a movie on a specific client session"""
         try:
             playback_url = f"{self.server_url}/Sessions/{session_id}/Playing"
             params = {
                 'ItemIds': movie_id,
                 'PlayCommand': 'PlayNow'
             }
-
-            # Get session info to find username
-            username = None
-            try:
-                session_info_url = f"{self.server_url}/Sessions/{session_id}"
-                session_response = requests.get(session_info_url, headers=self.headers)
-                session_response.raise_for_status()
-                session_data = session_response.json()
-                username = session_data.get('UserName')
-                logger.info(f"Playing movie for Emby user: {username}")
-            except:
-                logger.info("Could not determine Emby username for session")
-
             response = requests.post(playback_url, headers=self.headers, params=params)
             response.raise_for_status()
-            logger.debug(f"Playing movie {movie_id} on session {session_id}")
+            logger.info(f"Playing movie {movie_id} on session {session_id}")
+
             self.playback_start_times[movie_id] = datetime.now()
+
             movie_data = self.get_movie_by_id(movie_id)
-        
             if movie_data:
-                start_time = self.playback_start_times[movie_id]
-                end_time = start_time + timedelta(hours=movie_data['duration_hours'],
-                                                minutes=movie_data['duration_minutes'])
-                from flask import session
-                session['current_movie'] = movie_data
-                session['movie_start_time'] = start_time.isoformat()
-                session['movie_end_time'] = end_time.isoformat()
-                session['current_service'] = 'emby'
-            
-            return {
-                "status": "playing",
-                "movie_id": movie_id,
-                "session_id": session_id,
-                "start_time": self.playback_start_times[movie_id].isoformat(),
-                "movie_data": movie_data,
-                "username": username 
-            }
+                 start_time = self.playback_start_times[movie_id]
+                 end_time = start_time + timedelta(hours=movie_data['duration_hours'], minutes=movie_data['duration_minutes'])
+                 from flask import session
+                 session['current_movie'] = movie_data
+                 session['movie_start_time'] = start_time.isoformat()
+                 session['movie_end_time'] = end_time.isoformat()
+                 session['current_service'] = 'emby' 
+
+            return {"status": "playing"} 
         except Exception as e:
             logger.error(f"Error playing movie: {e}")
             return {"error": str(e)}
 
     def get_genres(self):
+        """Get list of genres from Emby server"""
         try:
-            items_url = f"{self.server_url}/Genres"
-            params = {
-                'Recursive': 'true',
-                'IncludeItemTypes': 'Movie',
-                'UserId': self.user_id
-            }
-
-            response = requests.get(items_url, headers=self.headers, params=params)
+            genres_url = f"{self.server_url}/Genres"
+            params = {'UserId': self.user_id} 
+            response = requests.get(genres_url, headers=self.headers, params=params)
             response.raise_for_status()
-            data = response.json()
-
-            genres = [item.get('Name') for item in data.get('Items', []) if item.get('Name')]
-            logger.debug(f"Extracted genre list: {genres}")
-            return sorted(genres)
+            genres = response.json().get('Items', [])
+            return sorted([genre['Name'] for genre in genres if genre.get('Name')])
         except Exception as e:
             logger.error(f"Error fetching genres: {e}")
             return []
 
     def get_years(self):
+        """Get list of production years from Emby server"""
         try:
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            items_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'Fields': 'ProductionYear'
             }
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(items_url, headers=self.headers, params=params)
             response.raise_for_status()
-            movies = response.json()
-            years = set(movie.get('ProductionYear') for movie in movies.get('Items', [])
-                       if movie.get('ProductionYear'))
-            year_list = sorted(list(years), reverse=True)
-            logger.debug(f"Fetched years: {year_list}")
-            return year_list
+            movies = response.json().get('Items', [])
+            years = set(movie.get('ProductionYear') for movie in movies if movie.get('ProductionYear'))
+            return sorted(list(years), reverse=True)
         except Exception as e:
             logger.error(f"Error fetching years: {e}")
             return []
 
     def get_pg_ratings(self):
+        """Get list of official ratings from Emby server by aggregating from items"""
         try:
             items_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -632,7 +770,7 @@ class EmbyService:
                 'Fields': 'OfficialRating',
                 'IncludeItemTypes': 'Movie'
             }
-
+            logger.debug(f"Fetching items from {items_url} to aggregate PG ratings.")
             response = requests.get(items_url, headers=self.headers, params=params)
             response.raise_for_status()
             data = response.json()
@@ -644,101 +782,143 @@ class EmbyService:
                     all_ratings.add(rating)
 
             rating_list = sorted(list(all_ratings))
-            logger.debug(f"Extracted PG rating list: {rating_list}")
+            logger.debug(f"Extracted PG rating list from items: {rating_list}")
             return rating_list
         except Exception as e:
-            logger.error(f"Error fetching PG ratings: {e}")
+            logger.error(f"Error fetching PG ratings by aggregating items: {e}")
             return []
 
     def get_movie_by_id(self, movie_id):
+        """Get detailed data for a specific movie by its Emby ID"""
         try:
-            item_url = f"{self.server_url}/Users/{self.user_id}/Items/{movie_id}"
+            movie_url = f"{self.server_url}/Users/{self.user_id}/Items/{movie_id}"
             params = {
-                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating'
+                 'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear'
             }
-            response = requests.get(item_url, headers=self.headers, params=params)
+            response = requests.get(movie_url, headers=self.headers, params=params)
             response.raise_for_status()
             movie = response.json()
             return self.get_movie_data(movie)
         except Exception as e:
-            logger.error(f"Error fetching movie by ID: {e}")
+            logger.error(f"Error fetching movie by ID {movie_id}: {e}")
             return None
 
     def check_token_validity(self):
-        """Check if the current API token is still valid"""
+        """Check if the current API token is valid"""
         try:
-            test_url = f"{self.server_url}/System/Info"
-            response = requests.get(test_url, headers=self.headers)
+            info_url = f"{self.server_url}/System/Info"
+            response = requests.get(info_url, headers=self.headers, timeout=5)
             return response.status_code == 200
-        except:
+        except Exception as e:
+            logger.warning(f"Error checking Emby token validity: {e}")
             return False
 
     def get_server_info(self):
-        """Get Emby server information"""
+        """Get basic server information"""
         try:
             info_url = f"{self.server_url}/System/Info"
-            response = requests.get(info_url, headers=self.headers)
+            response = requests.get(info_url, headers=self.headers, timeout=5)
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(f"Error getting server info: {e}")
+            logger.error(f"Error getting Emby server info: {e}")
             return None
 
     def get_current_username(self):
+        """Get the username associated with the configured user ID"""
         try:
-            sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=self.headers)
+            user_url = f"{self.server_url}/Users/{self.user_id}"
+            response = requests.get(user_url, headers=self.headers, timeout=5)
             response.raise_for_status()
-            sessions = response.json()
-            for session in sessions:
-                if session.get('UserId') == self.user_id:
-                    return session.get('UserName')
-            return None
+            user_data = response.json()
+            return user_data.get('Name')
         except Exception as e:
-            logger.error(f"Error getting current username: {e}")
+            logger.error(f"Error getting current Emby username: {e}")
             return None
 
     def get_active_sessions(self):
-        """Get all active sessions from Emby"""
+        """Get a list of active playback sessions"""
         try:
             sessions_url = f"{self.server_url}/Sessions"
             response = requests.get(sessions_url, headers=self.headers)
             response.raise_for_status()
             sessions = response.json()
-            return sessions
+            active_sessions = [s for s in sessions if s.get('NowPlayingItem')]
+            return active_sessions
         except Exception as e:
-            logger.error(f"Error fetching Emby sessions: {e}")
+            logger.error(f"Error fetching active Emby sessions: {e}")
             return []
 
     def search_movies(self, query):
-        """Search for movies matching the query in titles only"""
+        """Search for movies by title"""
         try:
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            search_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SearchTerm': query,
                 'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
-                'SearchFields': 'Name',
-                'EnableTotalRecordCount': True,
-                'Limit': 50
+                'Limit': 20 
             }
-
-            logger.info(f"Searching Emby movies with query: {query}")
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(search_url, headers=self.headers, params=params)
             response.raise_for_status()
             movies = response.json().get('Items', [])
+            return [self.get_movie_data(movie) for movie in movies]
+        except Exception as e:
+            logger.error(f"Error searching Emby movies: {e}")
+            return []
 
-            # Double check title match and process results
-            results = []
-            for movie in movies:
-                if query.lower() in movie.get('Name', '').lower():
-                    movie_data = self.get_movie_data(movie)
-                    results.append(movie_data)
+    def get_filtered_movie_count(self, filters):
+        """
+        Counts movies matching the provided filters by querying the Emby API.
+        Uses the user_id and api_key associated with this EmbyService instance.
 
-            logger.info(f"Found {len(results)} Emby movies matching title: {query}")
-            return results
+        Args:
+            filters (dict): A dictionary containing filter criteria:
+                            {'genres': list, 'years': list, 'pgRatings': list, 'watch_status': str}
+
+        Returns:
+            int: The count of matching movies.
+        """
+        if not all([self.server_url, self.api_key, self.user_id]):
+            logger.error("EmbyService not fully configured for get_filtered_movie_count")
+            return 0
+
+        try:
+            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            params = {
+                'IncludeItemTypes': 'Movie',
+                'Recursive': 'true',
+                'Limit': 0 
+            }
+
+            watch_status = filters.get('watch_status', 'unwatched')
+            selected_genres = filters.get('genres', [])
+            selected_years = filters.get('years', [])
+            selected_pg_ratings = filters.get('pgRatings', [])
+
+            if watch_status == 'unwatched':
+                params['IsPlayed'] = 'false'
+            elif watch_status == 'watched':
+                params['IsPlayed'] = 'true'
+
+            if selected_genres:
+                params['Genres'] = '|'.join(selected_genres)
+            if selected_years:
+                params['Years'] = ','.join(map(str, selected_years)) 
+            if selected_pg_ratings:
+                params['OfficialRatings'] = '|'.join(selected_pg_ratings) 
+
+            logger.debug(f"Emby API count request params (User: {self.user_id}): {params}")
+
+            response = requests.get(movies_url, headers=self.headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            count = data.get('TotalRecordCount', 0)
+            logger.debug(f"Emby API returned count: {count}")
+            return count
 
         except Exception as e:
-            logger.error(f"Error searching Emby movies: {str(e)}")
-            return []
+            logger.error(f"Error getting filtered movie count from Emby (User: {self.user_id}): {str(e)}")
+            return 0 

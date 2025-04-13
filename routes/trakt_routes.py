@@ -1,183 +1,90 @@
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, redirect, request, session
 import requests
 import json
 import os
 from datetime import datetime
 import logging
-from utils.settings import settings
-from utils.trakt_service import token_manager
+from utils.settings import settings 
+from utils.auth.manager import auth_manager
+from utils.auth.db import AuthDB 
 
 logger = logging.getLogger(__name__)
 
 trakt_bp = Blueprint('trakt_bp', __name__)
 
-# Constants
 HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
 HARDCODED_CLIENT_SECRET = '3e5c2b9163264d8e9b50b8727c827b49a5ea8cc6cf0331bca931a697c243f508'
-REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'  # Using OOB flow for portability
-TRAKT_TOKENS_FILE = '/app/data/trakt_tokens.json'
+REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'  
 
 CLIENT_ID = os.getenv('TRAKT_CLIENT_ID') or HARDCODED_CLIENT_ID
 CLIENT_SECRET = os.getenv('TRAKT_CLIENT_SECRET') or HARDCODED_CLIENT_SECRET
 
-def save_tokens(access_token, refresh_token):
-    """Save Trakt tokens to file"""
-    try:
-        tokens = {
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'created_at': datetime.now().isoformat()
-        }
-        os.makedirs(os.path.dirname(TRAKT_TOKENS_FILE), exist_ok=True)
-        with open(TRAKT_TOKENS_FILE, 'w') as f:
-            json.dump(tokens, f)
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save Trakt tokens: {e}")
-        return False
-
-def load_tokens():
-    """Load Trakt tokens from file or ENV"""
-    # First check ENV variables
-    env_access_token = os.getenv('TRAKT_ACCESS_TOKEN')
-    env_refresh_token = os.getenv('TRAKT_REFRESH_TOKEN')
-
-    if env_access_token and env_refresh_token:
-        return {
-            'access_token': env_access_token,
-            'refresh_token': env_refresh_token
-        }
-
-    # Then check file
-    try:
-        if os.path.exists(TRAKT_TOKENS_FILE):
-            with open(TRAKT_TOKENS_FILE, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load Trakt tokens: {e}")
-
-    return None
-
-def refresh_token():
-    """Refresh Trakt access token"""
-    tokens = load_tokens()
-    if not tokens:
-        return False
-
-    try:
-        response = requests.post('https://api.trakt.tv/oauth/token', json={
-            'refresh_token': tokens['refresh_token'],
-            'client_id': CLIENT_ID,
-            'client_secret': CLIENT_SECRET,
-            'grant_type': 'refresh_token'
-        })
-
-        if response.ok:
-            new_tokens = response.json()
-            save_tokens(new_tokens['access_token'], new_tokens['refresh_token'])
-            return True
-
-    except Exception as e:
-        logger.error(f"Failed to refresh Trakt token: {e}")
-    return False
-
-def make_trakt_request(method, endpoint, **kwargs):
-    """Make a request to Trakt API with automatic token refresh"""
-    tokens = load_tokens()
-    if not tokens:
-        return None
-
-    try:
-        headers = {
-            'Authorization': f'Bearer {tokens["access_token"]}',
-            'Content-Type': 'application/json',
-            'trakt-api-version': '2',
-            'trakt-api-key': CLIENT_ID
-        }
-
-        if 'headers' in kwargs:
-            headers.update(kwargs.pop('headers'))
-
-        response = requests.request(
-            method,
-            f'https://api.trakt.tv/{endpoint}',
-            headers=headers,
-            **kwargs
-        )
-
-        if response.status_code == 401 and refresh_token():
-            # Retry with new token
-            tokens = load_tokens()
-            headers['Authorization'] = f'Bearer {tokens["access_token"]}'
-            response = requests.request(
-                method,
-                f'https://api.trakt.tv/{endpoint}',
-                headers=headers,
-                **kwargs
-            )
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Trakt API request failed: {e}")
-        return None
-
 @trakt_bp.route('/trakt/status')
+@auth_manager.require_auth 
 def status():
-    """Get Trakt connection status"""
-    # Check ENV variables first
-    env_access = os.getenv('TRAKT_ACCESS_TOKEN')
-    env_refresh = os.getenv('TRAKT_REFRESH_TOKEN')
-    env_client_id = os.getenv('TRAKT_CLIENT_ID')
-    env_client_secret = os.getenv('TRAKT_CLIENT_SECRET')
-
-    env_controlled = all([
-        env_access,
-        env_refresh,
-        env_client_id,
-        env_client_secret
-    ])
+    """Get Trakt connection status for current user"""
+    env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
+                     settings.is_field_env_controlled('trakt.client_id') or \
+                     settings.is_field_env_controlled('trakt.client_secret') or \
+                     settings.is_field_env_controlled('trakt.access_token') or \
+                     settings.is_field_env_controlled('trakt.refresh_token')
 
     if env_controlled:
+        global_settings = settings.get('trakt', {})
+        is_connected = bool(global_settings.get('access_token'))
+        is_enabled = is_connected 
+
         return jsonify({
-            'connected': True,
+            'connected': is_connected,
             'env_controlled': True,
-            'enabled': True  # ENV-controlled means enabled
+            'enabled': is_enabled
+        })
+    
+    if auth_manager.auth_enabled:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User session not found'}), 401
+
+        user_data = auth_manager.db.get_user(username)
+        if not user_data:
+            return jsonify({'error': 'User not found in database'}), 404
+
+        is_connected = bool(user_data.get('trakt_access_token'))
+        is_enabled = user_data.get('trakt_enabled', False)
+
+        return jsonify({
+            'connected': is_connected,
+            'env_controlled': False,
+            'enabled': is_enabled,
+            'username': username 
+        })
+    else:
+        trakt_settings = settings.get('trakt', {})
+        is_connected = bool(trakt_settings.get('access_token'))
+        is_enabled = trakt_settings.get('enabled', False)
+
+        return jsonify({
+            'connected': is_connected,
+            'env_controlled': False,
+            'enabled': is_enabled,
+            'auth_disabled': True
         })
 
-    # Check settings-based configuration
-    trakt_settings = settings.get('trakt', {})
-    settings_enabled = bool(trakt_settings.get('enabled'))
-
-    # Check file-based tokens
-    tokens = load_tokens()
-    is_connected = bool(tokens)
-
-    return jsonify({
-        'connected': is_connected,
-        'env_controlled': False,
-        'enabled': settings_enabled
-    })
-
 @trakt_bp.route('/trakt/authorize')
+@auth_manager.require_auth 
 def authorize():
     """Start the Trakt authorization flow"""
     auth_url = 'https://trakt.tv/oauth/authorize'
-    params = {
-        'response_type': 'code',
-        'client_id': CLIENT_ID,
-        'redirect_uri': REDIRECT_URI
-    }
-    
     full_auth_url = f"{auth_url}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
     logger.info(f"Authorization URL: {full_auth_url}")
-    
+
     return jsonify({
         'auth_url': full_auth_url,
         'oob': True
     })
 
 @trakt_bp.route('/trakt/token', methods=['POST'])
+@auth_manager.require_auth 
 def get_token():
     """Handle the authorization code and get tokens"""
     code = request.json.get('code')
@@ -186,7 +93,6 @@ def get_token():
         return jsonify({'error': 'No code provided'}), 400
 
     try:
-        # Log the request data
         request_data = {
             'code': code,
             'client_id': CLIENT_ID,
@@ -194,8 +100,16 @@ def get_token():
             'redirect_uri': REDIRECT_URI,
             'grant_type': 'authorization_code'
         }
-        logger.info(f"Making token request with data: {request_data}")
-
+        
+        if auth_manager.auth_enabled:
+            username = session.get('username')
+            if not username:
+                return jsonify({'error': 'User session not found'}), 401
+            
+            logger.info(f"Making token request with data for user {username}")
+        else:
+            logger.info("Making token request with data (auth disabled, using global settings)")
+        
         response = requests.post('https://api.trakt.tv/oauth/token', json=request_data)
 
         logger.info(f"Token response status: {response.status_code}")
@@ -203,15 +117,34 @@ def get_token():
 
         if response.ok:
             token_data = response.json()
-            # Use the token manager to save tokens
-            if token_manager.save_tokens(
-                access_token=token_data['access_token'],
-                refresh_token=token_data['refresh_token']
-            ):
-                return jsonify({'status': 'success'})
+            
+            if auth_manager.auth_enabled:
+                update_data = {
+                    'trakt_access_token': token_data['access_token'],
+                    'trakt_refresh_token': token_data['refresh_token'],
+                    'trakt_enabled': True
+                }
+                success, message = auth_manager.db.update_user_data(username, update_data)
+
+                if success:
+                    logger.info(f"Successfully saved Trakt tokens and enabled for user {username}")
+                    return jsonify({'status': 'success'})
+                else:
+                    logger.error(f"Failed to save Trakt tokens for user {username}: {message}")
+                    return jsonify({'error': f'Failed to save tokens: {message}'}), 500
             else:
-                logger.error("Failed to save tokens")
-                return jsonify({'error': 'Failed to save tokens'}), 500
+                trakt_data = {
+                    'access_token': token_data['access_token'],
+                    'refresh_token': token_data['refresh_token'],
+                    'enabled': True
+                }
+                try:
+                    settings.update('trakt', trakt_data)
+                    logger.info("Successfully saved Trakt tokens to global settings")
+                    return jsonify({'status': 'success'})
+                except Exception as e:
+                    logger.error(f"Failed to save Trakt tokens to global settings: {e}")
+                    return jsonify({'error': f'Failed to save tokens: {str(e)}'}), 500
         else:
             logger.error(f"Token request failed: {response.text}")
             return jsonify({'error': 'Failed to get access token'}), 500
@@ -221,30 +154,101 @@ def get_token():
         return jsonify({'error': str(e)}), 500
 
 @trakt_bp.route('/trakt/disconnect')
+@auth_manager.require_auth 
 def disconnect():
-    """Disconnect Trakt account"""
+    """Disconnect Trakt account for current user"""
     try:
-        # Check for ENV variables first
-        env_access = os.getenv('TRAKT_ACCESS_TOKEN')
-        env_refresh = os.getenv('TRAKT_REFRESH_TOKEN')
-        
-        if env_access or env_refresh:
-            logger.warning("Trakt tokens exist in environment variables")
+        env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
+                         settings.is_field_env_controlled('trakt.client_id') or \
+                         settings.is_field_env_controlled('trakt.client_secret') or \
+                         settings.is_field_env_controlled('trakt.access_token') or \
+                         settings.is_field_env_controlled('trakt.refresh_token')
+
+        if env_controlled:
+            logger.warning("Attempted to disconnect Trakt while ENV controlled.")
             return jsonify({
                 'status': 'env_controlled',
                 'message': 'Cannot disconnect while Trakt is configured via environment variables'
             }), 400
-        
-        # Remove the tokens file
-        if os.path.exists(TRAKT_TOKENS_FILE):
+
+        if auth_manager.auth_enabled:
+            username = session.get('username')
+            if not username:
+                return jsonify({'error': 'User session not found'}), 401
+
+            update_data = {
+                'trakt_access_token': None,
+                'trakt_refresh_token': None,
+                'trakt_enabled': False
+            }
+            success, message = auth_manager.db.update_user_data(username, update_data)
+
+            if success:
+                logger.info(f"Successfully disconnected Trakt for user {username}")
+                return jsonify({'status': 'success'})
+            else:
+                logger.error(f"Failed to disconnect Trakt for user {username}: {message}")
+                return jsonify({'error': f'Failed to disconnect Trakt: {message}'}), 500
+        else:
+            trakt_data = {
+                'access_token': None,  
+                'refresh_token': None,
+                'enabled': False
+            }
             try:
-                os.remove(TRAKT_TOKENS_FILE)
-                logger.info("Successfully removed tokens file")
+                settings.update('trakt', trakt_data)
+                logger.info("Successfully disconnected Trakt in global settings")
+                return jsonify({'status': 'success'})
             except Exception as e:
-                logger.error(f"Failed to remove tokens file: {e}")
-                return jsonify({'error': 'Failed to remove tokens file'}), 500
-        
-        return jsonify({'status': 'success'})
+                logger.error(f"Failed to disconnect Trakt in global settings: {e}")
+                return jsonify({'error': f'Failed to disconnect Trakt: {str(e)}'}), 500
+            
     except Exception as e:
         logger.error(f"Error during Trakt disconnect: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@trakt_bp.route('/trakt/settings', methods=['PUT'])
+@auth_manager.require_auth
+def update_trakt_settings():
+    """Update the Trakt enabled status for the current user."""
+    env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
+                     settings.is_field_env_controlled('trakt.client_id') or \
+                     settings.is_field_env_controlled('trakt.client_secret') or \
+                     settings.is_field_env_controlled('trakt.access_token') or \
+                     settings.is_field_env_controlled('trakt.refresh_token')
+
+    if env_controlled:
+        logger.warning("Attempted to update Trakt settings while ENV controlled.")
+        return jsonify({
+            'status': 'env_controlled',
+            'message': 'Cannot update Trakt settings while configured via environment variables'
+        }), 400
+
+    data = request.get_json()
+    enabled_state = data.get('enabled')
+
+    if enabled_state is None or not isinstance(enabled_state, bool):
+        return jsonify({'error': 'Invalid or missing "enabled" field in request (must be true or false)'}), 400
+
+    if auth_manager.auth_enabled:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'User session not found'}), 401
+
+        update_data = {'trakt_enabled': enabled_state}
+        success, message = auth_manager.db.update_user_data(username, update_data)
+
+        if success:
+            logger.info(f"Successfully updated Trakt enabled status to {enabled_state} for user {username}")
+            return jsonify({'status': 'success', 'enabled': enabled_state})
+        else:
+            logger.error(f"Failed to update Trakt enabled status for user {username}: {message}")
+            return jsonify({'error': f'Failed to update settings: {message}'}), 500
+    else:
+        try:
+            settings.update('trakt', {'enabled': enabled_state})
+            logger.info(f"Successfully updated Trakt enabled status to {enabled_state} in global settings")
+            return jsonify({'status': 'success', 'enabled': enabled_state})
+        except Exception as e:
+            logger.error(f"Failed to update Trakt enabled status in global settings: {e}")
+            return jsonify({'error': f'Failed to update settings: {str(e)}'}), 500

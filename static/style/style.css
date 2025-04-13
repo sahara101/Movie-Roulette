@@ -99,6 +99,8 @@ main {
 #description {
     overflow: hidden;
     text-overflow: ellipsis;
+    display: -webkit-box; 
+    -webkit-line-clamp: 2; 
     -webkit-box-orient: vertical;
     transition: all 0.3s ease;
 }
@@ -205,6 +207,18 @@ main {
   transform: translateY(0);
 }
 
+/* Styles for the initial "Get Random Movie" button */
+#btn_get_movie {
+  grid-column: 1 / -1; 
+  justify-self: center; 
+  align-self: center; 
+  width: auto; 
+  padding: 15px 30px; 
+  font-size: 2.5em; 
+  margin: 20px 0; 
+  z-index: 10; 
+}
+
 .hidden {
   display: none !important;
 }
@@ -256,7 +270,9 @@ main {
   justify-content: center;
   align-items: center;
   color: #282A2D;
-  transition: all 0.2s
+  transition: all 0.2s;
+  min-width: 200px; 
+  min-height: 50px;  
 }
 
 .client:hover, .device:hover {
@@ -272,7 +288,7 @@ main {
 .client > p, .device > p {
   margin: 0;
   text-transform: uppercase;
-  font-size: 34pt;
+  font-size: 1.5rem; /* Reduced font size */
   font-family: 'Montserrat', sans-serif;
   font-weight: 900;
 }
@@ -334,7 +350,7 @@ main {
 }
 
 .logo[src*="tmdb_logo"] {
-    height: 20px;  /* Slightly smaller height */
+    height: 20px;  
 }
 
 .logo[src*="imdb_logo"] {
@@ -772,7 +788,6 @@ main, #section, #movieContent {
     opacity: 0.9;
 }
 
-/* Ensure proper spacing between elements */
 .movie-card > * {
     margin-bottom: 5px;
 }
@@ -1020,7 +1035,7 @@ main, #section, #movieContent {
   #movies_container {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 20px;
-    padding: 0;  /* Remove padding to align with search */
+    padding: 0;  
   }
 
   #sort_and_filter {
@@ -1109,13 +1124,11 @@ main, #section, #movieContent {
     margin-bottom: 10px;
   }
 
-  /* WATCH Button: Full Width */
   #btn_watch {
     flex: 0 0 100%;
     max-width: 100%;
   }
 
-  /* NEXT and POWER Buttons: Each 50% Width */
   #btn_next_movie,
   #btn_power {
     flex: 0 0 calc(50% - 5px);
@@ -1165,14 +1178,12 @@ main, #section, #movieContent {
     transform: translateX(-50%);
   }
 
-  /* Adjust SVG size within NEXT and POWER buttons */
   #btn_next_movie svg,
   #btn_power svg {
-    width: 32px; /* Desired size */
+    width: 32px; 
     height: 32px;
   }
 
-  /* Logo Adjustments */
   .logo-container {
     display: flex;
     justify-content: space-between;
@@ -1202,7 +1213,6 @@ main, #section, #movieContent {
     max-height: 36px;
   }
 
-  /* Description Adjustments */
   body.homepage-mode #description {
     display: block !important;
     -webkit-line-clamp: unset !important;
@@ -1246,11 +1256,10 @@ main, #section, #movieContent {
   #client_prompt_close,
   #device_prompt_close,
   #trailer_popup_close {
-    top: max(20px, env(safe-area-inset-top) + 20px);  /* Ensures button is below status bar */
+    top: max(20px, env(safe-area-inset-top) + 20px);  
   }
 }
 
-  /* Ensure proper sizing in the header */
   #person_header {
     display: flex;
     align-items: center;
@@ -1264,7 +1273,6 @@ main, #section, #movieContent {
     margin-left: 20px;
   }
 
-/* Landscape Mode Message */
 @media screen and (orientation: landscape) and (max-height: 600px) {
   body:not(.in-iframe)::before {
     content: "Please rotate your device to portrait mode";
@@ -1303,7 +1311,6 @@ body.in-iframe main {
     }
 }
 
-/* Tablet and landscape styles */
 @media (min-width: 768px) and (max-width: 1024px) {
   #section {
     display: grid;
@@ -1354,7 +1361,6 @@ body.in-iframe main {
   }
 }
 
-/* Safety margins for notched devices */
 @supports (padding: max(0px)) {
   body {
     padding-left: max(0px, env(safe-area-inset-left));
@@ -1430,7 +1436,7 @@ body.in-iframe main {
 #sort_and_filter {
     display: flex;
     align-items: center;
-    gap: 10px; /* Same gap between all elements */
+    gap: 10px; 
     width: 100%;
     margin-bottom: 20px;
 }
@@ -1451,7 +1457,7 @@ body.in-iframe main {
     height: 36px;
     box-sizing: border-box;
     -webkit-appearance: none;
-    appearance: none;  /* Remove browser default styles */
+    appearance: none;  
 }
 
 .search-input::placeholder {
@@ -2044,12 +2050,12 @@ body.in-iframe main {
 }
 
 .filter-dropdown-content {
-    position: fixed;  /* Changed from absolute */
+    position: fixed;  
     background-color: #3A3C41;
     border-radius: 8px;
     padding: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 2100;  /* Make sure it's above the overlay but below loading screen */
+    z-index: 2100;  
     min-width: 200px;
     border: 1px solid #E5A00D;
 }
@@ -2346,7 +2352,7 @@ body.in-iframe main {
 }
 
 body.homepage-mode .movie_details .clickable-person {
-    color: #EAEAEC !important;  /* Same as normal text */
+    color: #EAEAEC !important;  
     cursor: default !important;
     text-decoration: none !important;
 }
@@ -2370,7 +2376,7 @@ body.homepage-mode .movie_details .more-actors {
 
 /* Remove truncation for homepage mode */
 body.homepage-mode #description {
-    display: block !important;  /* Override the -webkit-box display */
+    display: block !important;  
     -webkit-line-clamp: unset !important;
     -webkit-box-orient: unset !important;
     max-height: none !important;
@@ -2528,7 +2534,7 @@ body.homepage-mode #description.truncated::after {
     right: 10px;
     z-index: 30;
     display: flex;
-    flex-direction: row;  /* Side by side on desktop */
+    flex-direction: row;  
     gap: 10px;
 }
 
@@ -2686,7 +2692,7 @@ body.homepage-mode #description.truncated::after {
 
 @media (max-width: 767px) {
     .filter-container {
-        flex-direction: column;  /* Stacked on mobile */
+        flex-direction: column;  
     }
 
     #search_modal {
@@ -3203,7 +3209,6 @@ body.homepage-mode #description.truncated::after {
     transform: none !important;
 }
 
-/* Make sure button containers don't have any weird margins/padding */
 .action-buttons > * {
     margin: 0 !important;
     padding-top: 0 !important;
@@ -3282,7 +3287,6 @@ body.homepage-mode #description.truncated::after {
     }
 }
 
-/* Added styles for movie cards with character info - fixed heights and overflow handling */
 .movie-card {
     position: relative;
     background-color: #3A3C41;
@@ -3292,15 +3296,15 @@ body.homepage-mode #description.truncated::after {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
-    height: 360px; /* Increased height to fit all content */
-    overflow: visible; /* Changed to visible so button isn't cut off */
+    height: 360px; 
+    overflow: visible; 
 }
 
 .movie-info {
     display: flex;
     flex-direction: column;
     width: 100%;
-    min-height: 60px; /* Minimum height for title and character */
+    min-height: 60px; 
 }
 
 .movie-title {
@@ -3350,4 +3354,50 @@ body.homepage-mode #description.truncated::after {
 
 .movie-poster-link {
     height: 225px;
+}
+
+/* Movie Title Logo Styles */
+/* Hide logo in homepage mode */
+body.homepage-mode #movie-logo-container {
+    display: none !important;
+}
+
+#movie-logo-container {
+  position: absolute; 
+  top: 80px; 
+  left: 50%; 
+  transform: translateX(-50%); 
+  z-index: 5; 
+  width: 80%; 
+  max-width: 500px; 
+  text-align: center; 
+  pointer-events: none; 
+}
+
+#movie-logo-img {
+  max-height: 100px; 
+  max-width: 100%; 
+  height: auto; 
+  width: auto; 
+  object-fit: contain; 
+  display: block; 
+  margin: 0 auto; 
+  background-color: transparent !important; 
+  border: none !important; 
+  outline: none !important; 
+  box-shadow: none !important; 
+}
+
+@media (max-width: 767px) {
+  #movie-logo-container {
+    display: none !important; 
+  }
+
+  #movie-logo-img {
+    display: none !important; 
+  }
+}
+
+#btn_get_movie.initially-hidden {
+    display: none;
 }

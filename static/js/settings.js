@@ -2,6 +2,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsRoot = document.getElementById('settings-root');
     let currentSettings = null;
     let currentOverrides = null;
+    let traktStatus = { enabled: false, connected: false, env_controlled: false }; 
+
+    function getCsrfToken() {
+        const token = document.querySelector('meta[name="csrf-token"]');
+        return token ? token.getAttribute('content') : null;
+    }
 
     function getNestedValue(obj, path) {
         return path.split('.').reduce((curr, key) => {
@@ -111,10 +117,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
             console.log('Updating setting:', key, 'with value:', value);
 
+            const csrfToken = getCsrfToken(); 
+
+            if (!csrfToken) {
+                console.error("[handleSettingChange] CSRF Token is missing!");
+                showError("CSRF Token missing. Please refresh the page.");
+                return; 
+            }
+
             const response = await fetch(`/api/settings/${category}`, {
             	method: 'POST',
             	headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken 
                 },
             	body: JSON.stringify(updateData)
             });
@@ -125,10 +140,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const result = await response.json();
+            
+            if (result.status === 'redirect') {
+                showMessage(result.message || 'Redirecting to setup page...');
+                setTimeout(() => {
+                    window.location.href = result.redirect;
+                }, 1500);
+                return;
+            }
+            
             showSuccess('Setting updated successfully');
             setNestedValue(currentSettings, key, value);
 
-            // Refresh preferred user selector if poster display mode changes
             if (key === 'features.poster_display.mode') {
             	const preferredUserContainer = document.querySelector('.preferred-user-wrapper')?.parentElement;
             	if (preferredUserContainer) {
@@ -150,55 +173,46 @@ document.addEventListener('DOMContentLoaded', function() {
         const button = document.createElement('button');
         button.className = 'trakt-connect-button';
 
-        async function updateButtonState(connected, loading = false, envControlled = false) {
-            button.className = `trakt-connect-button ${connected ? 'connected' : ''} ${loading ? 'loading' : ''}`;
+        function updateButtonState(loading = false) {
+            const isConnected = traktStatus.connected;
+            const isEnvControlled = traktStatus.env_controlled;
+
+            button.className = `trakt-connect-button ${isConnected ? 'connected' : ''} ${loading ? 'loading' : ''}`;
             if (loading) {
-                button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>Processing...`;
+                button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
                 button.disabled = true;
             } else {
                 button.innerHTML = `
-                    <i class="fa-solid fa-${connected ? 'plug-circle-xmark' : 'plug'}"></i>
-                    ${connected ? 'Disconnect from Trakt' : 'Connect Trakt Account'}
+                    <i class="fa-solid fa-${isConnected ? 'plug-circle-xmark' : 'plug'}"></i>
+                    ${isConnected ? 'Disconnect from Trakt' : 'Connect Trakt Account'}
                 `;
-                button.disabled = envControlled;
-                if (envControlled) {
-                    const wrapper = button.closest('.trakt-integration-wrapper');
-                    if (wrapper) {
-                        const existingOverride = wrapper.querySelector('.env-override');
-                        if (!existingOverride) {
-                            const overrideIndicator = document.createElement('div');
+                button.disabled = isEnvControlled; 
+
+                const wrapper = button.closest('.trakt-integration-wrapper'); 
+                if (wrapper) {
+                    let overrideIndicator = wrapper.querySelector('.env-override');
+                    if (isEnvControlled) {
+                        if (!overrideIndicator) {
+                            overrideIndicator = document.createElement('div');
                             overrideIndicator.className = 'env-override';
                             overrideIndicator.textContent = 'Set by environment variable';
                             wrapper.appendChild(overrideIndicator);
                         }
-                    }
-                    button.title = 'Trakt is configured via environment variables';
-                } else {
-                    const wrapper = button.closest('.trakt-integration-wrapper');
-                    if (wrapper) {
-                        const existingOverride = wrapper.querySelector('.env-override');
-                        if (existingOverride) {
-                            existingOverride.remove();
+                        button.title = 'Trakt is configured via environment variables';
+                    } else {
+                        if (overrideIndicator) {
+                            overrideIndicator.remove(); 
                         }
+                        button.removeAttribute('title');
                     }
-                    button.title = '';
                 }
             }
         }
 
-        async function checkConnectionStatus() {
-            try {
-                const response = await fetch('/trakt/status');
-                if (response.ok) {
-                    const data = await response.json();
-                    updateButtonState(data.connected, false, data.env_controlled);
-                    return data;
-                }
-            } catch (error) {
-                console.error('Failed to check Trakt status:', error);
-                showError('Failed to check Trakt connection status');
-            }
-            return { connected: false, env_controlled: false };
+        function checkConnectionStatus() {
+             console.log('Updating Trakt button state based on:', traktStatus);
+             updateButtonState(false); 
+             return traktStatus;
         }
 
         async function handleOAuthFlow(authUrl) {
@@ -307,7 +321,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/trakt/token', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({ code })
                     });
@@ -316,7 +331,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (response.ok && data.status === 'success') {
                         showSuccess('Successfully connected to Trakt');
                         codeDialog.remove();
-                        await checkConnectionStatus();
+                        traktStatus.connected = true;
+                        traktStatus.enabled = true; 
+                        checkConnectionStatus(); 
                     } else {
                         throw new Error(data.error || 'Failed to connect to Trakt');
                     }
@@ -375,17 +392,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     } else if (data.status === 'success') {
                         showSuccess('Successfully disconnected from Trakt');
-                        await checkConnectionStatus();
+                        traktStatus.connected = false;
+                        checkConnectionStatus(); // Update button
                     }
                 } catch (error) {
                     showError(error.message || 'Failed to disconnect from Trakt');
-                    await checkConnectionStatus();
+                    checkConnectionStatus();
                 }
             });
         }
 
         button.addEventListener('click', async () => {
-            const status = await checkConnectionStatus();
+            const status = checkConnectionStatus();
 
             if (status.env_controlled) {
                 return;
@@ -418,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         wrapper.appendChild(button);
         container.appendChild(wrapper);
-        checkConnectionStatus();
+        checkConnectionStatus(); 
     }
 
     function renderSettingsSection(title, settings, envOverrides, fields) {
@@ -429,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
     	titleElem.textContent = title;
     	section.appendChild(titleElem);
 
-    	fields.forEach(field => {
+    	fields.forEach(async field => { 
             const fieldContainer = document.createElement('div');
             fieldContainer.className = 'setting-field';
 
@@ -445,9 +463,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (field.key === 'trakt.connect') {
-            	createTraktIntegration(fieldContainer);
+                const defaultLabel = fieldContainer.querySelector('label');
+                if (defaultLabel) defaultLabel.remove();
+                const defaultDesc = fieldContainer.querySelector('.setting-description');
+                 if (defaultDesc) defaultDesc.remove();
+
+                const buttonLabel = document.createElement('label');
+                buttonLabel.textContent = field.label || 'Trakt Account'; 
+                fieldContainer.appendChild(buttonLabel);
+
+            	createTraktIntegration(fieldContainer); 
             	section.appendChild(fieldContainer);
-            	return;
+            	return; 
             }
 
             if (field.type === 'custom' && typeof field.render === 'function') {
@@ -456,7 +483,6 @@ document.addEventListener('DOMContentLoaded', function() {
             	return;
             }
 
-            // Handle TMDB API key field
             if (field.key === 'tmdb.api_key') {
             	const isOverridden = Boolean(getNestedValue(envOverrides, 'tmdb.api_key'));
             	const tmdbEnabled = getNestedValue(settings, 'tmdb.enabled');
@@ -471,14 +497,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     	''
                     );
                     input.setAttribute('data-field-key', 'tmdb.api_key');
-                    // Add env override indicator
                     const overrideIndicator = document.createElement('div');
                     overrideIndicator.className = 'env-override';
                     overrideIndicator.textContent = 'Set by environment variable';
                     fieldContainer.appendChild(input);
                     fieldContainer.appendChild(overrideIndicator);
             	} else if (tmdbEnabled) {
-                    // If custom TMDB is enabled, show editable input
                     input = createInput(
                     	'password',
                     	getNestedValue(settings, 'tmdb.api_key'),
@@ -489,7 +513,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.setAttribute('data-field-key', 'tmdb.api_key');
                     fieldContainer.appendChild(input);
             	} else {
-                    // If not enabled, show "Using built-in API key"
                     input = createInput(
                     	'text',
                     	'Using built-in API key',
@@ -609,46 +632,70 @@ document.addEventListener('DOMContentLoaded', function() {
                     select.addEventListener('change', (e) => handleSettingChange(field.key, e.target.value));
             	}
             	fieldContainer.appendChild(select);
-            } else if (field.type === 'switch') {
+            	if (isOverridden) {
+            	       const overrideIndicator = document.createElement('div');
+            	       overrideIndicator.className = 'env-override';
+            	       overrideIndicator.textContent = 'Set by environment variable';
+            	       fieldContainer.appendChild(overrideIndicator);
+            	   }
+            } else if (field.key === 'trakt.enabled') { 
+                const currentValue = traktStatus.enabled;
+                const toggle = createToggle(
+                    currentValue,
+                    isOverridden, 
+                    isEnvEnabled, 
+                    handleTraktToggleChange 
+                );
+                fieldContainer.appendChild(toggle);
+                if (isOverridden) {
+                    const overrideIndicator = document.createElement('div');
+                    overrideIndicator.className = 'env-override';
+                    overrideIndicator.textContent = 'Set by environment variable';
+                    fieldContainer.appendChild(overrideIndicator);
+                }
+            } else if (field.type === 'switch') { 
             	const toggle = createToggle(
-                    value,
-                    isOverridden,
-                    isEnvEnabled,
-                    (checked) => handleSettingChange(field.key, checked)
+                    value, 
+                    isOverridden, 
+                    isEnvEnabled, 
+                    (checked) => handleSettingChange(field.key, checked) 
             	);
             	fieldContainer.appendChild(toggle);
-            } else if (field.key !== 'tmdb.api_key') {  // Skip if it's tmdb.api_key as we handled it above
+            	   if (isOverridden) { // Use the isOverridden determined earlier
+            	       const overrideIndicator = document.createElement('div');
+            	       overrideIndicator.className = 'env-override';
+            	       overrideIndicator.textContent = 'Set by environment variable';
+            	       fieldContainer.appendChild(overrideIndicator);
+            	   }
+            } else { 
+                let inputType = (field.type === 'password') ? 'password' : 'text';
             	const input = createInput(
-                    field.type,
+                    inputType, 
                     value,
                     isOverridden,
                     (value) => handleSettingChange(field.key, value),
                     field.placeholder
             	);
-            	fieldContainer.appendChild(input);
+            	   input.setAttribute('data-field-key', field.key); 
+            	   fieldContainer.appendChild(input);
+            	      if (isOverridden) { // Use the isOverridden determined earlier
+            	          const overrideIndicator = document.createElement('div');
+            	          overrideIndicator.className = 'env-override';
+            	          overrideIndicator.textContent = 'Set by environment variable';
+            	          fieldContainer.appendChild(overrideIndicator);
+            	      }
             }
-
-            if (isOverridden &&
-            	!isServiceToggle &&
-            	!isClientToggle &&
-            	!field.key.endsWith('.enabled')) {
-            	const overrideIndicator = document.createElement('div');
-            	overrideIndicator.className = 'env-override';
-            	overrideIndicator.textContent = 'Set by environment variable';
-            	fieldContainer.appendChild(overrideIndicator);
-            }
-
+ 
+            // Append the fully constructed field container to the section
             section.appendChild(fieldContainer);
     	});
 
     	return section;
     }
 
-    // Create main container
     const container = document.createElement('div');
     container.className = 'settings-container';
 
-    // Add header with back button and sponsor button
     const header = document.createElement('div');
     header.className = 'settings-header';
     header.innerHTML = `
@@ -683,7 +730,6 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     container.appendChild(header);
 
-    // Create tabs
     const tabs = document.createElement('div');
     tabs.className = 'settings-tabs';
     tabs.innerHTML = `
@@ -691,15 +737,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="tab" data-tab="clients">Clients</button>
         <button class="tab" data-tab="features">Features</button>
         <button class="tab" data-tab="integrations">Integrations</button>
+	<button class="tab" data-tab="auth">Authentication</button>
     `;
     container.appendChild(tabs);
 
-    // Create content container
     const contentContainer = document.createElement('div');
     contentContainer.className = 'settings-content';
     container.appendChild(contentContainer);
 
-    // Add the container to the root
     settingsRoot.appendChild(container);
 
     async function checkVersion(manual = false) {
@@ -743,7 +788,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     	document.body.appendChild(dialog);
 
-    	// Handle close/dismiss
     	const closeDialog = () => {
             dialog.remove();
             fetch('/api/dismiss_update').catch(console.error);
@@ -768,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function() {
             button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
 
             try {
-            	await checkVersion(true);  // Manual check
+            	await checkVersion(true);  
             } finally {
             	button.disabled = false;
             	button.innerHTML = '<i class="fa-solid fa-rotate"></i> Check for Updates';
@@ -779,14 +823,12 @@ document.addEventListener('DOMContentLoaded', function() {
     	container.appendChild(wrapper);
     }
 
-    // Add automatic version check on page load
     document.addEventListener('DOMContentLoaded', () => {
     	setTimeout(() => {
-            checkVersion(false);  // Automatic check
-    	}, 2000);  // Small delay to not interfere with initial page load
+            checkVersion(false);  
+    	}, 2000);  
     });
 
-    // Define sections configuration
     const sections = {
         media: {
             title: 'Media Servers',
@@ -795,7 +837,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'Plex Configuration',
                     fields: [
                         { key: 'plex.enabled', label: 'Enable Plex', type: 'switch' },
-                        { key: 'plex.url', label: 'Plex URL', type: 'text' },
+                        { key: 'plex.url', label: 'Plex URL', type: 'text', placeholder: 'http://localhost:32400' },
 			{
             		    key: 'plex.token_config',
             		    label: 'Plex Token',
@@ -814,7 +856,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'Jellyfin Configuration',
                     fields: [
                         { key: 'jellyfin.enabled', label: 'Enable Jellyfin', type: 'switch' },
-                        { key: 'jellyfin.url', label: 'Jellyfin URL', type: 'text' },
+                        { key: 'jellyfin.url', label: 'Jellyfin URL', type: 'text', placeholder: 'http://localhost:8096' },
 			{
             		    key: 'jellyfin.auth_config',
             		    label: 'Authentication',
@@ -827,7 +869,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'Emby Configuration',
                     fields: [
                         { key: 'emby.enabled', label: 'Enable Emby', type: 'switch' },
-                        { key: 'emby.url', label: 'Emby URL', type: 'text' },
+                        { key: 'emby.url', label: 'Emby URL', type: 'text', placeholder: 'http://localhost:8096' },
                         {
                             key: 'emby.auth_config',
                             label: 'Authentication',
@@ -872,8 +914,15 @@ document.addEventListener('DOMContentLoaded', function() {
             		    label: 'Homepage Mode',
             		    type: 'switch',
             		    description: 'Provides a simplified, non-interactive display format ideal for <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a> iframe integration. Removes buttons, links, and keeps movie descriptions fully expanded.'
-        		}
-                    ]
+        		},
+   { key: 'features.enable_movie_logos', label: 'Enable Movie Title Logos', type: 'switch' }, 
+   { 
+       key: 'features.load_movie_on_start',
+       label: 'Load Movie on Page Start',
+       type: 'switch', 
+       description: 'If enabled, a random movie is loaded automatically when the page opens. If disabled, you need to click the "Get Random Movie" button first.'
+   }
+        		          ]
                 },
                 {
                     title: 'Poster Settings',
@@ -1030,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'Overseerr',
                     fields: [
                         { key: 'overseerr.enabled', label: 'Enable Overseerr', type: 'switch' },
-                        { key: 'overseerr.url', label: 'Overseerr URL', type: 'text' },
+                        { key: 'overseerr.url', label: 'Overseerr URL', type: 'text', placeholder: 'http://localhost:5055' },
                         { key: 'overseerr.api_key', label: 'API Key', type: 'password' },
                     ]
                 },
@@ -1044,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', function() {
         		},
         		{
             		    key: 'jellyseerr.url',
-            		    label: 'Jellyseerr URL',
+            		    label: 'Jellyseerr URL', placeholder: 'http://localhost:5055',
             		    type: 'text'
         		},
         		{
@@ -1058,7 +1107,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'Ombi',
                     fields: [
                         { key: 'ombi.enabled', label: 'Enable Ombi', type: 'switch' },
-                        { key: 'ombi.url', label: 'Ombi URL', type: 'text' },
+                        { key: 'ombi.url', label: 'Ombi URL', type: 'text', placeholder: 'http://localhost:5000' },
                         { key: 'ombi.api_key', label: 'API Key', type: 'password' }
                     ]
                 },
@@ -1070,27 +1119,71 @@ document.addEventListener('DOMContentLoaded', function() {
                     ]
                 }
             ]
-        }
+        },
+	auth: {
+            title: 'Authentication',
+            sections: [
+            	{
+                    title: 'Authentication Settings',
+                    fields: [
+                    	{ key: 'auth.enabled', label: 'Enable Authentication', type: 'switch',
+                          description: 'When enabled, users will be required to log in to access Movie Roulette' },
+                        {
+                            key: 'auth.session_lifetime',
+                            label: 'Session Lifetime',
+                            type: 'select',
+                            options: [
+                                { value: '86400', label: '1 Day' },    // 1 day
+                                { value: '604800', label: '7 Days' },   // 7 days
+                                { value: '2592000', label: '30 Days' },  // 30 days
+                                { value: '7776000', label: '90 Days' },  // 90 days
+                                { value: '31536000', label: '1 Year' } // 1 year (approx)
+                            ],
+                            description: 'Duration a standard username/password login session remains valid. Does not affect Plex/Jellyfin/Emby logins.'
+                        },
+                    	{
+                    	       key: 'user_management',
+                    	       label: 'User Management',
+                    	       type: 'custom',
+                    	       render: renderUserManagement
+                    	},
+                    	{ 
+                    	    key: 'auth.user_cache_admin', 
+                    	    label: 'User Cache Management',
+                    	    type: 'custom',
+                    	    render: function(container) {
+                    	        const link = document.createElement('a');
+                    	        link.href = '/user_cache_admin';
+                    	        link.className = 'back-button admin-only'; 
+                    	        link.innerHTML = `
+                    	            <i class="fa-solid fa-database"></i>
+                    	            <span>Open User Cache Admin</span>
+                    	        `;
+                    	        link.style.width = 'auto'; 
+                    	        link.style.display = 'inline-flex'; 
+                    	        container.appendChild(link);
+                    	    }
+                    	}
+                    ]
+            	}
+            ]
+    	}
     };
 
-    // Define the renderAppleTVConfig function separately
     function renderAppleTVConfig(container) {
         const wrapper = document.createElement('div');
         wrapper.className = 'appletv-setup-wrapper';
 
-        // Check if controlled by ENV
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'clients.apple_tv.id')
         );
 
         if (isEnvControlled) {
-            // Show ENV override message
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            // Create scan button
             const scanButton = document.createElement('button');
             scanButton.className = 'discover-button';
             scanButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Configure Apple TV';
@@ -1117,7 +1210,6 @@ document.addEventListener('DOMContentLoaded', function() {
             wrapper.appendChild(scanButton);
         }
 
-        // Show current configuration if it exists and check credentials
         checkCurrentConfig().then(configDisplay => {
             if (configDisplay) {
                 wrapper.appendChild(configDisplay);
@@ -1126,7 +1218,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         container.appendChild(wrapper);
 
-        // Helper functions
         async function checkCurrentConfig() {
             const currentId = getNestedValue(currentSettings, 'clients.apple_tv.id');
             if (currentId) {
@@ -1134,7 +1225,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/appletv/check_credentials', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({ device_id: currentId })
                     });
@@ -1146,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         configDisplay.innerHTML = `
                             <div class="config-item">Device ID: ${currentId}</div>
                         `;
-                        return configDisplay; // Return the element to be appended
+                        return configDisplay; 
                     }
                 } catch (error) {
                     console.error('Error checking device credentials:', error);
@@ -1212,7 +1304,6 @@ document.addEventListener('DOMContentLoaded', function() {
    	    dialog.innerHTML = dialogContent;
    	    document.body.appendChild(dialog);
 
-   	    // Handle device selection
    	    dialog.querySelectorAll('.device-option').forEach(button => {
        	    	button.addEventListener('click', () => {
            	    const id = button.dataset.id;
@@ -1220,7 +1311,6 @@ document.addEventListener('DOMContentLoaded', function() {
        	        });
    	    });
 
-   	    // Handle start pairing
    	    dialog.querySelector('.submit-button').addEventListener('click', async () => {
        	    	const id = dialog.querySelector('#manual-id').value.trim();
        	    	if (!id) {
@@ -1283,16 +1373,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const pinInput = dialog.querySelector('.pin-code');
             const submitButton = dialog.querySelector('.submit-button');
 
-            // Focus the PIN input after dialog is shown
             setTimeout(() => pinInput.focus(), 100);
 
-            // Handle PIN input
             pinInput.addEventListener('input', (e) => {
                 e.target.value = e.target.value.replace(/[^0-9]/g, '');
                 submitButton.disabled = e.target.value.length !== 4;
             });
 
-            // Handle PIN submission
             submitButton.addEventListener('click', async () => {
                 const pin = pinInput.value;
                 if (pin.length !== 4) {
@@ -1307,7 +1394,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch(`/api/appletv/pin/${deviceId}`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({ pin })
                     });
@@ -1319,7 +1407,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         showSuccess('Apple TV configured successfully');
                         dialog.remove();
                     } else if (data.status === 'awaiting_pin') {
-                        // Clear the input and get ready for next PIN
                         pinInput.value = '';
                         pinInput.focus();
                         submitButton.disabled = true;
@@ -1337,13 +1424,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            // Handle cancel
             dialog.querySelector('.cancel-button').addEventListener('click', async () => {
                 await fetch(`/api/appletv/cancel/${deviceId}`);
                 dialog.remove();
             });
 
-            // Handle Enter key
             pinInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !submitButton.disabled) {
                     submitButton.click();
@@ -1358,23 +1443,19 @@ document.addEventListener('DOMContentLoaded', function() {
     	const wrapper = document.createElement('div');
     	wrapper.className = 'smart-tv-section';
 
-    	// Create button container
     	const buttonContainer = document.createElement('div');
     	buttonContainer.className = 'tv-controls';
 
-    	// Add TV button
     	const addButton = document.createElement('button');
     	addButton.className = 'discover-button add-tv-button';
     	addButton.innerHTML = '<i class="fa-solid fa-plus"></i> Add TV';
     	addButton.addEventListener('click', () => showAddTVDialog());
 
-    	// Add Blacklist Management button
     	const manageBlacklistButton = document.createElement('button');
     	manageBlacklistButton.className = 'discover-button manage-blacklist-button';
     	manageBlacklistButton.innerHTML = '<i class="fa-solid fa-ban"></i> Manage Blacklist';
     	manageBlacklistButton.addEventListener('click', showBlacklistDialog);
 
-    	// Check for ENV controlled TVs and add standard ENV override indicator if needed
     	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
     	const envControlledTVs = Object.entries(tvs)
             .filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)));
@@ -1386,17 +1467,14 @@ document.addEventListener('DOMContentLoaded', function() {
             wrapper.appendChild(overrideIndicator);
     	}
 
-    	// Add buttons to container
     	buttonContainer.appendChild(addButton);
     	buttonContainer.appendChild(manageBlacklistButton);
 
-    	// TV list container
     	const tvList = document.createElement('div');
     	tvList.className = 'tv-list';
 
     	refreshTVList(tvList);
 
-    	// Add everything to wrapper
     	wrapper.appendChild(buttonContainer);
     	wrapper.appendChild(tvList);
     	container.appendChild(wrapper);
@@ -1418,7 +1496,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	const dialog = document.createElement('div');
     	dialog.className = 'trakt-confirm-dialog';
 
-    	// Filter out ENV-controlled TVs from blacklist
     	const envControlledMacs = Object.entries(currentSettings.clients.tvs.instances || {})
             .filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)))
             .map(([_, tv]) => tv.mac.toLowerCase());
@@ -1451,10 +1528,8 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
     	`;
 
-    	// Add dialog to document
     	document.body.appendChild(dialog);
 
-    	// Handle remove buttons
     	const dialogContent = dialog.querySelector('.dialog-content');
     	dialogContent.querySelectorAll('.remove-blacklist').forEach(button => {
             button.addEventListener('click', async () => {
@@ -1472,14 +1547,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log("Updated blacklist after removal:", updatedList);
                     await handleSettingChange('clients.tvs.blacklist.mac_addresses', updatedList);
 
-                    // Update the dialog content to show empty state if needed
                     const blacklistDevices = dialogContent.querySelector('.blacklist-devices');
                     const itemToRemove = button.closest('.blacklist-item');
 
                     if (itemToRemove) {
                     	itemToRemove.remove();
 
-                    	// If no more items, show the empty state
                     	if (updatedList.length === 0) {
                             blacklistDevices.innerHTML = '<div class="no-blacklist">No devices blacklisted</div>';
                     	}
@@ -1493,7 +1566,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	});
 
-    	// Handle dialog closing with Done button
     	const doneButton = dialog.querySelector('.done-button');
     	if (doneButton) {
             doneButton.addEventListener('click', () => {
@@ -1501,7 +1573,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	}
 
-    	// Handle click outside dialog to close
     	dialog.addEventListener('click', (e) => {
             if (e.target === dialog) {
             	dialog.remove();
@@ -1568,10 +1639,8 @@ document.addEventListener('DOMContentLoaded', function() {
     	const ipInput = dialog.querySelector('#tv-ip');
     	const macInput = dialog.querySelector('#tv-mac');
 
-    	// MAC address formatting
     	formatMacInput(macInput);
 
-    	// Handle scanning
     	scanButton.addEventListener('click', async () => {
             try {
             	const tvType = tvTypeSelect.value;
@@ -1598,7 +1667,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
     	});
 
-    	// Handle manual form submission
     	dialog.querySelector('.submit-button').addEventListener('click', async () => {
             const mac = macInput.value.trim().toLowerCase();
             const name = nameInput.value.trim();
@@ -1610,7 +1678,6 @@ document.addEventListener('DOMContentLoaded', function() {
             	return;
             }
 
-            // Check if MAC is controlled by ENV
             const envControlledMacs = Object.entries(currentSettings.clients.tvs.instances || {})
             	.filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)))
             	.map(([_, tv]) => tv.mac.toLowerCase());
@@ -1637,7 +1704,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	const dialog = document.createElement('div');
     	dialog.className = 'trakt-confirm-dialog';
 
-    	// Filter out already ENV-controlled devices
     	const envControlledMacs = Object.entries(currentSettings.clients.tvs.instances || {})
             .filter(([id, _]) => Boolean(getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)))
             .map(([_, tv]) => tv.mac.toLowerCase());
@@ -1711,7 +1777,6 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
     	`;
 
-    	// Handle select button clicks
     	dialog.querySelectorAll('.select-button').forEach(button => {
             button.addEventListener('click', () => {
             	const deviceData = {
@@ -1724,7 +1789,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	});
 
-    	// Handle blacklist button clicks
     	dialog.querySelectorAll('.blacklist-button').forEach(button => {
             button.addEventListener('click', async () => {
             	try {
@@ -1753,18 +1817,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	});
 
-    	// Handle close button clicks
     	dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
     	});
 
-    	// Handle manual entry button clicks
     	dialog.querySelector('.manual-button').addEventListener('click', () => {
             dialog.remove();
             showAddTVDialog();
     	});
 
-    	// Handle click outside dialog to close
     	dialog.addEventListener('click', (e) => {
             if (e.target === dialog) {
             	dialog.remove();
@@ -1821,7 +1882,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
     	}
 
-    	// Check for duplicate MAC addresses
     	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
     	const isDuplicateMAC = Object.values(tvs).some(tv =>
             tv && tv.mac && tv.mac.toLowerCase() === config.mac.toLowerCase()
@@ -1874,13 +1934,11 @@ document.addEventListener('DOMContentLoaded', function() {
     	container.innerHTML = Object.entries(tvs)
             .filter(([_, tv]) => tv !== undefined && tv !== null && typeof tv === 'object')
             .map(([id, tv]) => {
-		// Format instance_id which comes from ENV variable name
 		const name = tv.name || id.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
             	const type = tv.type || 'unknown';
             	const ip = tv.ip || 'Not set';
-            	const isEnabled = tv.enabled !== false; // Default to true if not set
+            	const isEnabled = tv.enabled !== false; 
 
-            	// Check if this TV instance is ENV controlled
             	const isEnvControlled = Boolean(
                     getNestedValue(currentOverrides, `clients.tvs.instances.${id}`)
             	);
@@ -1922,7 +1980,6 @@ document.addEventListener('DOMContentLoaded', function() {
 		`;
         }).join('');
 
-    	// Add toggle event listener only for non-ENV controlled TVs
     	container.querySelectorAll('.tv-toggle-section .toggle:not(.disabled)').forEach(toggle => {
             toggle.addEventListener('click', async () => {
             	const tvId = toggle.getAttribute('data-tv-id');
@@ -1942,7 +1999,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	});
 
-    	// Add test event listeners
     	container.querySelectorAll('.tv-action.test').forEach(button => {
             button.addEventListener('click', () => {
             	const tvId = button.getAttribute('data-tv-id');
@@ -1950,7 +2006,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	});
 
-    	// Add edit and delete event listeners only for non-ENV controlled TVs
     	container.querySelectorAll('.tv-action.edit').forEach(button => {
             button.addEventListener('click', () => {
             	const tvId = button.getAttribute('data-tv-id');
@@ -1966,7 +2021,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	});
     }
 
-    // Helper function to determine display type
     function getDisplayType(type, model) {
     	const types = {
             'webos': 'LG (WebOS)',
@@ -2029,7 +2083,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     	document.body.appendChild(dialog);
 
-    	// MAC address formatting for edit
     	formatMacInput(dialog.querySelector('#tv-mac'));
 
     	dialog.querySelector('.submit-button').addEventListener('click', async () => {
@@ -2041,7 +2094,6 @@ document.addEventListener('DOMContentLoaded', function() {
             	return;
             }
 
-	    // Check for duplicate MAC only if MAC has changed
             if (mac.toLowerCase() !== tv.mac.toLowerCase()) {
             	const tvs = getNestedValue(currentSettings, 'clients.tvs.instances') || {};
             	const isDuplicateMAC = Object.values(tvs).some(existingTv =>
@@ -2096,7 +2148,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     	dialog.querySelector('.delete-button').addEventListener('click', async () => {
             try {
-            	await handleSettingChange(`clients.tvs.instances.${id}`, null);  // Change here: use null instead of undefined
+            	await handleSettingChange(`clients.tvs.instances.${id}`, null); 
             	dialog.remove();
             	showSuccess('TV removed successfully');
             	refreshTVList(document.querySelector('.tv-list'));
@@ -2110,7 +2162,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	});
     }
 
-    // Utility function for MAC address formatting
     function formatMacInput(input) {
     	input.addEventListener('input', (e) => {
             let value = e.target.value.replace(/[^0-9a-fA-F]/g, '');
@@ -2120,7 +2171,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	});
     }
 
-    // Add tab click event listener
     tabs.addEventListener('click', (e) => {
         if (e.target.classList.contains('tab')) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -2129,36 +2179,75 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Initialize the page
-    function loadTabContent(tabName) {
-        const section = sections[tabName];
-        if (!section) return;
+    async function handleTraktToggleChange(newState) {
+        console.log('Handling Trakt toggle change:', newState);
 
-        contentContainer.innerHTML = '';
+        if (traktStatus.env_controlled) {
+            showError('Trakt setting is controlled by environment variables and cannot be changed here.');
+            return;
+        }
 
-        if (section.sections) {
-            // Multiple sections under this tab
-            section.sections.forEach(subSection => {
-                contentContainer.appendChild(renderSettingsSection(
-                    subSection.title,
-                    currentSettings,
-                    currentOverrides,
-                    subSection.fields
-                ));
+        try {
+            const csrfToken = getCsrfToken();
+            if (!csrfToken) {
+                showError("CSRF Token missing. Please refresh the page.");
+                return;
+            }
+
+            const response = await fetch('/trakt/settings', { 
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ enabled: newState })
             });
-        } else {
-            // Single section
-            contentContainer.appendChild(renderSettingsSection(
-                section.title,
-                currentSettings,
-                currentOverrides,
-                section.fields
-            ));
+
+            if (!response.ok) {
+                let errorMessage = 'Failed to update Trakt setting';
+                try {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorData.error || JSON.stringify(errorData);
+                    } else {
+                        errorMessage = await response.text();
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing error response:', parseError);
+                    errorMessage = `Server returned status ${response.status}, but failed to parse error response.`;
+                }
+                throw new Error(errorMessage);
+            }
+
+            const result = await response.json();
+            if (result.status === 'success') {
+                showSuccess(`Trakt integration ${newState ? 'enabled' : 'disabled'}`);
+                traktStatus.enabled = newState;
+            } else {
+                 throw new Error(result.message || 'Failed to update Trakt setting');
+            }
+
+        } catch (error) {
+            console.error('Error updating Trakt setting:', error);
+            showError(error.message || 'Failed to update Trakt setting');
         }
     }
 
     async function initialize() {
     	try {
+            const authResponse = await fetch('/api/auth/check');
+            const authData = await authResponse.json();
+            const isAuthenticated = authData.authenticated;
+            const isAdmin = isAuthenticated && authData.is_admin;
+            const serviceType = isAuthenticated ? authData.service_type : null; 
+            const isServiceUser = serviceType && ['plex', 'jellyfin', 'emby'].includes(serviceType);
+
+            window.isAuthenticated = isAuthenticated;
+            window.isAdminUser = isAdmin;
+            window.serviceType = serviceType;
+            window.isServiceUser = isServiceUser;
+        
             const response = await fetch('/api/settings');
             if (!response.ok) throw new Error('Failed to load settings');
             const data = await response.json();
@@ -2166,88 +2255,124 @@ document.addEventListener('DOMContentLoaded', function() {
             currentSettings = data.settings;
             currentOverrides = data.env_overrides;
 
-	    // Load the initial tab (media by default)
-            document.querySelector('[data-tab="media"]').click();
+            if (currentSettings && currentSettings.trakt) {
+                traktStatus.enabled = currentSettings.trakt.enabled || false;
+            }
 
-            // Check if any services are configured
-            const plexEnabled = currentSettings.plex?.enabled;
-            const jellyfinEnabled = currentSettings.jellyfin?.enabled;
-	    const embyEnabled = currentSettings.emby?.enabled;
+            try {
+                const traktStatusResponse = await fetch('/trakt/status');
+                if (traktStatusResponse.ok) {
+                    const statusData = await traktStatusResponse.json();
+                    traktStatus.connected = statusData.connected;
+                    traktStatus.env_controlled = statusData.env_controlled;
+                    console.log('Fetched Trakt Status:', traktStatus);
+                } else {
+                    console.error('Failed to fetch Trakt status:', traktStatusResponse.statusText);
+                }
+            } catch (statusError) {
+                console.error('Error fetching Trakt status:', statusError);
+            }
 
-	    if (!plexEnabled && !jellyfinEnabled && !embyEnabled) {
-    	    	// Show message in the Media Servers tab
-    	    	const contentContainer = document.querySelector('.settings-content');
-    	    	if (contentContainer) {
-        	    const message = document.createElement('div');
-        	    message.className = 'setup-message';
-        	    message.innerHTML = `
-            	    	<div class="setup-welcome">
-                	    <h2>Welcome to Movie Roulette!</h2>
-                	    <p>To get started, you'll need to configure at least one media server.</p>
-                	    <p>Configure Plex, Jellyfin, Emby or any combination to start using Movie Roulette.</p>
-            	    	</div>
-        	    `;
-        	    contentContainer.insertBefore(message, contentContainer.firstChild);
+            const tabsContainer = document.querySelector('.settings-tabs');
+            if (!isAdmin && isServiceUser) {
+                tabsContainer.querySelectorAll('.tab').forEach(tab => {
+                    if (tab.dataset.tab !== 'integrations') {
+                        tab.style.display = 'none';
+                    }
+                });
+                const integrationsTab = tabsContainer.querySelector('[data-tab="integrations"]');
+                if (integrationsTab) integrationsTab.click();
+                else console.error("Integrations tab not found"); 
+            } else if (!isAdmin) {
+                tabsContainer.querySelectorAll('.tab').forEach(tab => {
+                    if (!['features', 'clients', 'integrations'].includes(tab.dataset.tab)) {
+                        tab.style.display = 'none';
+                    }
+                });
+                const featuresTab = tabsContainer.querySelector('[data-tab="features"]');
+                 if (featuresTab) featuresTab.click();
+                 else console.error("Features tab not found"); 
+            } else {
+                const mediaTab = tabsContainer.querySelector('[data-tab="media"]');
+                if (mediaTab) mediaTab.click();
+                else { 
+                    const firstTab = tabsContainer.querySelector('.tab');
+                    if (firstTab) firstTab.click();
+                }
+            }
 
-        	    // Automatically switch to media servers tab
-        	    document.querySelector('[data-tab="media"]').click();
-    		}
-		} else {
-    		    // Check for enabled but unconfigured services
-    		    const enabledButUnconfigured = [];
+            if (isAdmin) {
+            	const plexEnabled = currentSettings.plex?.enabled;
+            	const jellyfinEnabled = currentSettings.jellyfin?.enabled;
+            	const embyEnabled = currentSettings.emby?.enabled;
 
-    		    if (currentSettings.plex?.enabled &&
-        		(!currentSettings.plex?.url || !currentSettings.plex?.token || !currentSettings.plex?.movie_libraries)) {
-        		enabledButUnconfigured.push('Plex');
-    		    }
+            	if (!plexEnabled && !jellyfinEnabled && !embyEnabled) {
+                    const contentContainer = document.querySelector('.settings-content');
+                    if (contentContainer) {
+                    	const message = document.createElement('div');
+                    	message.className = 'setup-message';
+                    	message.innerHTML = `
+                            <div class="setup-welcome">
+                            	<h2>Welcome to Movie Roulette!</h2>
+                            	<p>To get started, you'll need to configure at least one media server.</p>
+                            	<p>Configure Plex, Jellyfin, Emby or any combination to start using Movie Roulette.</p>
+                            </div>
+                    	`;
+                    	contentContainer.insertBefore(message, contentContainer.firstChild);
 
-    		    if (currentSettings.jellyfin?.enabled &&
-        		(!currentSettings.jellyfin?.url || !currentSettings.jellyfin?.api_key || !currentSettings.jellyfin?.user_id)) {
-        		enabledButUnconfigured.push('Jellyfin');
-    		    }
+                        document.querySelector('[data-tab="media"]').click();
+                    }
+            	} else {
+                    const enabledButUnconfigured = [];
 
-    		    if (currentSettings.emby?.enabled &&
-        		(!currentSettings.emby?.url || !currentSettings.emby?.api_key || !currentSettings.emby?.user_id)) {
-        		enabledButUnconfigured.push('Emby');
-    		    }
+                    if (currentSettings.plex?.enabled &&
+                    	(!currentSettings.plex?.url || !currentSettings.plex?.token || !currentSettings.plex?.movie_libraries)) {
+                    	enabledButUnconfigured.push('Plex');
+                    }
 
-    		    if (enabledButUnconfigured.length > 0) {
-        		// Show message for enabled but unconfigured services
-        		const contentContainer = document.querySelector('.settings-content');
-        		if (contentContainer) {
-            		    const message = document.createElement('div');
-            		    message.className = 'setup-message warning';
-            		    message.innerHTML = `
-                		<div class="setup-welcome">
-                    		    <h2>Configuration Required</h2>
-                    		    <p>The following services are enabled but not fully configured:</p>
-                    		    <ul>
-                        		${enabledButUnconfigured.map(service => `<li>${service}</li>`).join('')}
-                    		    </ul>
-                    		    <p>Please complete the configuration to use Movie Roulette.</p>
-                		</div>
-            		    `;
-            		    contentContainer.insertBefore(message, contentContainer.firstChild);
+                    if (currentSettings.jellyfin?.enabled &&
+                    	(!currentSettings.jellyfin?.url || !currentSettings.jellyfin?.api_key || !currentSettings.jellyfin?.user_id)) {
+                    	enabledButUnconfigured.push('Jellyfin');
+                    }
 
-            		    // Automatically switch to media servers tab
-            		    document.querySelector('[data-tab="media"]').click();
-        		}
-    		    }
-	    }
+                    if (currentSettings.emby?.enabled &&
+                    	(!currentSettings.emby?.url || !currentSettings.emby?.api_key || !currentSettings.emby?.user_id)) {
+                    	enabledButUnconfigured.push('Emby');
+                    }
 
-            // Handle back button navigation
+                    if (enabledButUnconfigured.length > 0) {
+                    	const contentContainer = document.querySelector('.settings-content');
+                    	if (contentContainer) {
+                            const message = document.createElement('div');
+                            message.className = 'setup-message warning';
+                            message.innerHTML = `
+                            	<div class="setup-welcome">
+                                    <h2>Configuration Required</h2>
+                                    <p>The following services are enabled but not fully configured:</p>
+                                    <ul>
+                                    	${enabledButUnconfigured.map(service => `<li>${service}</li>`).join('')}
+                                    </ul>
+                                    <p>Please complete the configuration to use Movie Roulette.</p>
+                            	</div>
+                            `;
+                            contentContainer.insertBefore(message, contentContainer.firstChild);
+
+                            document.querySelector('[data-tab="media"]').click();
+                    	}
+                    }
+            	}
+            }
+
             const backButton = document.querySelector('.back-button');
             if (backButton) {
             	backButton.addEventListener('click', async (e) => {
-                    e.preventDefault(); // Prevent immediate navigation
+                    e.preventDefault(); 
 
                     try {
-                    	// Check if cache exists
                     	const response = await fetch('/debug_service');
                     	const data = await response.json();
 
-                    	if (!data.cache_file_exists) {
-                            // Show loading overlay
+                    	if (data.service === 'plex' && !data.cache_file_exists) {
                             const loadingOverlay = document.createElement('div');
                             loadingOverlay.id = 'loading-overlay';
                             loadingOverlay.className = 'cache-building';
@@ -2262,7 +2387,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             `;
                             document.body.appendChild(loadingOverlay);
 
-                            // Start cache building and wait for completion
                             const socket = io();
 
                             socket.on('loading_progress', (data) => {
@@ -2276,54 +2400,141 @@ document.addEventListener('DOMContentLoaded', function() {
                             });
 
                             socket.on('loading_complete', () => {
-                            	// Navigate to movies page after cache is built
                             	window.location.href = '/';
                             });
 
-                            // Trigger cache building
                             await fetch('/start_loading');
                     	} else {
-                            // Cache exists, navigate immediately
                             window.location.href = '/';
-                        }
+                    	}
                     } catch (error) {
                     	console.error('Error checking cache status:', error);
-                    	// On error, just navigate
                     	window.location.href = '/';
                     }
             	});
             }
 
-            // Add mobile-specific dropdown functionality
             if (window.innerWidth <= 640) {
             	const dropdown = document.querySelector('.dropdown');
 
             	if (dropdown) {
                     dropdown.addEventListener('click', function(e) {
-                    	console.log('Dropdown clicked', e.target);
-                    	console.log('Matches:', e.target.matches('.donate-button, .donate-button *'));
                     	if (e.target.matches('.donate-button, .donate-button *')) {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('Before toggle:', this.classList.contains('active'));
                             this.classList.toggle('active');
-                            console.log('After toggle:', this.classList.contains('active'));
                     	}
                     });
 
                     document.addEventListener('click', function(e) {
-                    	console.log('Document clicked', e.target);
-                    	console.log('Contains:', dropdown.contains(e.target));
                     	if (!dropdown.contains(e.target)) {
                             dropdown.classList.remove('active');
                     	}
                     });
             	}
             }
+        
+            const settingsContent = document.querySelector('.settings-content');
+            if (settingsContent) {
+                const observer = new MutationObserver(() => {
+                    handleSectionVisibility(); 
+                });
+
+                observer.observe(settingsContent, {
+                    childList: true, 
+                    subtree: true    
+                });
+
+                setTimeout(handleSectionVisibility, 100); 
+            } else {
+                console.error("Settings content container not found for observer.");
+            }
 
     	} catch (error) {
             console.error('Error loading settings:', error);
             showError('Failed to load settings');
+    	}
+    }
+
+    function handleSectionVisibility() {
+        const allSections = document.querySelectorAll('.settings-content .settings-section');
+        const currentTab = document.querySelector('.tab.active')?.dataset.tab;
+
+        if (window.isAdminUser) {
+            allSections.forEach(section => {
+                section.style.display = ''; 
+            });
+        } else if (window.isServiceUser) {
+            if (currentTab === 'integrations') {
+                allSections.forEach(section => {
+                    const title = section.querySelector('h2')?.textContent.trim();
+                    section.style.display = (title === 'Trakt') ? '' : 'none';
+                });
+            } else {
+                 allSections.forEach(section => {
+                    section.style.display = 'none';
+                });
+            }
+        } else {
+            if (currentTab === 'features') {
+                allSections.forEach(section => {
+                    const title = section.querySelector('h2')?.textContent.trim();
+                    section.style.display = (title === 'General Features') ? '' : 'none';
+                });
+            } else if (currentTab === 'integrations') {
+                 allSections.forEach(section => {
+                    const title = section.querySelector('h2')?.textContent.trim();
+                    section.style.display = (title === 'Trakt') ? '' : 'none';
+                });
+            } else if (currentTab === 'clients') {
+                 allSections.forEach(section => {
+                    section.style.display = '';
+                });
+            } else {
+                 allSections.forEach(section => {
+                    section.style.display = 'none';
+                });
+            }
+        }
+    }
+
+    function loadTabContent(tabName) {
+    	const section = sections[tabName];
+        if (!section) return;
+
+        contentContainer.innerHTML = '';
+
+    	if (window.isAdminUser === false && ['media', 'auth'].includes(tabName)) {
+            contentContainer.innerHTML = `
+            	<div class="admin-required">
+                    <i class="fa-solid fa-lock"></i>
+                    <h3>Admin Access Required</h3>
+                    <p>You need administrator privileges to view this section.</p>
+            	</div>
+            `;
+            return;
+    	}
+
+    	if (section.sections) {
+            section.sections.forEach(subSection => {
+            	contentContainer.appendChild(renderSettingsSection(
+                    subSection.title,
+                    currentSettings,
+                    currentOverrides,
+                    subSection.fields
+            	));
+            });
+    	} else {
+            contentContainer.appendChild(renderSettingsSection(
+            	section.title,
+            	currentSettings,
+            	currentOverrides,
+            	section.fields
+            ));
+    	}
+    
+    	if (window.isAdminUser === false) {
+            handleSectionVisibility();
     	}
     }
 
@@ -2346,7 +2557,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.body.appendChild(dialog);
 
-        // Handle cancel
         dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
         });
@@ -2358,7 +2568,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = document.createElement('div');
         wrapper.className = 'plex-token-wrapper';
 
-        // Check if controlled by ENV
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'plex.token')
         );
@@ -2369,7 +2578,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            // Create token input and get token button
             const inputGroup = document.createElement('div');
             inputGroup.className = 'input-group';
 
@@ -2399,7 +2607,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/plex/get_token', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         }
                     });
 
@@ -2419,13 +2628,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         throw new Error('Popup was blocked. Please allow popups for this site.');
                     }
 
-   		    // Show PIN dialog
         	    const pinDialog = showPinDialog(data.pin);
 
 		    let attempts = 0;
         	    const maxAttempts = 60;
 
-                    // Check for auth completion
                     const checkAuth = setInterval(async () => {
                         try {
 			    if (attempts >= maxAttempts) {
@@ -2457,7 +2664,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }, 2000);
 
-                    // Clear interval if window is closed
                     const windowCheck = setInterval(() => {
                         if (authWindow.closed) {
                             clearInterval(checkAuth);
@@ -2488,7 +2694,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = document.createElement('div');
         wrapper.className = 'plex-libraries-wrapper';
 
-        // Check if controlled by ENV
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'plex.movie_libraries')
         );
@@ -2499,7 +2704,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            // Create libraries input and fetch button
             const inputGroup = document.createElement('div');
             inputGroup.className = 'input-group';
 
@@ -2531,7 +2735,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/plex/libraries', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({
                             plex_url: plexUrl,
@@ -2545,7 +2750,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     const data = await response.json();
 
-                    // Show library selection dialog
                     showLibraryDialog(data.libraries, librariesInput);
 
                 } catch (error) {
@@ -2591,7 +2795,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.body.appendChild(dialog);
 
-        // Handle save
         dialog.querySelector('.submit-button').addEventListener('click', async () => {
             const selectedLibraries = Array.from(dialog.querySelectorAll('input[type="checkbox"]:checked'))
                 .map(cb => cb.value);
@@ -2601,7 +2804,6 @@ document.addEventListener('DOMContentLoaded', function() {
             dialog.remove();
         });
 
-        // Handle cancel
         dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
         });
@@ -2611,7 +2813,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = document.createElement('div');
         wrapper.className = 'jellyfin-auth-wrapper';
 
-        // Check if controlled by ENV
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'jellyfin.api_key') ||
             getNestedValue(currentOverrides, 'jellyfin.user_id')
@@ -2623,7 +2824,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            // Create the manual input fields
             const manualGroup = document.createElement('div');
             manualGroup.className = 'input-group';
 
@@ -2648,12 +2848,10 @@ document.addEventListener('DOMContentLoaded', function() {
             manualGroup.appendChild(createLabel('User ID (manual entry)'));
             manualGroup.appendChild(userIdInput);
 
-            // Add separator
             const separator = document.createElement('div');
             separator.className = 'dialog-separator';
             separator.innerHTML = '<span>or get automatically</span>';
 
-            // Create the automatic login group
             const autoGroup = document.createElement('div');
             autoGroup.className = 'input-group';
 
@@ -2698,7 +2896,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/jellyfin/auth', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({
                             server_url: jellyfinUrl,
@@ -2713,13 +2912,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         throw new Error(data.error || 'Failed to authenticate');
                     }
 
-                    // Update both the manual inputs and the settings
                     apiKeyInput.value = data.api_key;
                     userIdInput.value = data.user_id;
                     await handleSettingChange('jellyfin.api_key', data.api_key);
                     await handleSettingChange('jellyfin.user_id', data.user_id);
 
-                    // Clear sensitive data
                     usernameInput.value = '';
                     passwordInput.value = '';
 
@@ -2739,7 +2936,6 @@ document.addEventListener('DOMContentLoaded', function() {
             autoGroup.appendChild(passwordInput);
             autoGroup.appendChild(loginButton);
 
-            // Add all elements to wrapper
             wrapper.appendChild(manualGroup);
             wrapper.appendChild(separator);
             wrapper.appendChild(autoGroup);
@@ -2752,7 +2948,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	const wrapper = document.createElement('div');
     	wrapper.className = 'emby-auth-wrapper';
 
-    	// Check if controlled by ENV
     	const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'emby.api_key') ||
             getNestedValue(currentOverrides, 'emby.user_id')
@@ -2764,7 +2959,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
     	} else {
-            // Create manual input fields section
             const manualGroup = document.createElement('div');
             manualGroup.className = 'input-group';
 
@@ -2789,28 +2983,24 @@ document.addEventListener('DOMContentLoaded', function() {
             manualGroup.appendChild(createLabel('User ID (manual entry)'));
             manualGroup.appendChild(userIdInput);
 
-            // Add separator
             const separator = document.createElement('div');
             separator.className = 'dialog-separator';
             separator.innerHTML = '<span>or login with</span>';
 
-            // Create auth buttons group
             const authGroup = document.createElement('div');
             authGroup.className = 'auth-buttons-group';
 
-            // Emby Connect button
             const connectButton = document.createElement('button');
             connectButton.className = 'discover-button';
             connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Emby Connect';
-            connectButton.addEventListener('click', () => showEmbyConnectDialog());
+            connectButton.addEventListener('click', () => showEmbyConnectDialog()); 
 
-            // Local login button
             const localButton = document.createElement('button');
             localButton.className = 'discover-button';
-            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login';
-            localButton.addEventListener('click', () => showEmbyLocalLoginDialog());
+            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login'; 
+            localButton.addEventListener('click', () => showEmbyLocalLoginDialog()); 
 
-            authGroup.appendChild(connectButton);
+            authGroup.appendChild(connectButton); 
             authGroup.appendChild(localButton);
 
             wrapper.appendChild(manualGroup);
@@ -2848,7 +3038,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             	</button>
                             	<button class="server-option" data-server='${JSON.stringify({
                                	    ...server,
-                                    url: server.url,
+                                    url: server.remote_url, // Use remote_url here
                                     access_key: server.access_key,
                                     name: server.name,
                                     id: server.id
@@ -2856,7 +3046,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                	    <i class="fa-solid fa-globe"></i>
                                     <div class="server-details">
                                         <div class="connection-type">Remote Access (HTTPS)</div>
-                                        <div class="server-url">${server.url}</div>
+                                        <div class="server-url">${server.remote_url || 'N/A'}</div>
                                     </div>
                                 </button>
                             </div>
@@ -2871,11 +3061,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.body.appendChild(dialog);
 
-        // Handle server selection
         dialog.querySelectorAll('.server-option').forEach(button => {
             button.addEventListener('click', async () => {
                 const server = JSON.parse(button.dataset.server);
-                const originalHtml = button.innerHTML;
+                const originalHtml = button.innerHTML; 
                 try {
                     button.disabled = true;
                     button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting...';
@@ -2883,22 +3072,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/emby/connect/select_server', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({
-                            server: server,
-                            connect_user_id: connectUserId
+                            server: server, 
+                            connect_user_id: connectUserId 
                         })
                     });
 
                     const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Failed to connect to server');
+                    if (!response.ok || data.status !== 'success') { 
+                        throw new Error(data.message || 'Failed to connect to server');
                     }
 
                     updateEmbyFields(data.server_url, data.api_key, data.user_id);
                     showSuccess('Successfully connected to Emby server');
                     dialog.remove();
+
                 } catch (error) {
                     showError(error.message);
                     button.disabled = false;
@@ -2950,7 +3141,8 @@ document.addEventListener('DOMContentLoaded', function() {
             	const response = await fetch('/api/emby/connect/auth', {
                     method: 'POST',
                     headers: {
-                    	'Content-Type': 'application/json'
+                    	'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken() 
                     },
                     body: JSON.stringify({
                     	username: form.querySelector('#emby-username').value,
@@ -3017,31 +3209,34 @@ document.addEventListener('DOMContentLoaded', function() {
     	const submitButton = form.querySelector('.submit-button');
 
     	form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging in...';
+    	       e.preventDefault();
+    	       submitButton.disabled = true;
+    	       submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging in...';
 
-            const serverUrl = form.querySelector('#emby-server-url').value;
+    	       const serverUrl = form.querySelector('#emby-server-url').value;
+    	       const username = form.querySelector('#emby-local-username').value; 
+    	       const password = form.querySelector('#emby-local-password').value; 
 
-            try {
-            	const response = await fetch('/api/emby/auth', {
-                    method: 'POST',
-                    headers: {
-                    	'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                    	server_url: serverUrl,
-                    	username: form.querySelector('#emby-local-username').value,
-                    	password: form.querySelector('#emby-local-password').value
-                    })
+    	       try {
+    	           console.log(">>> DEBUG: Attempting fetch to /api/settings/emby/authenticate"); 
+    	       	const response = await fetch('/api/settings/emby/authenticate', { 
+            	       method: 'POST',
+            	       headers: {
+            	       	'Content-Type': 'application/json',
+            	           'X-CSRFToken': getCsrfToken() 
+            	       },
+            	       body: JSON.stringify({
+            	       	url: serverUrl, 
+            	       	username: form.querySelector('#emby-local-username').value,
+            	       	password: form.querySelector('#emby-local-password').value
+            	       })
             	});
 
             	const data = await response.json();
-            	if (!response.ok) {
-                    throw new Error(data.error || 'Failed to authenticate');
+            	if (!response.ok || !data.success) { 
+            	       throw new Error(data.message || 'Failed to authenticate');
             	}
 
-            	// Update the fields directly
             	updateEmbyFields(serverUrl, data.api_key, data.user_id);
             	showSuccess('Successfully logged in to Emby');
             	dialog.remove();
@@ -3061,7 +3256,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function getConnectionOptions(server) {
     	const options = [];
 
-    	// Local Network
     	if (server.LocalAddress) {
             options.push({
             	type: 'local',
@@ -3071,7 +3265,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	}
 
-    	// Emby Connect
     	if (server.ConnectAddress) {
             options.push({
             	type: 'connect',
@@ -3081,7 +3274,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	}
 
-    	// Remote Access
     	const remoteUrl = server.ExternalDomain || server.RemoteAddress;
     	if (remoteUrl) {
             const isDomain = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}/.test(remoteUrl);
@@ -3102,18 +3294,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateEmbyFields(url, apiKey, userId) {
-    	// Update settings first
     	Promise.all([
             handleSettingChange('emby.url', url),
             handleSettingChange('emby.api_key', apiKey),
             handleSettingChange('emby.user_id', userId)
     	]).then(() => {
-            // Update currentSettings immediately
             setNestedValue(currentSettings, 'emby.url', url);
             setNestedValue(currentSettings, 'emby.api_key', apiKey);
             setNestedValue(currentSettings, 'emby.user_id', userId);
 
-            // Force re-render the media servers tab
             const currentTab = document.querySelector('.tab.active');
             if (currentTab) {
             	loadTabContent(currentTab.dataset.tab);
@@ -3131,7 +3320,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = document.createElement('div');
         wrapper.className = 'user-selector-wrapper';
 
-        // Check if controlled by ENV
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'features.poster_users.plex')
         );
@@ -3142,7 +3330,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            // Create manual input first
             const inputGroup = document.createElement('div');
             inputGroup.className = 'input-group';
 
@@ -3155,12 +3342,16 @@ document.addEventListener('DOMContentLoaded', function() {
             );
             inputGroup.appendChild(manualInput);
 
-            // Add fetch button
             const fetchButton = document.createElement('button');
             fetchButton.className = 'discover-button';
             fetchButton.innerHTML = '<i class="fa-solid fa-users"></i> Fetch Users';
 
             fetchButton.addEventListener('click', async () => {
+                const csrfToken = getCsrfToken(); 
+                if (!csrfToken) {
+                    showError("CSRF Token missing. Please refresh the page.");
+                    return; 
+                }
                 try {
                     const plexUrl = getNestedValue(currentSettings, 'plex.url');
                     const plexToken = getNestedValue(currentSettings, 'plex.token');
@@ -3176,11 +3367,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/plex/users', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken 
                         },
                         body: JSON.stringify({
                             plex_url: plexUrl,
-                            plex_token: plexToken
+                            plex_token: plexToken,
+                            csrf_token: csrfToken 
                         })
                     });
 
@@ -3210,7 +3403,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = document.createElement('div');
         wrapper.className = 'user-selector-wrapper';
 
-        // Check if controlled by ENV
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'features.poster_users.jellyfin')
         );
@@ -3221,7 +3413,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            // Create manual input first
             const inputGroup = document.createElement('div');
             inputGroup.className = 'input-group';
 
@@ -3234,7 +3425,6 @@ document.addEventListener('DOMContentLoaded', function() {
             );
             inputGroup.appendChild(manualInput);
 
-            // Add fetch button
             const fetchButton = document.createElement('button');
             fetchButton.className = 'discover-button';
             fetchButton.innerHTML = '<i class="fa-solid fa-users"></i> Fetch Users';
@@ -3255,7 +3445,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/jellyfin/users', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                         },
                         body: JSON.stringify({
                             jellyfin_url: jellyfinUrl,
@@ -3289,7 +3480,6 @@ document.addEventListener('DOMContentLoaded', function() {
     	const wrapper = document.createElement('div');
     	wrapper.className = 'user-selector-wrapper';
 
-    	// Check if controlled by ENV
     	const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'features.poster_users.emby')
     	);
@@ -3300,7 +3490,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
     	} else {
-            // Create manual input first
             const inputGroup = document.createElement('div');
             inputGroup.className = 'input-group';
 
@@ -3313,7 +3502,6 @@ document.addEventListener('DOMContentLoaded', function() {
             );
             inputGroup.appendChild(manualInput);
 
-            // Add fetch button
             const fetchButton = document.createElement('button');
             fetchButton.className = 'discover-button';
             fetchButton.innerHTML = '<i class="fa-solid fa-users"></i> Fetch Users';
@@ -3334,7 +3522,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = await fetch('/api/emby/users', {
                     	method: 'POST',
                     	headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken() 
                     	},
                         body: JSON.stringify({
                        	    emby_url: embyUrl,
@@ -3365,38 +3554,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function showUserSelectionDialog(users, service, inputElement) {
-    	if (service === 'plex') {
-            try {
-            	const plexUrl = getNestedValue(currentSettings, 'plex.url');
-            	const plexToken = getNestedValue(currentSettings, 'plex.token');
-
-            	if (!plexUrl || !plexToken) {
-                    showError('Please configure Plex URL and token first');
-                    return;
-            	}
-
-            	const response = await fetch('/api/plex/users', {
-                    method: 'POST',
-                    headers: {
-                    	'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                    	plex_url: plexUrl,
-                    	plex_token: plexToken
-                    })
-            	});
-
-            	if (!response.ok) {
-                    throw new Error('Failed to fetch users');
-            	}
-
-            	const data = await response.json();
-            	users = data.users;
-            } catch (error) {
-            	showError(error.message);
-            	return;
-            }
-    	}
+        if (!Array.isArray(users)) {
+             console.error("showUserSelectionDialog called with invalid users data:", users);
+             showError("Failed to display user selection dialog: Invalid user data.");
+             return;
+        }
 
     	const dialog = document.createElement('div');
     	dialog.className = 'trakt-confirm-dialog';
@@ -3407,13 +3569,16 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="dialog-content">
             	<h3><i class="fa-solid fa-users"></i> Select ${service.charAt(0).toUpperCase() + service.slice(1)} Users</h3>
             	<div class="user-select">
-                    ${users.map(user => `
-                    	<label class="user-option">
-                            <input type="checkbox" value="${user}"
-                            	${currentUsers.includes(user) ? 'checked' : ''}>
-                            <span>${user}</span>
-                    	</label>
-                    `).join('')}
+                    ${users.map(user => {
+                        const username = user && user.username ? user.username : 'Invalid User';
+                        const isChecked = currentUsers.includes(username);
+                        return `
+                            <label class="user-option">
+                                <input type="checkbox" value="${username}" ${isChecked ? 'checked' : ''}>
+                                <span>${username}</span>
+                            </label>
+                        `;
+                    }).join('')}
             	</div>
             	<div class="dialog-buttons">
                     <button class="cancel-button">Cancel</button>
@@ -3424,7 +3589,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     	document.body.appendChild(dialog);
 
-    	// Handle save
     	dialog.querySelector('.submit-button').addEventListener('click', async () => {
             const selectedUsers = Array.from(dialog.querySelectorAll('input[type="checkbox"]:checked'))
             	.map(cb => cb.value);
@@ -3434,18 +3598,15 @@ document.addEventListener('DOMContentLoaded', function() {
             dialog.remove();
     	});
 
-    	// Handle cancel
     	dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
     	});
     }
 
     function renderTimezoneFieldWithButton(container) {
-    	// Create wrapper
     	const wrapper = document.createElement('div');
     	wrapper.className = 'timezone-field-wrapper';
 
-    	// Check if controlled by ENV
     	const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'features.timezone')
     	);
@@ -3456,7 +3617,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
     	} else {
-            // Create the text input field
             const inputGroup = document.createElement('div');
             inputGroup.className = 'input-group';
 
@@ -3470,7 +3630,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             inputGroup.appendChild(timezoneInput);
 
-            // Create the "Search Timezone" button
             const searchButton = document.createElement('button');
             searchButton.className = 'discover-button';
             searchButton.innerHTML = '<i class="fa-solid fa-search"></i> Search Timezone';
@@ -3488,12 +3647,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showTimezoneSelectionDialog(inputElement) {
     	const dialog = document.createElement('div');
-    	dialog.className = 'trakt-confirm-dialog'; // Reuse existing dialog style
+    	dialog.className = 'trakt-confirm-dialog'; 
 
-    	// Get all timezones
     	const timezones = Intl.supportedValuesOf('timeZone');
 
-    	// Create dialog content
     	dialog.innerHTML = `
             <div class="dialog-content">
                 <h3><i class="fa-solid fa-globe"></i> Select Timezone</h3>
@@ -3514,9 +3671,8 @@ document.addEventListener('DOMContentLoaded', function() {
     	const searchInput = dialog.querySelector('.timezone-search');
     	const timezoneList = dialog.querySelector('.timezone-list');
 
-    	// Function to render timezone options
     	function renderTimezones(filter = '') {
-            timezoneList.innerHTML = ''; // Clear existing options
+            timezoneList.innerHTML = ''; 
             const filteredTimezones = timezones.filter(tz =>
             	tz.toLowerCase().includes(filter.toLowerCase())
             );
@@ -3540,15 +3696,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Initial render
         renderTimezones();
 
-        // Event listener for search input
         searchInput.addEventListener('input', (e) => {
             renderTimezones(e.target.value);
     	});
 
-    	// Handle cancel button
     	dialog.querySelector('.cancel-button').addEventListener('click', () => {
             dialog.remove();
         });
@@ -3558,10 +3711,8 @@ document.addEventListener('DOMContentLoaded', function() {
     	const wrapper = document.createElement('div');
     	wrapper.className = 'preferred-user-wrapper';
 
-    	// Check if the overall mode is "preferred_user"
     	const isPreferredMode = getNestedValue(currentSettings, 'features.poster_display.mode') === 'preferred_user';
 
-    	// If the mode isn't "preferred_user", just show a note and exit
     	if (!isPreferredMode) {
             const notice = document.createElement('div');
             notice.className = 'setting-description';
@@ -3571,12 +3722,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
     	}
 
-    	// Check if "preferred_user" is overridden by env
     	const isEnvControlled = Boolean(
       	getNestedValue(currentOverrides, 'features.poster_display.preferred_user')
     	);
 
-    	// If env-controlled, display "Set by environment variable"
     	if (isEnvControlled) {
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
@@ -3584,18 +3733,15 @@ document.addEventListener('DOMContentLoaded', function() {
             wrapper.appendChild(overrideIndicator);
     	}
 
-    	// Gather all authorized users from each service
     	const allUsers = [];
     	['plex', 'jellyfin', 'emby'].forEach(service => {
             let serviceUsers = getNestedValue(currentSettings, `features.poster_users.${service}`);
-            // Convert comma-separated string to an array
             if (typeof serviceUsers === 'string') {
             	serviceUsers = serviceUsers
                     .split(',')
                     .map(u => u.trim())
                     .filter(Boolean);
             }
-            // Add each user to allUsers with a reference to its service
             if (Array.isArray(serviceUsers)) {
             	serviceUsers.forEach(user => {
                     allUsers.push({ username: user, service });
@@ -3603,34 +3749,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
     	});
 
-    	// Create a <select> field for picking the preferred user
     	const serviceGroup = document.createElement('div');
     	serviceGroup.className = 'input-group';
 
     	const select = document.createElement('select');
     	select.className = 'setting-input';
-    	// Disable if env-controlled
     	select.disabled = isEnvControlled;
 
-    	// Empty/default option
     	const emptyOption = document.createElement('option');
     	emptyOption.value = '';
     	emptyOption.textContent = '-- Select Preferred User --';
     	select.appendChild(emptyOption);
 
-    	// Mark the currently preferred user if it’s set
     	const currentPreferred = getNestedValue(currentSettings, 'features.poster_display.preferred_user');
 
-    	// Populate dropdown with (username + service)
     	allUsers.forEach(user => {
             const option = document.createElement('option');
             const serviceName = user.service.charAt(0).toUpperCase() + user.service.slice(1);
 
-            // Store {username, service} as JSON in value
             option.value = JSON.stringify({ username: user.username, service: user.service });
             option.textContent = `${user.username} (${serviceName})`;
 
-            // If this matches the current preferred_user in your config, select it
             if (
             	currentPreferred &&
             	user.username === currentPreferred.username &&
@@ -3642,7 +3781,6 @@ document.addEventListener('DOMContentLoaded', function() {
             select.appendChild(option);
     	});
 
-    	// Attach a change listener only if NOT env-controlled
     	if (!isEnvControlled) {
             select.addEventListener('change', (e) => {
             	const value = e.target.value ? JSON.parse(e.target.value) : null;
@@ -3650,12 +3788,311 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     	}
 
-    	// Put everything into the DOM
     	serviceGroup.appendChild(select);
     	wrapper.appendChild(serviceGroup);
     	container.appendChild(wrapper);
     }
 
-    // Start initialization
+    function renderUserManagement(container) {
+    	const wrapper = document.createElement('div');
+    	wrapper.className = 'user-management-wrapper';
+    
+    	const usersUI = document.createElement('div');
+    	usersUI.className = 'users-container';
+    
+    	const userList = document.createElement('div');
+    	userList.className = 'user-list';
+    	userList.innerHTML = '<div class="loading-users">Loading users...</div>';
+    
+    	fetchUsers(userList);
+    
+    	usersUI.appendChild(userList);
+    	wrapper.appendChild(usersUI);
+    	container.appendChild(wrapper);
+    }
+
+    function fetchUsers(container) {
+    	fetch('/api/auth/users')
+            .then(response => {
+            	if (!response.ok) {
+                    throw new Error('Failed to fetch users');
+            	}
+            	return response.json();
+            })
+            .then(users => {
+            	renderUserList(container, users);
+            })
+            .catch(error => {
+            	console.error('Error fetching users:', error);
+            	container.innerHTML = `
+                    <div class="error-message">
+                    	<i class="fa-solid fa-exclamation-circle"></i>
+                    	Failed to load users
+                    </div>
+            	`;
+            });
+    }
+
+    function renderUserList(container, userList) { 
+    	if (userList.length === 0) { 
+            container.innerHTML = '<div class="no-users">No users found</div>';
+            return;
+    	}
+    
+    	const usersList = document.createElement('div');
+    	usersList.className = 'users-list';
+    
+    	userList.forEach(user => { 
+    	       const internalUsername = user.internal_username; 
+    	       const displayUsername = user.display_username; 
+    	       const userData = user; 
+    	       const username = displayUsername; 
+            const userItem = document.createElement('div');
+            userItem.className = 'user-item';
+        
+            const userInfo = document.createElement('div');
+            userInfo.className = 'user-info';
+        
+            const userName = document.createElement('div');
+            userName.className = 'user-name';
+            
+            const serviceType = userData.service_type || 'local'; 
+            const serviceTypeDisplay = serviceType.charAt(0).toUpperCase() + serviceType.slice(1); 
+            const displayRole = userData.display_role || 'User'; 
+            const isAdminFlag = userData.is_admin || false; 
+
+            let roleClass = displayRole.toLowerCase(); 
+
+            userName.innerHTML = `
+            	<span>${username}</span>
+            	<span class="role-badge ${roleClass}">${displayRole}</span> <!-- Use display_role -->
+            	<span class="service-type-badge ${serviceType}">${serviceTypeDisplay}</span>
+            `;
+        
+            const userMeta = document.createElement('div');
+            userMeta.className = 'user-meta';
+            userMeta.innerHTML = `
+            	<span>Created: ${formatDate(userData.created_at)}</span>
+            	${userData.last_login ? `<span>Last login: ${formatDate(userData.last_login)}</span>` : ''}
+            `;
+        
+            userInfo.appendChild(userName);
+            userInfo.appendChild(userMeta);
+        
+            const userActions = document.createElement('div');
+            userActions.className = 'user-actions';
+        
+            if (userData.service_type === 'local') {
+                const resetPasswordButton = document.createElement('button');
+                resetPasswordButton.className = 'user-action';
+                resetPasswordButton.innerHTML = '<i class="fa-solid fa-key"></i>';
+                resetPasswordButton.title = 'Reset Password';
+                resetPasswordButton.addEventListener('click', () => showResetPasswordModal(internalUsername)); 
+                userActions.appendChild(resetPasswordButton);
+            }
+        
+            if (!(userData.service_type === 'local' && isAdminFlag)) {
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'user-action delete';
+                deleteButton.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                deleteButton.title = 'Delete User';
+                deleteButton.addEventListener('click', () => showDeleteUserModal(internalUsername, isAdminFlag)); 
+                userActions.appendChild(deleteButton);
+            }
+        
+            userItem.appendChild(userInfo);
+            userItem.appendChild(userActions);
+        
+            usersList.appendChild(userItem);
+    	});
+    
+    	container.innerHTML = '';
+    	container.appendChild(usersList);
+    }
+
+    function formatDate(dateString) {
+    	try {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+    	} catch (e) {
+            return dateString;
+    	}
+    }
+
+    function showAddUserModal() {
+        showMessage('Adding new local users is disabled. Only the admin account is allowed.');
+    }
+
+    function showResetPasswordModal(internalUsername) { 
+    	const modal = document.createElement('div');
+    	modal.className = 'settings-modal'; 
+    
+    	modal.innerHTML = `
+            <div class="dialog-content">
+                <h3><i class="fa-solid fa-key"></i> Reset Password</h3>
+                <p>Set a new password for user: <strong>${internalUsername}</strong></p> <!-- Display internal name here, as it's the one being acted upon -->
+            
+            	<form id="reset-password-form">
+                    <div class="error-message" id="reset-password-error" style="display: none;"></div>
+                
+                    <div class="input-group">
+                    	<label for="reset-password">New Password</label>
+                    	<input type="password" id="reset-password" class="setting-input" required> <!-- Add setting-input class -->
+                    </div>
+                
+                    <div class="input-group">
+                    	<label for="confirm-reset-password">Confirm New Password</label>
+                    	<input type="password" id="confirm-reset-password" class="setting-input" required> <!-- Add setting-input class -->
+                    </div>
+                
+                    <div class="dialog-buttons">
+                    	<button type="button" class="cancel-button">Cancel</button>
+                    	<button type="submit" class="submit-button">Reset Password</button>
+                    </div>
+            	</form>
+            </div>
+    	`;
+    
+   	document.body.appendChild(modal);
+    
+    	modal.querySelector('#reset-password-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+        
+            const password = document.getElementById('reset-password').value;
+            const confirmPassword = document.getElementById('confirm-reset-password').value;
+        
+            if (password !== confirmPassword) {
+            	const errorElement = document.getElementById('reset-password-error');
+            	errorElement.textContent = 'Passwords do not match';
+            	errorElement.style.display = 'block';
+            	return;
+            }
+        
+            fetch(`/api/auth/admin/change-password/${internalUsername}`, { 
+            	method: 'POST',
+            	headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken() 
+            	},
+            	body: JSON.stringify({
+                    password
+            	})
+            })
+            .then(response => response.json())
+            .then(data => {
+            	if (data.success) {
+                    modal.remove();
+                
+                    showMessage('Password reset successfully');
+            	} else {
+                    const errorElement = document.getElementById('reset-password-error');
+                    errorElement.textContent = data.message;
+                    errorElement.style.display = 'block';
+            	}
+            })
+            .catch(error => {
+            	console.error('Error resetting password:', error);
+            	const errorElement = document.getElementById('reset-password-error');
+            	errorElement.textContent = 'An error occurred. Please try again.';
+            	errorElement.style.display = 'block';
+            });
+        });
+    
+        modal.querySelector('.cancel-button').addEventListener('click', () => {
+            modal.remove();
+    	});
+    
+    	modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+            	modal.remove();
+            }
+    	});
+    }
+
+    function showDeleteUserModal(internalUsername, isAdminFlag) { 
+    	const modal = document.createElement('div');
+    	modal.className = 'trakt-confirm-dialog';
+    
+    	modal.innerHTML = `
+            <div class="dialog-content">
+            	<h3><i class="fa-solid fa-trash"></i> Delete User</h3>
+            	<p>Are you sure you want to delete the user: <strong>${internalUsername}</strong>?</p> <!-- Display internal name here, as it's the one being acted upon -->
+            	${isAdminFlag ? '<p class="warning"><i class="fa-solid fa-exclamation-triangle"></i> Warning: This user has admin privileges.</p>' : ''} <!-- Use actual admin flag for warning -->
+            	<div class="dialog-buttons">
+                    <button type="button" class="cancel-button">Cancel</button>
+                    <button type="button" class="delete-button">Delete User</button>
+            	</div>
+            </div>
+    	`;
+    
+    	document.body.appendChild(modal);
+    
+    	modal.querySelector('.delete-button').addEventListener('click', () => {
+            fetch(`/api/auth/users/${internalUsername}`, { 
+            	method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCsrfToken() 
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+            	if (data.success) {
+                    modal.remove();
+                
+                    showMessage(`User ${internalUsername} deleted successfully`); 
+                
+                    const userList = document.querySelector('.user-list');
+                    if (userList) {
+                    	fetchUsers(userList);
+                    }
+            	} else {
+                    modal.innerHTML = `
+                    	<div class="dialog-content">
+                            <h3><i class="fa-solid fa-exclamation-circle"></i> Error</h3>
+                            <p>${data.message}</p>
+                            <div class="dialog-buttons">
+                            	<button type="button" class="ok-button">OK</button>
+                            </div>
+                    	</div>
+                    `;
+                
+                    modal.querySelector('.ok-button').addEventListener('click', () => {
+                    	modal.remove();
+                    });
+            	}
+            })
+            .catch(error => {
+            	console.error('Error deleting user:', error);
+            	modal.innerHTML = `
+                    <div class="dialog-content">
+                    	<h3><i class="fa-solid fa-exclamation-circle"></i> Error</h3>
+                    	<p>An error occurred. Please try again.</p>
+                    	<div class="dialog-buttons">
+                            <button type="button" class="ok-button">OK</button>
+                    	</div>
+                    </div>
+            	`;
+            
+            	modal.querySelector('.ok-button').addEventListener('click', () => {
+                    modal.remove();
+            	})
+            	.catch(error => {
+            	    console.error('Error fetching user list for delete confirmation:', error);
+            	    showError('Could not fetch user details to confirm deletion.');
+            	});
+            });
+    	});
+    
+    	modal.querySelector('.cancel-button').addEventListener('click', () => {
+            modal.remove();
+        });
+    
+    	modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+            	modal.remove();
+            }
+    	});
+    }
+
     initialize();
 });

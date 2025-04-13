@@ -2,15 +2,16 @@ import requests
 import os
 import json
 import time
+import os.path
 from threading import Thread, Lock
 from datetime import datetime, timedelta
 from utils.settings import settings
+from flask import request, session, current_app 
+from utils.auth.manager import auth_manager 
 
-# Get settings
 TRAKT_SETTINGS = settings.get('trakt', {})
 TMDB_SETTINGS = settings.get('tmdb', {})
 
-# Get values from ENV or settings
 HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
 HARDCODED_CLIENT_SECRET = '3e5c2b9163264d8e9b50b8727c827b49a5ea8cc6cf0331bca931a697c243f508'
 
@@ -20,7 +21,6 @@ TRAKT_ACCESS_TOKEN = os.getenv('TRAKT_ACCESS_TOKEN') or TRAKT_SETTINGS.get('acce
 TRAKT_REFRESH_TOKEN = os.getenv('TRAKT_REFRESH_TOKEN') or TRAKT_SETTINGS.get('refresh_token')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY') or TMDB_SETTINGS.get('api_key')
 
-# Check if service is enabled
 TRAKT_ENABLED = (
     bool(TRAKT_SETTINGS.get('enabled')) or
     bool(all([
@@ -31,185 +31,270 @@ TRAKT_ENABLED = (
     ]))
 )
 
-TRAKT_TOKEN_FILE = '/app/data/trakt_tokens.json'
-TRAKT_WATCHED_FILE = '/app/data/trakt_watched_movies.json'
-UPDATE_INTERVAL = 600  # 600 seconds = 10 minutes
+DATA_DIR = '/app/data'
+USER_DATA_DIR = os.path.join(DATA_DIR, 'user_data')
+DEFAULT_WATCHED_FILE = os.path.join(DATA_DIR, 'trakt_watched_movies.json')
+UPDATE_INTERVAL = 600  
 TRAKT_API_URL = 'https://api.trakt.tv'
-TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
-# Add a lock for thread-safe token operations
 token_lock = Lock()
 
-class TokenManager:
-    def __init__(self):
-        self.access_token = TRAKT_ACCESS_TOKEN
-        self.refresh_token = TRAKT_REFRESH_TOKEN
-        self.token_expires_at = None
-        self.load_tokens()
+def get_current_user_id():
+    """Get current user ID or 'global' if auth is disabled"""
+    from utils.auth.manager import auth_manager
+    
+    if not auth_manager.auth_enabled:
+        return 'global'
+    
+    token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
+    if token:
+        user_data = auth_manager.verify_auth(token)
+        if user_data:
+            return user_data['username']
+    
+    if hasattr(session, 'get'):
+        username = session.get('username')
+        if username:
+            return username
+            
+    return 'global'  
 
-    def load_tokens(self):
-        """Load tokens from file if they exist"""
-        if os.path.exists(TRAKT_TOKEN_FILE):
-            try:
-                with open(TRAKT_TOKEN_FILE, 'r') as f:
-                    data = json.load(f)
-                    self.access_token = data.get('access_token')
-                    self.refresh_token = data.get('refresh_token')
-                    self.token_expires_at = data.get('expires_at')
-                    
-                # Validate tokens were loaded
-                if not self.access_token or not self.refresh_token:
-                    print("Warning: One or more tokens missing from file")
-                    return False
-                return True
-            except Exception as e:
-                print(f"Error loading tokens: {e}")
-                return False
+def is_trakt_env_controlled():
+    """Check if any core Trakt setting is controlled by ENV vars."""
+    return settings.is_field_env_controlled('trakt.enabled') or \
+           settings.is_field_env_controlled('trakt.client_id') or \
+           settings.is_field_env_controlled('trakt.client_secret') or \
+           settings.is_field_env_controlled('trakt.access_token') or \
+           settings.is_field_env_controlled('trakt.refresh_token')
+
+def is_trakt_globally_enabled():
+    """Check if Trakt is enabled globally (either via ENV or settings.json)."""
+    if is_trakt_env_controlled():
+        
+        return bool(os.getenv('TRAKT_ACCESS_TOKEN'))
+    else:
+        
+        return settings.get('trakt', {}).get('enabled', False)
+
+def is_trakt_enabled_for_user(user_id=None):
+    """Check if Trakt is enabled for a specific user."""
+    if user_id is None:
+        user_id = get_current_user_id()
+
+    if is_trakt_env_controlled():
+        
+        return bool(os.getenv('TRAKT_ACCESS_TOKEN')) 
+
+    if user_id == 'global':
+         return settings.get('trakt', {}).get('enabled', False)
+
+    user_data = auth_manager.db.get_user(user_id)
+    if not user_data:
+        return False 
+
+    return user_data.get('trakt_enabled', False) and bool(user_data.get('trakt_access_token'))
+
+def get_user_trakt_tokens(user_id=None):
+    """Get Trakt tokens for a specific user from AuthDB or ENV."""
+    if user_id is None:
+        user_id = get_current_user_id()
+
+    if is_trakt_env_controlled():
+        access = os.getenv('TRAKT_ACCESS_TOKEN')
+        refresh = os.getenv('TRAKT_REFRESH_TOKEN')
+        if access:
+            return {'access_token': access, 'refresh_token': refresh, 'env_controlled': True}
+        else:
+            return None 
+
+    if user_id == 'global':
+         global_settings = settings.get('trakt', {})
+         access = global_settings.get('access_token')
+         refresh = global_settings.get('refresh_token')
+         if access:
+             return {'access_token': access, 'refresh_token': refresh, 'env_controlled': False}
+         else:
+             return None
+
+    user_data = auth_manager.db.get_user(user_id)
+    if not user_data:
+        return None 
+
+    access = user_data.get('trakt_access_token')
+    refresh = user_data.get('trakt_refresh_token')
+
+    if access:
+        return {'access_token': access, 'refresh_token': refresh, 'env_controlled': False}
+    else:
+        return None 
+
+def refresh_user_trakt_token(user_id=None):
+    """Refresh Trakt token for a specific user using AuthDB."""
+    if user_id is None:
+        user_id = get_current_user_id()
+
+    if is_trakt_env_controlled():
+        print(f"Skipping Trakt token refresh for user {user_id}: ENV controlled.")
+        return True 
+
+    tokens = get_user_trakt_tokens(user_id)
+    if not tokens or not tokens.get('refresh_token'):
+        print(f"No refresh token found for user {user_id}. Cannot refresh.")
         return False
 
-    def save_tokens(self, access_token=None, refresh_token=None):
-        """Save tokens to file and update instance"""
-        try:
-            # Update instance if new tokens provided
-            if access_token:
-                self.access_token = access_token
-            if refresh_token:
-                self.refresh_token = refresh_token
-                
-            # Save to file
-            with open(TRAKT_TOKEN_FILE, 'w') as f:
-                json.dump({
-                    'access_token': self.access_token,
-                    'refresh_token': self.refresh_token,
-                    'expires_at': self.token_expires_at
-                }, f)
-            return True
-        except Exception as e:
-            print(f"Error saving tokens: {e}")
-            return False
+    refresh_token = tokens['refresh_token']
 
-    def get_valid_access_token(self):
-        """Get a valid access token, refreshing if necessary"""
-        with token_lock:
-            if not self.access_token or not self.refresh_token:
-                self.load_tokens()  # Try reloading tokens
-                if not self.access_token or not self.refresh_token:
-                    print("No valid tokens available")
-                    return None
-                    
-            if self.token_expires_at:
-                expires_at = datetime.fromisoformat(self.token_expires_at)
-                # Refresh if token expires in less than 7 days
-                if expires_at - timedelta(days=7) <= datetime.now():
-                    self.refresh_tokens()
-            return self.access_token
+    print(f"Attempting to refresh Trakt token for user {user_id}...")
+    try:
+        response = requests.post(
+            f'{TRAKT_API_URL}/oauth/token',
+            json={
+                'refresh_token': refresh_token,
+                'client_id': TRAKT_CLIENT_ID, 
+                'client_secret': TRAKT_CLIENT_SECRET, 
+                'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob', 
+                'grant_type': 'refresh_token'
+            }
+        )
 
-    def refresh_tokens(self):
-        """Refresh the access token using the refresh token"""
-        if not self.refresh_token:
-            print("No refresh token available")
-            return False
-            
-        try:
-            response = requests.post(
-                f'{TRAKT_API_URL}/oauth/token',
-                json={
-                    'refresh_token': self.refresh_token,
-                    'client_id': TRAKT_CLIENT_ID,
-                    'client_secret': TRAKT_CLIENT_SECRET,
-                    'grant_type': 'refresh_token'
-                }
-            )
+        if response.ok:
+            data = response.json()
+            new_access_token = data['access_token']
+            new_refresh_token = data['refresh_token'] 
 
-            if response.ok:
-                data = response.json()
-                self.access_token = data['access_token']
-                self.refresh_token = data['refresh_token']
-                # Calculate and store expiration time
-                self.token_expires_at = (datetime.now() +
-                    timedelta(seconds=data.get('expires_in', 7776000))).isoformat()
-                self.save_tokens()
+            update_data = {
+                'trakt_access_token': new_access_token,
+                'trakt_refresh_token': new_refresh_token
+            }
+            success, message = auth_manager.db.update_user_data(user_id, update_data)
+
+            if success:
+                print(f"Successfully refreshed and saved Trakt token for user {user_id}")
                 return True
             else:
-                print(f"Token refresh failed: {response.status_code} - {response.text}")
+                print(f"Failed to save refreshed Trakt token for user {user_id}: {message}")
                 return False
-        except Exception as e:
-            print(f"Error refreshing tokens: {e}")
+        else:
+            print(f"Trakt token refresh API call failed for user {user_id}: {response.status_code} - {response.text}")
+            if response.status_code == 401:
+                 print(f"Refresh token for user {user_id} seems invalid. Clearing tokens.")
+                 auth_manager.db.update_user_data(user_id, {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False})
             return False
+    except Exception as e:
+        print(f"Exception during Trakt token refresh for user {user_id}: {e}")
+        return False
 
-# Create a global token manager instance
-token_manager = TokenManager()
+def get_trakt_headers(user_id=None):
+    """Get headers with a valid access token for specific user using AuthDB."""
+    if user_id is None:
+        user_id = get_current_user_id()
 
-def get_trakt_headers():
-    """Get headers with a valid access token"""
+    tokens = get_user_trakt_tokens(user_id)
+    if not tokens or not tokens.get('access_token'):
+        return None
+
+    access_token = tokens['access_token']
+        
     return {
         'Content-Type': 'application/json',
         'trakt-api-version': '2',
         'trakt-api-key': TRAKT_CLIENT_ID,
-        'Authorization': f'Bearer {token_manager.get_valid_access_token()}'
+        'Authorization': f'Bearer {access_token}'
     }
 
-# Update the request handling to use token refresh on 401 responses
-def make_trakt_request(method, endpoint, **kwargs):
-    """Make a Trakt API request with automatic token refresh on 401"""
+def make_trakt_request(method, endpoint, user_id=None, **kwargs):
+    """Make a Trakt API request with automatic token refresh for specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+        
     url = f'{TRAKT_API_URL}/{endpoint}'
-    kwargs['headers'] = get_trakt_headers()
+    headers = get_trakt_headers(user_id) 
+
+    if not headers:
+        print(f"make_trakt_request: Initial token invalid for user {user_id}. Attempting refresh...")
+        if refresh_user_trakt_token(user_id):
+            headers = get_trakt_headers(user_id) 
+            if not headers:
+                 print(f"make_trakt_request: Still no valid token after refresh for user {user_id}")
+                 return None 
+        else:
+            print(f"make_trakt_request: Token refresh failed for user {user_id}")
+            return None 
+
+    if not headers:
+        print(f"make_trakt_request: Failed to obtain valid headers for user {user_id}")
+        return None
+        
+    if 'headers' in kwargs:
+        headers.update(kwargs.pop('headers'))
+    kwargs['headers'] = headers
 
     response = requests.request(method, url, **kwargs)
 
     if response.status_code == 401:
-        # Token might be expired, try refreshing
-        if token_manager.refresh_tokens():
-            # Retry the request with new token
-            kwargs['headers'] = get_trakt_headers()
+        print(f"make_trakt_request: Received 401 for user {user_id}. Attempting refresh...")
+        if refresh_user_trakt_token(user_id):
+            headers = get_trakt_headers(user_id) 
+            if not headers:
+                 print(f"make_trakt_request: Failed to get headers after successful refresh for user {user_id}")
+                 return response 
+
+            kwargs['headers'] = headers 
+            print(f"make_trakt_request: Retrying request for user {user_id} after refresh.")
             response = requests.request(method, url, **kwargs)
+        else:
+            print(f"make_trakt_request: Token refresh failed for user {user_id} after 401.")
 
     return response
 
 def initialize_trakt():
-    """Initialize Trakt service and verify credentials"""
-    global TRAKT_ENABLED
+    """Initialize Trakt service status based on ENV or global settings."""
+    global TRAKT_ENABLED 
 
     try:
-        # Check ENV variables first
-        env_credentials = all([
-            os.getenv('TRAKT_CLIENT_ID'),
-            os.getenv('TRAKT_CLIENT_SECRET'),
-            os.getenv('TRAKT_ACCESS_TOKEN'),
-            os.getenv('TRAKT_REFRESH_TOKEN')
-        ])
+        if is_trakt_env_controlled():
+            if os.getenv('TRAKT_ACCESS_TOKEN'):
+                 print("Trakt service initialized successfully (ENV controlled)")
+                 TRAKT_ENABLED = True
+                 return True
+            else:
+                 print("Trakt service disabled (ENV controlled, but no token)")
+                 TRAKT_ENABLED = False
+                 return False
 
-        # Check token file exists and Trakt is enabled in settings
-        file_credentials = os.path.exists(TRAKT_TOKEN_FILE)
-        
-        # Update TRAKT_ENABLED based on available credentials
-        TRAKT_ENABLED = env_credentials or (TRAKT_SETTINGS.get('enabled') and file_credentials)
+        global_setting_enabled = settings.get('trakt', {}).get('enabled', False)
+        if global_setting_enabled:
+             print("Trakt service potentially enabled via global setting (applies if auth disabled or as default)")
+             TRAKT_ENABLED = True
+             return True
 
-        if TRAKT_ENABLED:
-            # Verify credentials by making a test API call
-            test_response = make_trakt_request('GET', 'sync/watched/movies')
-            if not test_response.ok:
-                print(f"Trakt credentials verification failed: {test_response.status_code}")
-                TRAKT_ENABLED = False
-                return False
+        print("Trakt service disabled (No ENV override or global setting)")
+        TRAKT_ENABLED = False
+        return False
 
-            print("Trakt service initialized successfully")
-            return True
-        else:
-            print("Trakt service not properly configured")
-            return False
+    except Exception as e:
+        print(f"Error during Trakt initialization check: {e}")
+        TRAKT_ENABLED = False
+        return False
 
     except Exception as e:
         print(f"Error initializing Trakt service: {e}")
         TRAKT_ENABLED = False
         return False
 
-def get_watched_movies():
-    response = make_trakt_request('GET', 'sync/watched/movies')
-    if not response.ok:
-        print(f"Trakt API error {response.status_code}: {response.text}")
+def get_watched_movies(user_id=None):
+    """Get watched movies for specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+        
+    if not is_trakt_enabled_for_user(user_id):
         return []
-    
+
+    response = make_trakt_request('GET', 'sync/watched/movies', user_id)
+    if not response or not response.ok:
+        print(f"Trakt API error getting watched movies for user {user_id}: {response.status_code if response else 'No response'}")
+        return []
+
     watched_movies = response.json()
     tmdb_ids = []
     for movie in watched_movies:
@@ -218,12 +303,17 @@ def get_watched_movies():
             tmdb_ids.append(tmdb_id)
     return tmdb_ids
 
+def get_trakt_rating(tmdb_id, user_id=None):
+    """Get Trakt rating for specific movie and user"""
+    if user_id is None:
+        user_id = get_current_user_id()
 
-def get_trakt_rating(tmdb_id):
-    # First, get the Trakt ID from TMDb ID
-    search_response = make_trakt_request('GET', f'search/tmdb/{tmdb_id}?type=movie')
-    if not search_response.ok:
-        print(f"Error searching for Trakt ID: {search_response.status_code}")
+    if not is_trakt_enabled_for_user(user_id):
+        return 0
+
+    search_response = make_trakt_request('GET', f'search/tmdb/{tmdb_id}?type=movie', user_id)
+    if not search_response or not search_response.ok:
+        print(f"Error searching for Trakt ID for user {user_id}: {search_response.status_code if search_response else 'No response'}")
         return 0
 
     search_data = search_response.json()
@@ -233,52 +323,138 @@ def get_trakt_rating(tmdb_id):
 
     trakt_id = search_data[0]['movie']['ids']['trakt']
 
-    # Now get the rating using the Trakt ID
-    rating_response = make_trakt_request('GET', f'movies/{trakt_id}/ratings')
-    if not rating_response.ok:
-        print(f"Error fetching Trakt rating: {rating_response.status_code}")
+    rating_response = make_trakt_request('GET', f'movies/{trakt_id}/ratings', user_id)
+    if not rating_response or not rating_response.ok:
+        print(f"Error fetching Trakt rating for user {user_id}: {rating_response.status_code if rating_response else 'No response'}")
         return 0
 
     rating_data = rating_response.json()
     rating = rating_data.get('rating', 0)
-    return int(rating * 10)  # Convert to percentage
+    return int(rating * 10)  
 
-# Keep the existing functions but update them to use make_trakt_request where needed
-def sync_watched_status():
-    watched_movies = get_watched_movies()
-    with open(TRAKT_WATCHED_FILE, 'w') as f:
+def sync_watched_status(user_id=None):
+    """Sync watched status for specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+
+    if not is_trakt_enabled_for_user(user_id):
+        return [] 
+
+    watched_movies = get_watched_movies(user_id) 
+
+    if user_id == 'global':
+        watched_file = DEFAULT_WATCHED_FILE
+    else:
+        user_dir = os.path.join(USER_DATA_DIR, user_id)
+        os.makedirs(user_dir, exist_ok=True) 
+        watched_file = os.path.join(user_dir, 'trakt_watched_movies.json')
+    
+    os.makedirs(os.path.dirname(watched_file), exist_ok=True)
+    with open(watched_file, 'w') as f:
         json.dump(watched_movies, f)
+        
+    return watched_movies
 
-def get_local_watched_movies():
-    if os.path.exists(TRAKT_WATCHED_FILE):
-        with open(TRAKT_WATCHED_FILE, 'r') as f:
-            return json.load(f)
+def get_local_watched_movies(user_id=None):
+    """Get locally cached watched movies for specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+        
+    if user_id == 'global':
+        watched_file = DEFAULT_WATCHED_FILE
+    else:
+        user_dir = os.path.join(USER_DATA_DIR, user_id)
+        watched_file = os.path.join(user_dir, 'trakt_watched_movies.json')
+    if os.path.exists(watched_file):
+        try:
+            with open(watched_file, 'r') as f:
+                return json.load(f)
+        except:
+            return []
     return []
 
-def is_movie_watched(tmdb_id):
-    watched_movies = get_local_watched_movies()
+def is_movie_watched(tmdb_id, user_id=None):
+    """Check if movie is watched by specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+        
+    if not is_trakt_enabled_for_user(user_id):
+        return False 
+
+    watched_movies = get_local_watched_movies(user_id)
     return tmdb_id in watched_movies
 
-def get_movie_ratings(tmdb_id):
-    trakt_rating = get_trakt_rating(tmdb_id)
+def get_movie_ratings(tmdb_id, user_id=None):
+    """Get movie ratings for specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+
+    if not is_trakt_enabled_for_user(user_id):
+         return {"trakt_rating": None, "imdb_rating": None} 
+
+    trakt_rating = get_trakt_rating(tmdb_id, user_id) 
     return {
         "trakt_rating": trakt_rating,
         "imdb_rating": None
     }
 
-def get_trakt_id_from_tmdb(tmdb_id):
-    response = make_trakt_request('GET', f'search/tmdb/{tmdb_id}?type=movie')
-    if response.ok:
+def get_trakt_id_from_tmdb(tmdb_id, user_id=None):
+    """Get Trakt ID from TMDb ID for specific user"""
+    if user_id is None:
+        user_id = get_current_user_id()
+
+    if not is_trakt_enabled_for_user(user_id):
+        return None
+
+    response = make_trakt_request('GET', f'search/tmdb/{tmdb_id}?type=movie', user_id)
+    if response and response.ok:
         results = response.json()
         if results:
-            return results[0]['movie']['ids']['trakt']
-    return None
+            try:
+                return results[0]['movie']['ids']['trakt']
+            except (IndexError, KeyError, TypeError):
+                 print(f"Unexpected structure in Trakt search result for TMDb ID {tmdb_id}")
+                 return None
+    else:
+        print(f"Failed Trakt search for TMDb ID {tmdb_id}. Status: {response.status_code if response else 'No Response'}")
+        return None
+
+def update_watched_status_for_users():
+    """Sync watched status for all users with Trakt enabled in AuthDB."""
+    print("Starting periodic Trakt watched status sync...")
+    all_users = auth_manager.db.get_users() 
+
+    user_ids_to_check = list(all_users.keys())
+    if not auth_manager.auth_enabled:
+        if is_trakt_enabled_for_user('global'):
+             user_ids_to_check = ['global']
+        else:
+             user_ids_to_check = [] 
+    else:
+        user_ids_to_check = [uid for uid in all_users if is_trakt_enabled_for_user(uid)]
+
+
+    synced_count = 0
+    for user_id in user_ids_to_check:
+        print(f"Syncing Trakt watched status for user: {user_id}")
+        try:
+            sync_watched_status(user_id)
+            synced_count += 1
+        except Exception as e:
+            print(f"Error syncing watched status for user {user_id}: {e}")
+
+    print(f"Finished Trakt watched status sync. Synced for {synced_count} users.")
+    return True
 
 def update_watched_status_loop():
+    """Background loop to update watched status for all users"""
     while True:
-        sync_watched_status()
+        try:
+            update_watched_status_for_users()
+        except Exception as e:
+            print(f"Error in Trakt update loop: {e}")
+            
         time.sleep(UPDATE_INTERVAL)
 
-# Start the update loop in a background thread
 update_thread = Thread(target=update_watched_status_loop, daemon=True)
 update_thread.start()

@@ -27,7 +27,14 @@ let socket = io({
     reconnectionAttempts: 5,
 });
 
-// Make functions globally accessible
+let cacheInitialized = false;
+let initialMovieLoaded = false; 
+
+function getCsrfToken() {
+    const token = document.querySelector('meta[name="csrf-token"]');
+    return token ? token.getAttribute('content') : null;
+}
+
 window.openPersonDetailsOverlay = openPersonDetailsOverlay;
 window.closePersonDetailsOverlay = closePersonDetailsOverlay;
 window.openMovieDataOverlay = openMovieDataOverlay;
@@ -35,17 +42,40 @@ window.openMovieDataOverlay = openMovieDataOverlay;
 document.addEventListener('DOMContentLoaded', async function() {
     await getAvailableServices();
     await getCurrentService();
-    await loadRandomMovie();
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    const shouldLoadOnStart = window.LOAD_MOVIE_ON_START || isMobile;
+    console.log(`Initial check: LOAD_MOVIE_ON_START=${window.LOAD_MOVIE_ON_START}, isMobile=${isMobile}, shouldLoadOnStart=${shouldLoadOnStart}`);
+
+    if (shouldLoadOnStart) {
+        console.log("Condition met: Loading movie automatically (button hidden by default CSS).");
+        initialMovieLoaded = true; 
+        document.getElementById('movieContent')?.classList.add('hidden');
+        document.querySelector('.button_container')?.classList.add('hidden');
+
+        try {
+            await loadRandomMovie(); 
+            console.log("Movie loaded successfully. Showing movie content and buttons.");
+            document.getElementById('movieContent')?.classList.remove('hidden');
+            document.querySelector('.button_container')?.classList.remove('hidden');
+        } catch (error) {
+             console.error("Error during initial movie load:", error);
+        }
+    } else {
+        console.log("Condition NOT met: Making 'Get Random Movie' button visible.");
+        document.getElementById('btn_get_movie')?.classList.remove('initially-hidden');
+        document.getElementById('movieContent')?.classList.add('hidden');
+        document.querySelector('.button_container')?.classList.add('hidden');
+    }
     if (!window.HOMEPAGE_MODE) {
         if (window.USE_FILTER) {
             await loadFilterOptions();
+            await updateFilteredMovieCount(); 
             setupFilterEventListeners();
         }
     }
-    setupEventListeners();
+    // setupEventListeners(); 
     checkAndLoadCache();
     try {
-        // Check current client configuration
         const response = await fetch('/devices');
         const devices = await response.json();
         const powerButton = document.getElementById("btn_power");
@@ -77,16 +107,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     await syncTraktWatched(false);
     startVersionChecker();
 
-    // Hook into the movie display function to handle collection warnings
     const originalUpdateMovieDisplay = updateMovieDisplay;
     window.updateMovieDisplay = function(movieData) {
-        // Call the original function first
         originalUpdateMovieDisplay(movieData);
-        // Then handle collection warning
         handleCollectionWarning(movieData);
     };
 
-    // Collection modal close button
     const closeCollectionModal = document.getElementById('collection_modal_close');
     if (closeCollectionModal) {
         closeCollectionModal.addEventListener('click', function() {
@@ -94,7 +120,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
-    // Click outside to close the collection modal
     const collectionModal = document.getElementById('collection_modal');
     if (collectionModal) {
         collectionModal.addEventListener('click', function(e) {
@@ -103,6 +128,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     }
+    console.log("Running final setupEventListeners on DOMContentLoaded");
+    setupEventListeners();
 });
 
 document.addEventListener('visibilitychange', function() {
@@ -136,11 +163,14 @@ socket.on('loading_progress', function(data) {
         progressBar.style.width = `${data.progress * 100}%`;
     }
 
-    if (loadingCount && data.total > 0) {
-        loadingCount.textContent = `${data.current}/${data.total}`;
+    if (loadingCount) {
+        if (data.total === 0) {
+            loadingCount.textContent = `Initializing...`;
+        } else {
+            loadingCount.textContent = `${data.current}/${data.total}`;
+        }
     }
 
-    // Update status text based on progress
     if (loadingStatus) {
         if (data.progress >= 0.95) {
             loadingStatus.textContent = 'Loading into memory';
@@ -159,25 +189,18 @@ socket.on('loading_complete', async function() {
         overlay.classList.add('hidden');
         window.cacheBuilding = false;
 
-        // Load a random movie first
-        await loadRandomMovie();
+        cacheInitialized = true;
 
-        // Check for updates
-        checkVersion(false);
-
-        // Reinitialize filters if needed
         if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
-            console.log('Reinitializing filters after cache build');
+            console.log('Reinitializing filters and updating count after cache build');
             await loadFilterOptions();
-
+            await updateFilteredMovieCount(); 
             const filterButton = document.getElementById("filterButton");
             const filterDropdown = document.getElementById("filterDropdown");
 
-            // Remove existing event listeners
             const newFilterButton = filterButton.cloneNode(true);
             filterButton.parentNode.replaceChild(newFilterButton, filterButton);
 
-            // Re-setup filter event listeners
             newFilterButton.addEventListener('click', function(event) {
                 event.stopPropagation();
                 filterDropdown.classList.toggle("show");
@@ -193,10 +216,16 @@ socket.on('loading_complete', async function() {
                 event.stopPropagation();
             });
 
-            // Reinitialize other filter-related functionality
             setupFilterEventListeners();
             updateFilters();
         }
+
+        if (window.LOAD_MOVIE_ON_START || initialMovieLoaded) {
+             await loadRandomMovie();
+        }
+
+        console.log('Re-attaching main event listeners after cache build');
+        setupEventListeners();
     }
 });
 
@@ -222,7 +251,7 @@ async function getCurrentService() {
 	    console.log("Current and available services:", {
                 current: currentService,
                 available: availableServices
-            }); // Add debug logging
+            }); 
         }
         updateServiceButton();
     } catch (error) {
@@ -231,7 +260,6 @@ async function getCurrentService() {
 }
 
 async function loadRandomMovie() {
-    // Don't try to load if cache is building
     if (window.cacheBuilding) {
         console.log('Cache still building, skipping movie load');
         return;
@@ -243,6 +271,11 @@ async function loadRandomMovie() {
 
         const queryParams = new URLSearchParams();
         queryParams.append('watch_status', watchStatus);
+
+        if (cacheInitialized) {
+            queryParams.append('skip_cache_rebuild', 'true');
+        }
+
         const response = await fetch(`/random_movie?${queryParams}`);
 
         if (!response.ok) {
@@ -254,8 +287,19 @@ async function loadRandomMovie() {
         }
 
         const data = await response.json();
-        currentMovie = data.movie;
-        updateMovieDisplay(data.movie);
+
+        if (data.skip_cache_rebuild) {
+            cacheInitialized = true;
+        }
+
+        currentMovie = data.movie; 
+        updateMovieDisplay(currentMovie); 
+
+        if (currentMovie && currentMovie.tmdb_id) {
+            fetchMovieDetailsAsync(currentMovie.tmdb_id);
+            fetchTrailerAsync(currentMovie.title, currentMovie.year);
+        }
+
     } catch (error) {
         console.error("Error fetching random movie:", error);
     }
@@ -264,8 +308,9 @@ async function loadRandomMovie() {
 async function loadFilterOptions() {
     try {
         console.log("Loading filter options for service:", currentService);
-	const watchStatus = document.getElementById("watchStatusSelect").value;
-	const genresResponse = await fetch(`/get_genres?watch_status=${watchStatus}`);
+        const watchStatusSelect = document.getElementById("watchStatusSelect");
+        const watchStatus = watchStatusSelect ? watchStatusSelect.value : 'unwatched';
+        const genresResponse = await fetch(`/get_genres?watch_status=${watchStatus}`);
         const yearsResponse = await fetch(`/get_years?watch_status=${watchStatus}`);
         const pgRatingsResponse = await fetch(`/get_pg_ratings`);
 
@@ -281,9 +326,13 @@ async function loadFilterOptions() {
         console.log("Fetched years:", years);
         console.log("Fetched PG ratings:", pgRatings);
 
+        // Populate dropdowns first
         populateDropdown('genreSelect', genres);
         populateDropdown('yearSelect', years);
         populateDropdown('pgRatingSelect', pgRatings);
+
+        restoreFilterSelections(); 
+
     } catch (error) {
         console.error("Error loading filter options:", error);
     }
@@ -315,44 +364,85 @@ function closeSearchModal() {
 }
 
 function setupEventListeners() {
+    if (!window.LOAD_MOVIE_ON_START) {
+        let getMovieButton = document.getElementById("btn_get_movie");
+        if (getMovieButton) {
+            const newGetMovieButton = getMovieButton.cloneNode(true);
+            getMovieButton.parentNode.replaceChild(newGetMovieButton, getMovieButton);
+            newGetMovieButton.addEventListener('click', async () => {
+                console.log("Get Random Movie button clicked");
+                initialMovieLoaded = true; 
+                await loadRandomMovie(); 
+                newGetMovieButton.classList.add('hidden'); 
+                document.getElementById('movieContent').classList.remove('hidden'); 
+                const buttonContainer = document.querySelector('.button_container');
+                if (buttonContainer) {
+                    buttonContainer.classList.remove('hidden'); 
+                }
+            });
+            getMovieButton = newGetMovieButton; 
+        }
+    }
+
     if (!window.HOMEPAGE_MODE) {
         if (window.USE_WATCH_BUTTON) {
-            const watchButton = document.getElementById("btn_watch");
+            let watchButton = document.getElementById("btn_watch");
             if (watchButton) {
-                watchButton.addEventListener('click', showClients);
+                const newWatchButton = watchButton.cloneNode(true);
+                watchButton.parentNode.replaceChild(newWatchButton, watchButton);
+                newWatchButton.addEventListener('click', showClients);
+                watchButton = newWatchButton; 
             }
         }
 
         if (window.USE_NEXT_BUTTON) {
-            const nextButton = document.getElementById("btn_next_movie");
+            let nextButton = document.getElementById("btn_next_movie");
             if (nextButton) {
-                nextButton.addEventListener('click', loadNextMovie);
+                const newNextButton = nextButton.cloneNode(true);
+                nextButton.parentNode.replaceChild(newNextButton, nextButton);
+                newNextButton.addEventListener('click', loadNextMovie);
+                nextButton = newNextButton; 
             }
         }
 
-        const powerButton = document.getElementById("btn_power");
+        let powerButton = document.getElementById("btn_power");
         if (powerButton) {
-            powerButton.addEventListener('click', showDevices);
+            const newPowerButton = powerButton.cloneNode(true);
+            powerButton.parentNode.replaceChild(newPowerButton, powerButton);
+            newPowerButton.addEventListener('click', showDevices);
+            powerButton = newPowerButton; 
         }
 
-        const trailerClose = document.getElementById("trailer_popup_close");
+        let trailerClose = document.getElementById("trailer_popup_close");
         if (trailerClose) {
-            trailerClose.addEventListener('click', closeTrailerPopup);
+            const newTrailerClose = trailerClose.cloneNode(true);
+            trailerClose.parentNode.replaceChild(newTrailerClose, trailerClose);
+            newTrailerClose.addEventListener('click', closeTrailerPopup);
+            trailerClose = newTrailerClose; 
         }
 
-        const switchServiceButton = document.getElementById("switch_service");
+        let switchServiceButton = document.getElementById("switch_service");
         if (switchServiceButton) {
-            switchServiceButton.addEventListener('click', switchService);
+            const newSwitchServiceButton = switchServiceButton.cloneNode(true);
+            switchServiceButton.parentNode.replaceChild(newSwitchServiceButton, switchServiceButton);
+            newSwitchServiceButton.addEventListener('click', switchService);
+            switchServiceButton = newSwitchServiceButton; 
         }
 
-	const clientPromptClose = document.getElementById('client_prompt_close');
-    	if (clientPromptClose) {
-            clientPromptClose.addEventListener('click', closeClientPrompt);
-    	}
+	let clientPromptClose = document.getElementById('client_prompt_close');
+	   	if (clientPromptClose) {
+	           const newClientPromptClose = clientPromptClose.cloneNode(true);
+	           clientPromptClose.parentNode.replaceChild(newClientPromptClose, clientPromptClose);
+	           newClientPromptClose.addEventListener('click', closeClientPrompt);
+	           clientPromptClose = newClientPromptClose; 
+	   	}
 
-    	const devicePromptClose = document.getElementById('device_prompt_close');
+    	let devicePromptClose = document.getElementById('device_prompt_close');
     	if (devicePromptClose) {
-            devicePromptClose.addEventListener('click', closeDevicePrompt);
+    	       const newDevicePromptClose = devicePromptClose.cloneNode(true);
+    	       devicePromptClose.parentNode.replaceChild(newDevicePromptClose, devicePromptClose);
+    	       newDevicePromptClose.addEventListener('click', closeDevicePrompt);
+    	       devicePromptClose = newDevicePromptClose; 
     	}
     }
 
@@ -360,7 +450,6 @@ function setupEventListeners() {
     console.log("Click event target:", event.target);
     console.log("Click event target classes:", event.target.classList);
 
-	// Handle person image clicks
     	if (event.target.closest('.person-image-link')) {
             console.log("Person image link clicked");
             event.preventDefault();
@@ -378,13 +467,10 @@ function setupEventListeners() {
             const personName = event.target.textContent;
 
             if (personId) {
-                // If we already have an ID, use it directly
                 await openMoviesOverlay(personId, personType, personName);
             } else {
-                // If no ID, get it first
                 const enrichedPerson = await enrichPersonData(personName, personType);
                 if (enrichedPerson.id) {
-                    // Set the ID for future use
                     event.target.setAttribute('data-id', enrichedPerson.id);
                     await openMoviesOverlay(enrichedPerson.id, personType, personName);
                 }
@@ -392,41 +478,46 @@ function setupEventListeners() {
         }
     });
 
-    const moviesOverlayClose = document.getElementById('movies_overlay_close');
+    let moviesOverlayClose = document.getElementById('movies_overlay_close');
     if (moviesOverlayClose) {
-        moviesOverlayClose.addEventListener('click', closeMoviesOverlay);
+        const newMoviesOverlayClose = moviesOverlayClose.cloneNode(true);
+        moviesOverlayClose.parentNode.replaceChild(newMoviesOverlayClose, moviesOverlayClose);
+        newMoviesOverlayClose.addEventListener('click', closeMoviesOverlay);
+        moviesOverlayClose = newMoviesOverlayClose; 
     }
 
-    const searchButton = document.getElementById('searchButton');
-    const searchModal = document.getElementById('search_modal');
-    const searchInput = document.getElementById('movie_search');
-    const closeSearchBtn = document.getElementById('search_modal_close');
+    let searchButton = document.getElementById('searchButton');
+    const searchModal = document.getElementById('search_modal'); 
+    const searchInput = document.getElementById('movie_search'); 
+    let closeSearchBtn = document.getElementById('search_modal_close');
 
     if (searchButton && searchModal && searchInput && closeSearchBtn) {
-    	// Search button click
-    	searchButton.addEventListener('click', () => {
+        const newSearchButton = searchButton.cloneNode(true);
+        searchButton.parentNode.replaceChild(newSearchButton, searchButton);
+        newSearchButton.addEventListener('click', () => {
             searchModal.classList.remove('hidden');
             searchInput.focus();
-    	});
+        });
+        searchButton = newSearchButton; 
 
-    	// Close button click
-    	closeSearchBtn.addEventListener('click', closeSearchModal);
+        const newCloseSearchBtn = closeSearchBtn.cloneNode(true);
+        closeSearchBtn.parentNode.replaceChild(newCloseSearchBtn, closeSearchBtn);
+        newCloseSearchBtn.addEventListener('click', closeSearchModal);
+        closeSearchBtn = newCloseSearchBtn; 
 
-    	// Handle search input with debounce
     	let searchTimeout;
     	searchInput.addEventListener('input', () => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
             	const query = searchInput.value.trim();
-            	if (query.length >= 2) { // Only search if 2 or more characters
+            	if (query.length >= 2) { 
                     performSearch(query);
             	} else {
                     document.getElementById('search_results').innerHTML = '';
             	}
-            }, 300); // 300ms debounce
+            }, 300); 
         });
 
-        // Close on escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !searchModal.classList.contains('hidden')) {
                 closeSearchModal();
@@ -437,7 +528,7 @@ function setupEventListeners() {
 
 async function performSearch(query) {
     const searchResults = document.getElementById('search_results');
-    searchResults.className = '';  // Clear any existing classes
+    searchResults.className = '';  
     searchResults.innerHTML = '<div class="loading-indicator">Searching...</div>';
 
     try {
@@ -474,12 +565,10 @@ async function performSearch(query) {
             movieCard.className = 'movie-card';
             movieCard.dataset.movieId = movie.id;
 
-            // Create poster link
             const posterLink = document.createElement('a');
             posterLink.href = '#';
             posterLink.className = 'movie-poster-link';
 
-            // Add poster image
             const poster = document.createElement('img');
             if (movie.poster) {
                 poster.src = movie.poster;
@@ -492,14 +581,12 @@ async function performSearch(query) {
             }
             posterLink.appendChild(poster);
 
-            // Create and add title
             const title = document.createElement('p');
             title.textContent = movie.title;
             if (movie.year) {
                 title.textContent += ` (${movie.year})`;
             }
 
-            // Create watch button
             const watchButton = document.createElement('button');
             watchButton.className = 'request-button';
             watchButton.textContent = 'Watch';
@@ -507,7 +594,6 @@ async function performSearch(query) {
 	        showClientsForSelected(movie);
 	    });
 
-            // Add event listener to poster link
             posterLink.addEventListener('click', (e) => {
                 e.preventDefault();
 		currentMovie = {
@@ -520,7 +606,6 @@ async function performSearch(query) {
                 closeSearchModal();
             });
 
-            // Assemble movie card in the correct order
             movieCard.appendChild(posterLink);
             movieCard.appendChild(title);
             movieCard.appendChild(watchButton);
@@ -548,7 +633,7 @@ async function showClientsForSelected(selectedMovie) {
                 clientDiv.classList.add("client");
                 clientDiv.textContent = client.title;
                 clientDiv.onclick = function() {
-                    playSelectedMovie(client.id, selectedMovie.id);  // Pass the selected movie's ID
+                    playSelectedMovie(client.id, selectedMovie.id);  
                     closeClientPrompt();
                 };
                 listContainer.appendChild(clientDiv);
@@ -591,37 +676,49 @@ function setupFilterEventListeners() {
     if (filterButton && filterDropdown) {
         console.log('Found filter elements, attaching listeners');
 
-	const watchStatusSelect = document.getElementById("watchStatusSelect");
+        const applyFilterButton = document.getElementById("applyFilter");
+        const clearFilterButton = document.getElementById("clearFilter");
+        const genreSelect = document.getElementById('genreSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        const pgRatingSelect = document.getElementById('pgRatingSelect');
+        const watchStatusSelect = document.getElementById("watchStatusSelect");
+
+        if (applyFilterButton) applyFilterButton.addEventListener('click', applyFilter);
+        if (clearFilterButton) clearFilterButton.addEventListener('click', clearFilter);
+
+        if (genreSelect) genreSelect.addEventListener('change', updateFilteredMovieCount);
+        if (yearSelect) yearSelect.addEventListener('change', updateFilteredMovieCount);
+        if (pgRatingSelect) pgRatingSelect.addEventListener('change', updateFilteredMovieCount);
+
         if (watchStatusSelect) {
-            watchStatusSelect.addEventListener('change', async function() {
-                await loadFilterOptions();
+            watchStatusSelect.addEventListener('change', async function(event) { 
+                const newValue = event.target.value; 
+                console.log(`Watch status changed to: ${newValue}. Updating currentFilters and reloading options...`);
+                currentFilters.watchStatus = newValue;
+                await loadFilterOptions(); 
+                await updateFilteredMovieCount(); 
             });
         }
 
-        // Remove any existing listeners by cloning and replacing
         const newFilterButton = filterButton.cloneNode(true);
         filterButton.parentNode.replaceChild(newFilterButton, filterButton);
 
-        // Setup filter button click
         newFilterButton.addEventListener('click', function(event) {
             console.log('Filter button clicked');
             event.stopPropagation();
             filterDropdown.classList.toggle("show");
         });
 
-        // Setup document click to close dropdown
         document.addEventListener('click', function(event) {
             if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
                 filterDropdown.classList.remove("show");
             }
         });
 
-        // Prevent dropdown clicks from closing
         filterDropdown.addEventListener('click', function(event) {
             event.stopPropagation();
         });
 
-        // Setup apply filter button
         const applyFilterBtn = document.getElementById("applyFilter");
         if (applyFilterBtn) {
             applyFilterBtn.addEventListener('click', applyFilter);
@@ -629,7 +726,6 @@ function setupFilterEventListeners() {
             console.log('Apply filter button not found');
         }
 
-        // Setup clear filter button
         const clearFilterBtn = document.getElementById("clearFilter");
         if (clearFilterBtn) {
             clearFilterBtn.addEventListener('click', clearFilter);
@@ -648,13 +744,21 @@ function setupFilterEventListeners() {
 }
 
 async function applyFilter() {
-    currentFilters.genres = Array.from(document.getElementById("genreSelect").selectedOptions).map(option => option.value);
-    currentFilters.years = Array.from(document.getElementById("yearSelect").selectedOptions).map(option => option.value);
-    currentFilters.pgRatings = Array.from(document.getElementById("pgRatingSelect").selectedOptions).map(option => option.value);
-    currentFilters.watchStatus = document.getElementById("watchStatusSelect").value || 'unwatched';
+    const genreSelect = document.getElementById('genreSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const pgRatingSelect = document.getElementById('pgRatingSelect');
+    const watchStatusSelect = document.getElementById('watchStatusSelect');
 
-    await fetchFilteredMovies();
-    await loadFilterOptions();
+    if (genreSelect) currentFilters.genres = Array.from(genreSelect.selectedOptions).map(option => option.value).filter(Boolean);
+    if (yearSelect) currentFilters.years = Array.from(yearSelect.selectedOptions).map(option => option.value).filter(Boolean);
+    if (pgRatingSelect) currentFilters.pgRatings = Array.from(pgRatingSelect.selectedOptions).map(option => option.value).filter(Boolean);
+    if (watchStatusSelect) currentFilters.watchStatus = watchStatusSelect.value || 'unwatched';
+
+    console.log("Applying filters:", currentFilters); 
+
+    await fetchFilteredMovies(); 
+    const filterDropdown = document.getElementById("filterDropdown");
+    if (filterDropdown) filterDropdown.classList.remove("show");
 }
 
 async function fetchFilteredMovies() {
@@ -678,9 +782,15 @@ async function fetchFilteredMovies() {
 
         const data = await response.json();
         console.log("Filtered movie from service:", data.service);
-        currentMovie = data.movie;
-        await updateMovieDisplay(data.movie);
+        currentMovie = data.movie; 
+        updateMovieDisplay(currentMovie); 
         document.getElementById("filterDropdown").classList.remove("show");
+
+        if (currentMovie && currentMovie.tmdb_id) {
+            fetchMovieDetailsAsync(currentMovie.tmdb_id);
+            fetchTrailerAsync(currentMovie.title, currentMovie.year);
+        }
+
     } catch (error) {
         console.error("Error applying filter:", error);
         showErrorMessage(error.message);
@@ -688,22 +798,116 @@ async function fetchFilteredMovies() {
 }
 
 function clearFilter() {
-    document.getElementById("genreSelect").selectedIndex = -1;
-    document.getElementById("yearSelect").selectedIndex = -1;
-    document.getElementById("pgRatingSelect").selectedIndex = -1;
-    document.getElementById("watchStatusSelect").value = "unwatched";
+    const genreSelect = document.getElementById('genreSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const pgRatingSelect = document.getElementById('pgRatingSelect');
+    const watchStatusSelect = document.getElementById('watchStatusSelect');
+    const applyFilterButton = document.getElementById('applyFilter');
+
     currentFilters = {
         genres: [],
         years: [],
         pgRatings: [],
-	watchStatus: 'unwatched'
+        watchStatus: 'unwatched'
     };
-    traktFilterMode = 'unwatched';
-    plexFilterMode = 'all';
-    updateFilters();
-    hideMessage();
-    loadRandomMovie();
-    document.getElementById("filterDropdown").classList.remove("show");
+    if (genreSelect) Array.from(genreSelect.options).forEach(option => option.selected = option.value === "");
+    if (yearSelect) Array.from(yearSelect.options).forEach(option => option.selected = option.value === "");
+    if (pgRatingSelect) Array.from(pgRatingSelect.options).forEach(option => option.selected = option.value === "");
+    if (watchStatusSelect) watchStatusSelect.value = "unwatched";
+
+    updateFilteredMovieCount(); 
+    if (applyFilterButton) {
+        applyFilterButton.textContent = 'Apply Filter'; 
+    }
+
+
+    const filterDropdown = document.getElementById("filterDropdown");
+    if (filterDropdown) filterDropdown.classList.remove("show");
+
+    // Optionally, re-apply the default (unfiltered) view immediately
+    // applyFilter();
+    // loadRandomMovie();
+}
+
+async function updateFilteredMovieCount() {
+    const genreSelect = document.getElementById('genreSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const pgRatingSelect = document.getElementById('pgRatingSelect');
+    const watchStatusSelect = document.getElementById('watchStatusSelect');
+    const applyFilterButton = document.getElementById('applyFilter'); 
+
+    if (!genreSelect || !yearSelect || !pgRatingSelect || !watchStatusSelect || !applyFilterButton) {
+        console.warn("Required filter elements not found, skipping count update.");
+        if (applyFilterButton) applyFilterButton.textContent = 'Apply Filter'; 
+        return;
+    }
+
+    const filters = {
+        genres: Array.from(genreSelect.selectedOptions).map(opt => opt.value).filter(Boolean),
+        years: Array.from(yearSelect.selectedOptions).map(opt => opt.value).filter(Boolean),
+        pgRatings: Array.from(pgRatingSelect.selectedOptions).map(opt => opt.value).filter(Boolean),
+        watch_status: watchStatusSelect.value
+    };
+
+    const queryParams = new URLSearchParams();
+    filters.genres.forEach(g => queryParams.append('genres', g));
+    filters.years.forEach(y => queryParams.append('years', y));
+    filters.pgRatings.forEach(r => queryParams.append('pgRatings', r));
+    queryParams.append('watch_status', filters.watch_status);
+
+    const originalButtonText = applyFilterButton.textContent.replace(/\s*\((?:\d+|\.\.\.|Error)\)$/, ''); 
+
+    try {
+        applyFilterButton.textContent = `${originalButtonText} (...)`; 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); 
+
+        const response = await fetch(`/filtered_movie_count?${queryParams.toString()}`, {
+            signal: controller.signal 
+        });
+
+        clearTimeout(timeoutId); 
+        if (!response.ok) {
+            let errorMsg = `HTTP error! status: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.error) errorMsg = errorData.error;
+            } catch (jsonError) { /* Ignore */ }
+            throw new Error(errorMsg);
+        }
+        const data = await response.json();
+        applyFilterButton.textContent = `${originalButtonText} (${data.count})`;
+    } catch (error) {
+        console.error("Error fetching filtered movie count:", error);
+        applyFilterButton.textContent = `${originalButtonText} (Error)`; 
+    }
+}
+function restoreFilterSelections() {
+    const genreSelect = document.getElementById('genreSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const pgRatingSelect = document.getElementById('pgRatingSelect');
+    const watchStatusSelect = document.getElementById('watchStatusSelect');
+
+    console.log("Restoring filter selections from:", currentFilters);
+
+    if (genreSelect && currentFilters.genres) {
+        Array.from(genreSelect.options).forEach(option => {
+            option.selected = currentFilters.genres.includes(option.value);
+        });
+    }
+    if (yearSelect && currentFilters.years) {
+        Array.from(yearSelect.options).forEach(option => {
+            option.selected = currentFilters.years.includes(option.value);
+        });
+    }
+    if (pgRatingSelect && currentFilters.pgRatings) {
+        Array.from(pgRatingSelect.options).forEach(option => {
+            option.selected = currentFilters.pgRatings.includes(option.value);
+        });
+    }
+    if (watchStatusSelect && currentFilters.watchStatus) {
+        watchStatusSelect.value = currentFilters.watchStatus;
+    }
 }
 
 async function loadNextMovie() {
@@ -730,8 +934,14 @@ async function loadNextMovie() {
         }
         const data = await response.json();
         console.log("Loaded next movie from service:", data.service);
-        currentMovie = data.movie;
-        updateMovieDisplay(data.movie);
+        currentMovie = data.movie; 
+        updateMovieDisplay(currentMovie); 
+
+        if (currentMovie && currentMovie.tmdb_id) {
+            fetchMovieDetailsAsync(currentMovie.tmdb_id);
+            fetchTrailerAsync(currentMovie.title, currentMovie.year);
+        }
+
     } catch (error) {
         console.error("Error fetching next movie:", error);
         showErrorMessage(error.message);
@@ -792,6 +1002,8 @@ function updateMovieDisplay(movieData) {
         "description": document.getElementById("description"),
         "poster_img": document.getElementById("poster_img"),
         "img_background": document.getElementById("img_background"),
+        "movie_logo_img": document.getElementById("movie-logo-img"), 
+        "collectionButton": document.getElementById("collectionButton") 
     };
 
     if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
@@ -807,23 +1019,37 @@ function updateMovieDisplay(movieData) {
             continue;
         }
 
+        const setPlaceholder = (el, text = "Loading...") => {
+            if (el) {
+                if (key === "tmdb_link" || key === "trakt_link" || key === "imdb_link" || key === "trailer_link" || key === "movie_logo_img" || key === "collectionButton") {
+                    el.style.display = 'none';
+                } else {
+                    el.innerHTML = `<span class="placeholder-text">${text}</span>`;
+                }
+            }
+        };
+
         switch (key) {
             case "title":
-                element.textContent = movieData.title;
+                element.textContent = movieData.title || 'Loading...';
                 break;
 
             case "year_duration":
-                let yearDurationText = `${movieData.year} | ${movieData.duration_hours}h ${movieData.duration_minutes}m`;
-                if (movieData.contentRating) {
-                    yearDurationText += ` | ${movieData.contentRating}`;
+                if (movieData.year && movieData.duration_hours !== undefined) {
+                    let yearDurationText = `${movieData.year} | ${movieData.duration_hours}h ${movieData.duration_minutes}m`;
+                    if (movieData.contentRating) {
+                        yearDurationText += ` | ${movieData.contentRating}`;
+                    }
+                    element.textContent = yearDurationText;
+                } else {
+                    setPlaceholder(element);
                 }
-                element.textContent = yearDurationText;
                 break;
 
-	    case "directors":
-    		if (movieData.directors_enriched && movieData.directors_enriched.length > 0) {
-        	    const mainDirectors = movieData.directors_enriched.slice(0, 3);
-        	    const remainingCount = movieData.directors_enriched.length - 3;
+            case "directors":
+                if (movieData.directors_enriched && movieData.directors_enriched.length > 0) {
+                    const mainDirectors = movieData.directors_enriched.slice(0, 3);
+                    const remainingCount = movieData.directors_enriched.length - 3;
 
         	    const directorLinks = mainDirectors.map(director => {
             		if (window.HOMEPAGE_MODE) {
@@ -850,15 +1076,17 @@ function updateMovieDisplay(movieData) {
                 	    });
             		}
        		    }
-    		} else {
-        	    element.textContent = 'Directors: Not available';
-    	 	}
-    	    break;
+                } else if (movieData.tmdb_id) { 
+                    setPlaceholder(element, 'Directing: Loading...');
+                } else {
+                    element.textContent = 'Directing: Not available';
+                }
+                break;
 
-	    case "writers":
-    		if (movieData.writers_enriched && movieData.writers_enriched.length > 0) {
-        	    const mainWriters = movieData.writers_enriched.slice(0, 3);
-        	    const remainingCount = movieData.writers_enriched.length - 3;
+            case "writers":
+                if (movieData.writers_enriched && movieData.writers_enriched.length > 0) {
+                    const mainWriters = movieData.writers_enriched.slice(0, 3);
+                    const remainingCount = movieData.writers_enriched.length - 3;
 
         	    const writerLinks = mainWriters.map(writer => {
             	    	if (window.HOMEPAGE_MODE) {
@@ -885,14 +1113,15 @@ function updateMovieDisplay(movieData) {
                 	    });
             		}
         	    }
-    	     } else {
-        	element.textContent = 'Writers: Not available';
-    	    }
-    	    break;
+                } else if (movieData.tmdb_id) { 
+                     setPlaceholder(element, 'Writing: Loading...');
+                } else {
+                    element.textContent = 'Writing: Not available';
+                }
+                break;
 
             case "actors":
                 if (movieData.actors_enriched && movieData.actors_enriched.length > 0) {
-                    console.log('Processing actors for', movieData.title);
                     const mainActors = movieData.actors_enriched.slice(0, 3);
                     const remainingCount = movieData.actors_enriched.length - 3;
 
@@ -926,67 +1155,298 @@ function updateMovieDisplay(movieData) {
                             });
                         }
                     }
+                } else if (movieData.tmdb_id) { 
+                    setPlaceholder(element, 'Cast: Loading...');
                 } else {
-                    element.textContent = 'Cast: No cast information available';
+                    element.textContent = 'Cast: Not available';
                 }
                 break;
 
             case "genres":
-                element.textContent = `Genres: ${movieData.genres.join(", ")}`;
+                 if (movieData.genres && movieData.genres.length > 0) {
+                    element.textContent = `Genres: ${movieData.genres.join(", ")}`;
+                 } else {
+                     setPlaceholder(element, 'Genres: Loading...');
+                 }
                 break;
 
-	    case "description":
-    		element.textContent = movieData.description;
-    		requestAnimationFrame(() => {
-        	    setupDescriptionExpander();
-    		});
-    	    break;
+            case "description":
+                element.textContent = movieData.description || 'Loading...';
+                requestAnimationFrame(() => {
+                    setupDescriptionExpander();
+                });
+                break;
 
             case "poster_img":
-                element.src = movieData.poster;
+                element.src = movieData.poster || 'static/images/default_poster.png'; 
                 break;
 
             case "img_background":
-                element.style.backgroundImage = `url(${movieData.background})`;
+                element.style.backgroundImage = movieData.background ? `url(${movieData.background})` : 'none';
                 break;
-        }
-    }
 
-    if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
-        if (elements["tmdb_link"]) elements["tmdb_link"].href = movieData.tmdb_url;
-        if (elements["trakt_link"]) elements["trakt_link"].href = movieData.trakt_url;
-        if (elements["imdb_link"]) elements["imdb_link"].href = movieData.imdb_url;
-
-        if (elements["trailer_link"]) {
-            if (movieData.trailer_url) {
-                elements["trailer_link"].style.display = "block";
-                elements["trailer_link"].onclick = function() {
-                    document.getElementById("trailer_iframe").src = movieData.trailer_url;
-                    document.getElementById("trailer_popup").classList.remove("hidden");
-                };
-            } else {
-                elements["trailer_link"].style.display = "none";
-            }
+            case "tmdb_link":
+            case "trakt_link":
+            case "imdb_link":
+            case "trailer_link":
+            case "movie_logo_img":
+                 setPlaceholder(element);
+                 break;
+            case "collectionButton":
+                 if (element) {
+                     handleCollectionWarning(movieData);
+                 }
+                 break;
         }
     }
 
     document.getElementById("section").classList.remove("hidden");
-    setupDescriptionExpander();
+    setupDescriptionExpander(); 
     window.dispatchEvent(new Event('resize'));
 }
 
-function handleCollectionWarning(movieData) {
-    // Get the collection button
-    const collectionButton = document.getElementById('collectionButton');
+async function fetchMovieDetailsAsync(tmdbId) {
+    console.log(`Async fetch: Fetching details for TMDb ID: ${tmdbId}`);
+    try {
+        const response = await fetch(`/api/movie_details/${tmdbId}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const details = await response.json();
+        console.log(`Async fetch: Received details for ${details.title}`);
+        handleAsyncMovieDetails(details);
+    } catch (error) {
+        console.error(`Async fetch: Error fetching movie details for ${tmdbId}:`, error);
+        handleAsyncMovieDetails(null, error); 
+    }
+}
 
-    // Reset any existing collection warnings
+async function fetchTrailerAsync(title, year) {
+    console.log(`Async fetch: Fetching trailer for ${title} (${year})`);
+    try {
+        const response = await fetch(`/api/youtube_trailer?title=${encodeURIComponent(title)}&year=${year}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const trailerUrl = await response.text();
+        console.log(`Async fetch: Received trailer URL: ${trailerUrl}`);
+        handleAsyncTrailer(trailerUrl);
+    } catch (error) {
+        console.error(`Async fetch: Error fetching trailer for ${title}:`, error);
+        handleAsyncTrailer(null, error); 
+    }
+}
+
+function handleAsyncMovieDetails(details, error = null) {
+    if (error) {
+        console.error("Failed to load movie details:", error);
+        document.getElementById("directors").textContent = 'Directing: Error';
+        document.getElementById("writers").textContent = 'Writing: Error';
+        document.getElementById("actors").textContent = 'Cast: Error';
+        document.getElementById("tmdb_link")?.style.setProperty('display', 'none', 'important');
+        document.getElementById("trakt_link")?.style.setProperty('display', 'none', 'important');
+        document.getElementById("imdb_link")?.style.setProperty('display', 'none', 'important');
+        document.getElementById("movie-logo-img")?.style.setProperty('display', 'none', 'important');
+        document.getElementById("collectionButton")?.style.setProperty('display', 'none', 'important');
+        return;
+    }
+
+    if (!details) return; 
+
+    currentMovie = { ...currentMovie, ...details };
+
+    const directorsEl = document.getElementById("directors");
+    const writersEl = document.getElementById("writers");
+    const actorsEl = document.getElementById("actors");
+    const tmdbLink = document.getElementById("tmdb_link");
+    const traktLink = document.getElementById("trakt_link");
+    const imdbLink = document.getElementById("imdb_link");
+    const logoImg = document.getElementById("movie-logo-img");
+    const collectionButton = document.getElementById("collectionButton");
+
+    if (directorsEl) {
+        if (details.credits?.crew) {
+            const directors_enriched = details.credits.crew
+                .filter(p => p.department === 'Directing')
+                .map(p => ({ name: p.name, id: p.id, type: 'director', job: p.job, jobs: [p.job], is_primary: p.job === 'Director' }));
+
+            if (directors_enriched.length > 0) {
+                const mainDirectors = directors_enriched.slice(0, 3);
+                const remainingCount = directors_enriched.length - 3;
+
+                const directorLinks = mainDirectors.map(director => {
+                    if (window.HOMEPAGE_MODE) {
+                        return director.name;
+                    }
+                    return `<span class="clickable-person" data-id="${director.id || ''}" data-type="director">${director.name}</span>`;
+                }).join(', ');
+
+                directorsEl.innerHTML = `Directing: ${directorLinks}${
+                    remainingCount > 0 ?
+                    window.HOMEPAGE_MODE ?
+                    '' :
+                    ` <span class="more-directors">and ${remainingCount} more</span>` :
+                    ''
+                }`;
+
+                if (!window.HOMEPAGE_MODE && remainingCount > 0) {
+                    const moreDirectors = directorsEl.querySelector('.more-directors');
+                    if (moreDirectors) {
+                        moreDirectors.style.cursor = 'pointer';
+                        moreDirectors.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            showAllDirectors(directors_enriched);
+                        });
+                    }
+                }
+            } else {
+                 directorsEl.textContent = 'Directing: Not available';
+            }
+        } else {
+            directorsEl.textContent = 'Directing: Not available';
+        }
+    }
+
+    if (writersEl) {
+        if (details.credits?.crew) {
+            const writers_enriched = details.credits.crew
+                .filter(p => p.department === 'Writing')
+                .map(p => ({ name: p.name, id: p.id, type: 'writer', job: p.job, jobs: [p.job], is_primary: ['Writer', 'Screenplay'].includes(p.job) }));
+
+            if (writers_enriched.length > 0) {
+                const mainWriters = writers_enriched.slice(0, 3);
+                const remainingCount = writers_enriched.length - 3;
+
+                const writerLinks = mainWriters.map(writer => {
+                    if (window.HOMEPAGE_MODE) {
+                        return writer.name;
+                    }
+                    return `<span class="clickable-person" data-id="${writer.id || ''}" data-type="writer">${writer.name}</span>`;
+                }).join(', ');
+
+                writersEl.innerHTML = `Writing: ${writerLinks}${
+                    remainingCount > 0 ?
+                    window.HOMEPAGE_MODE ?
+                    '' :
+                    ` <span class="more-writers">and ${remainingCount} more</span>` :
+                    ''
+                }`;
+
+                if (!window.HOMEPAGE_MODE && remainingCount > 0) {
+                    const moreWriters = writersEl.querySelector('.more-writers');
+                    if (moreWriters) {
+                        moreWriters.style.cursor = 'pointer';
+                        moreWriters.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            showAllWriters(writers_enriched); 
+                        });
+                    }
+                }
+            } else {
+                 writersEl.textContent = 'Writing: Not available';
+            }
+        } else {
+            writersEl.textContent = 'Writing: Not available';
+        }
+    }
+
+    if (actorsEl) {
+        if (details.credits?.cast) {
+            const actors_enriched = details.credits.cast.map(a => ({ name: a.name, id: a.id, type: 'actor', character: a.character }));
+
+            if (actors_enriched.length > 0) {
+                const mainActors = actors_enriched.slice(0, 3);
+                const remainingCount = actors_enriched.length - 3;
+
+                const actorLinks = mainActors.map(actor => {
+                    if (window.HOMEPAGE_MODE) {
+                        return actor.name;
+                    }
+                    return `<span class="clickable-person" data-id="${actor.id || ''}" data-type="actor">${actor.name}</span>`;
+                }).join(', ');
+
+                actorsEl.innerHTML = `Cast: ${actorLinks}${
+                    remainingCount > 0 ?
+                    window.HOMEPAGE_MODE ?
+                    '' :
+                    ` <span class="more-actors">and ${remainingCount} more</span>` :
+                    ''
+                }`;
+
+                if (!window.HOMEPAGE_MODE && remainingCount > 0) {
+                    const moreActors = actorsEl.querySelector('.more-actors');
+                    if (moreActors) {
+                        moreActors.style.cursor = 'pointer';
+                        moreActors.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            showAllActors(actors_enriched); 
+                        });
+                    }
+                }
+            } else {
+                 actorsEl.textContent = 'Cast: Not available';
+            }
+        } else {
+            actorsEl.textContent = 'Cast: Not available';
+        }
+    }
+
+
+    if (window.USE_LINKS) {
+        if (tmdbLink && details.tmdb_url) { tmdbLink.href = details.tmdb_url; tmdbLink.style.display = 'inline-block'; } else if (tmdbLink) { tmdbLink.style.display = 'none'; }
+        if (traktLink && details.trakt_url) { traktLink.href = details.trakt_url; traktLink.style.display = 'inline-block'; } else if (traktLink) { traktLink.style.display = 'none'; }
+        if (imdbLink && details.imdb_url) { imdbLink.href = details.imdb_url; imdbLink.style.display = 'inline-block'; } else if (imdbLink) { imdbLink.style.display = 'none'; }
+    }
+
+    if (logoImg && window.ENABLE_MOVIE_LOGOS) {
+        if (details.logo_url) {
+            logoImg.src = details.logo_url;
+            logoImg.style.display = 'block';
+        } else {
+            logoImg.style.display = 'none';
+        }
+    } else if (logoImg) {
+        logoImg.style.display = 'none';
+    }
+
+    if (details.collection_info) {
+        handleCollectionWarning(details); 
+    } else if (collectionButton) {
+         collectionButton.classList.add('hidden');
+    }
+}
+
+function handleAsyncTrailer(trailerUrl, error = null) {
+     const trailerLink = document.getElementById("trailer_link");
+     if (!trailerLink) return;
+
+     if (error || !trailerUrl || trailerUrl === "Trailer not found on YouTube.") {
+         console.log("Async fetch: Trailer not found or error occurred.");
+         trailerLink.style.display = "none";
+         trailerLink.onclick = null;
+     } else {
+         trailerLink.style.display = "block"; 
+         trailerLink.onclick = function() {
+             document.getElementById("trailer_iframe").src = trailerUrl;
+             document.getElementById("trailer_popup").classList.remove("hidden");
+         };
+     }
+}
+
+function handleCollectionWarning(movieData) { 
+    const collectionButton = document.getElementById('collectionButton');
+    if (!collectionButton) return; 
+
+    console.log("handleCollectionWarning called. Movie Data:", movieData);
+    console.log("Collection Info received:", movieData.collection_info);
+
     const existingWarning = document.querySelector('.collection-warning');
     if (existingWarning) {
         existingWarning.remove();
     }
 
-    // If no collection info, hide button and exit
     if (!movieData.collection_info || !movieData.collection_info.is_in_collection) {
+	console.log("Hiding button: No collection info or not in collection.");
         collectionButton.classList.add('hidden');
         return;
     }
@@ -994,28 +1454,29 @@ function handleCollectionWarning(movieData) {
     const previousMovies = movieData.collection_info.previous_movies || [];
     const otherMovies = movieData.collection_info.other_movies || [];
 
-    // Filter for unwatched previous movies
     const unwatchedMovies = previousMovies.filter(movie => !movie.is_watched);
 
-    // Filter for other movies not in library
     const requestableOtherMovies = otherMovies.filter(movie => !movie.in_library);
 
-    // Show button if there are ANY unwatched previous movies OR requestable other movies
+    console.log("Previous Movies:", previousMovies);
+    console.log("Other Movies:", otherMovies);
+    console.log("Unwatched Previous Count:", unwatchedMovies.length);
+    console.log("Requestable Other Count:", requestableOtherMovies.length);
+
     if (unwatchedMovies.length === 0 && requestableOtherMovies.length === 0) {
+	console.log("Hiding button: Conditions not met (unwatched=0 && requestable=0).");
         collectionButton.classList.add('hidden');
         return;
     }
 
-    // Show the collection button
+    console.log("Showing collection button.");
     collectionButton.classList.remove('hidden');
 
-    // Update badge count to show total number of interesting movies
     const badge = collectionButton.querySelector('.badge');
     if (badge) {
         badge.textContent = unwatchedMovies.length + requestableOtherMovies.length;
     }
 
-    // Set collection data and click handler
     collectionButton.dataset.collectionName = movieData.collection_info.collection_name;
     collectionButton.dataset.collectionId = movieData.collection_info.collection_id;
     collectionButton.onclick = function() {
@@ -1027,11 +1488,9 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     const modalContainer = document.getElementById('collection_modal');
     const infoContainer = document.getElementById('collection_info_container');
 
-    // Check if a request service is available
     const requestServiceStatus = await checkRequestServiceAvailability();
     const isRequestServiceAvailable = requestServiceStatus.available;
 
-    // Get request service name if available
     let requestServiceName = "";
     if (isRequestServiceAvailable) {
         switch(requestServiceStatus.service) {
@@ -1049,13 +1508,11 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         }
     }
 
-    // Count movies that need requesting (not in library and not already requested)
     const moviesToRequest = [
         ...unwatchedMovies.filter(movie => !movie.in_library && !movie.is_requested),
         ...(otherMovies ? otherMovies.filter(movie => !movie.in_library && !movie.is_requested) : [])
     ];
 
-    // Create the modal content
     infoContainer.innerHTML = `
         <div class="collection-info-header">
             <h3>Part of ${collectionInfo.collection_name}</h3>
@@ -1124,10 +1581,8 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         </div>
     `;
 
-    // Show the modal
     modalContainer.classList.remove('hidden');
 
-    // Add event listeners for the buttons
     const dismissButton = document.getElementById('dismiss_collection');
     if (dismissButton) {
         dismissButton.addEventListener('click', () => {
@@ -1138,7 +1593,6 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     const watchButton = document.getElementById('watch_collection_movie');
     if (watchButton) {
         watchButton.addEventListener('click', () => {
-            // Get the first unwatched movie that's in the library
             const movieToWatch = unwatchedMovies.find(movie => movie.in_library);
             if (movieToWatch && typeof showClientsForPoster === 'function') {
                 showClientsForPoster(movieToWatch.id);
@@ -1147,7 +1601,6 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         });
     }
 
-    // Only add request button listener if request service is available
     const requestButton = document.getElementById('request_collection_movies');
     if (requestButton && isRequestServiceAvailable) {
         requestButton.addEventListener('click', () => {
@@ -1158,7 +1611,6 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         });
     }
 
-    // Close button event listener
     document.getElementById('collection_modal_close').addEventListener('click', () => {
         modalContainer.classList.add('hidden');
     });
@@ -1168,11 +1620,9 @@ async function requestPreviousMovies(movies) {
     if (!movies || movies.length === 0) return;
 
     try {
-        // Show confirmation dialog if there are multiple movies
         if (movies.length > 1) {
-            // Create styled confirmation dialog instead of using browser confirm()
             const confirmDialog = document.createElement('div');
-            confirmDialog.className = 'trakt-confirm-dialog'; // Reuse existing dialog style
+            confirmDialog.className = 'trakt-confirm-dialog'; 
             confirmDialog.innerHTML = `
                 <div class="dialog-content">
                     <h3>Request Multiple Movies</h3>
@@ -1185,38 +1635,30 @@ async function requestPreviousMovies(movies) {
             `;
             document.body.appendChild(confirmDialog);
 
-            // Create a promise that will be resolved when the user makes a choice
             return new Promise((resolve) => {
-                // Handle cancel button
                 const cancelButton = confirmDialog.querySelector('.cancel-button');
                 cancelButton.addEventListener('click', () => {
                     confirmDialog.remove();
                     resolve(false);
                 });
 
-                // Handle submit/confirm button
                 const submitButton = confirmDialog.querySelector('.submit-button');
                 submitButton.addEventListener('click', async () => {
                     confirmDialog.remove();
 
-                    // Now continue with the request process
-                    // No loading overlay, just process the requests
-
                     let successCount = 0;
                     for (const movie of movies) {
                         try {
-                            await requestMovie(movie.id, false); // Don't show individual notifications
+                            await requestMovie(movie.id, false); 
                             successCount++;
                         } catch (error) {
                             console.error(`Error requesting movie ${movie.title}:`, error);
                         }
                     }
 
-                    // Show a single summary notification
                     if (successCount > 0) {
                         showToast(`Successfully requested ${successCount} movie${successCount > 1 ? 's' : ''}!`, 'success');
 
-                        // Remove or update the collection warning
                         const existingWarning = document.querySelector('.collection-warning');
                         if (existingWarning) {
                             existingWarning.remove();
@@ -1228,7 +1670,6 @@ async function requestPreviousMovies(movies) {
                     resolve(true);
                 });
 
-                // Handle click outside dialog to cancel
                 confirmDialog.addEventListener('click', (e) => {
                     if (e.target === confirmDialog) {
                         confirmDialog.remove();
@@ -1237,17 +1678,14 @@ async function requestPreviousMovies(movies) {
                 });
             });
         } else {
-            // Single movie, no confirmation needed
             try {
-                await requestMovie(movies[0].id, true); // Use the regular notification for single movie
+                await requestMovie(movies[0].id, true); 
 
-                // Remove or update the collection warning
                 const existingWarning = document.querySelector('.collection-warning');
                 if (existingWarning) {
                     existingWarning.remove();
                 }
             } catch (error) {
-                // Error handling already done in requestMovie function
                 console.error(`Error requesting movie: ${error.message}`);
             }
         }
@@ -1261,14 +1699,13 @@ async function checkRequestServiceAvailability() {
         const response = await fetch('/api/overseerr/status');
         const data = await response.json();
 
-        // If Overseerr is selected but we're not using Plex, don't allow it
         if (data.service === 'overseerr' && currentService !== 'plex') {
             return { available: false, service: null };
         }
 
         return {
             available: data.available,
-            service: data.service  // Will be either 'overseerr', 'jellyseerr', or 'ombi'
+            service: data.service  
         };
     } catch (error) {
         console.error('Error checking request service status:', error);
@@ -1278,7 +1715,6 @@ async function checkRequestServiceAvailability() {
 
 async function enrichPersonData(personName, personType) {
     try {
-        // Try to get TMDb ID for the person
         const response = await fetch(`/api/search_person?name=${encodeURIComponent(personName)}`);
         if (response.ok) {
             const person = await response.json();
@@ -1310,7 +1746,6 @@ async function handlePersonClick(e) {
     const name = e.target.textContent;
     const type = e.target.getAttribute('data-type') || 'actor';
 
-    // Only do enrichment if we don't already have an ID
     if (!e.target.getAttribute('data-id')) {
         const enrichedPerson = await enrichPersonData(name, type);
         if (enrichedPerson.id) {
@@ -1665,10 +2100,8 @@ class ExpandableText {
     	this.element.removeEventListener('click', this.boundToggle);
     	this.element.classList.remove('truncated', 'expanded');
 
-    	// Check for mobile and truncation setting
     	const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
     	if (isMobileOrPWA) {
-            // On mobile, respect the MOBILE_TRUNCATION setting
             if (window.MOBILE_TRUNCATION) {
             	this.element.style.webkitLineClamp = '1';
             	this.element.style.display = '-webkit-box';
@@ -1677,9 +2110,8 @@ class ExpandableText {
             	this.element.style.display = 'block';
             }
     	} else {
-            // On desktop, always use truncation
-            this.element.style.webkitLineClamp = '1';
-            this.element.style.display = '-webkit-box';
+    	       this.element.style.webkitLineClamp = '2'; 
+    	       this.element.style.display = '-webkit-box';
     	}
 
     	this.element.style.maxHeight = '';
@@ -1695,7 +2127,6 @@ class ExpandableText {
 
             const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
 
-            // If on mobile and truncation is disabled, don't truncate
             if (isMobileOrPWA && !window.MOBILE_TRUNCATION) {
             	this.state.truncated = false;
             	this.element.classList.remove('truncated');
@@ -1724,7 +2155,6 @@ class ExpandableText {
     	requestAnimationFrame(() => {
             void this.element.offsetHeight;
 
-            // Add check for mobile and truncation setting
             const isMobileOrPWA = window.matchMedia('(max-width: 768px)').matches || window.navigator.standalone;
             const shouldTruncate = !isMobileOrPWA || window.MOBILE_TRUNCATION;
 
@@ -1759,7 +2189,7 @@ class ExpandableText {
             this.element.style.maxHeight = 'none';
         } else {
             this.element.classList.remove('expanded');
-            this.element.style.webkitLineClamp = '1';
+            this.element.style.webkitLineClamp = '2'; 
             this.element.style.maxHeight = '';
         }
     }
@@ -1814,10 +2244,8 @@ async function renderMovies(movies) {
             moviesContainer.appendChild(card);
         });
 
-        // Update counts AFTER the movies are rendered
         await updateFilterCounts();
 
-        // Then apply filters
         applyAllFilters();
     }
 }
@@ -1880,7 +2308,6 @@ async function openPersonDetailsOverlay(personId, personName) {
         overlay.classList.remove('hidden');
         overlay.classList.add('visible');
 
-        // If movies overlay was visible, keep it visible
         if (wasMoviesOverlayVisible) {
             moviesOverlay.classList.remove('hidden');
         }
@@ -1917,7 +2344,6 @@ async function createMovieCard(movie) {
         }
     });
 
-    // Check if movie is in library and add badge if it is
     let isInLibrary = false;
     if (currentService === 'plex') {
         isInLibrary = await isMovieInPlex(movie.id);
@@ -1934,7 +2360,6 @@ async function createMovieCard(movie) {
         posterLink.appendChild(badge);
     }
 
-    // Add poster image or placeholder
     if (movie.poster_path) {
         const poster = document.createElement('img');
         poster.src = `https://image.tmdb.org/t/p/w200${movie.poster_path}`;
@@ -1952,11 +2377,9 @@ async function createMovieCard(movie) {
         posterLink.appendChild(poster);
     }
 
-    // Create info container for title and character/job 
     const infoContainer = document.createElement('div');
     infoContainer.className = 'movie-info';
 
-    // Add movie title
     const movieTitle = document.createElement('p');
     movieTitle.className = 'movie-title';
     movieTitle.textContent = movie.title;
@@ -1965,7 +2388,6 @@ async function createMovieCard(movie) {
     const characterInfo = document.createElement('p');
     characterInfo.className = 'movie-character';
 
-    // Add character or job info if available
     if (movie.character) {
     	let characterText = movie.character;
     	characterText = characterText.replace(/\n/g, ' ').trim();
@@ -1975,13 +2397,12 @@ async function createMovieCard(movie) {
     	jobText = jobText.replace(/\n/g, ' ').trim();
     	characterInfo.textContent = jobText;
     } else {
-    	characterInfo.innerHTML = '&nbsp;'; // Non-breaking space
-    	characterInfo.style.visibility = 'hidden'; // Hide but keep the space
+    	characterInfo.innerHTML = '&nbsp;'; 
+    	characterInfo.style.visibility = 'hidden'; 
     }
 
     infoContainer.appendChild(characterInfo);
 
-    // Create request/watch button
     const requestButton = document.createElement('button');
     requestButton.classList.add('request-button');
     requestButton.dataset.movieId = movie.id;
@@ -2001,7 +2422,6 @@ async function createMovieCard(movie) {
                 requestButton.classList.add('requested');
                 requestButton.disabled = true;
             } else {
-                // Use the proper service name
                 let serviceName = '';
                 switch(serviceStatus.service) {
                     case 'overseerr':
@@ -2028,7 +2448,6 @@ async function createMovieCard(movie) {
         }
     }
 
-    // Assemble the movie card
     movieCard.appendChild(posterLink);
     movieCard.appendChild(infoContainer);
     movieCard.appendChild(requestButton);
@@ -2055,7 +2474,6 @@ async function openMoviesOverlay(personId, personType, personName) {
             })));
         }
 
-        // Clear the existing overlay content first
         const overlayContent = document.getElementById('movies_overlay_content');
         overlayContent.innerHTML = `
             <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
@@ -2083,19 +2501,16 @@ async function openMoviesOverlay(personId, personType, personName) {
             <div id="movies_container"></div>
         `;
 
-        // Set up the close button event listener
         const closeButton = document.getElementById('movies_overlay_close');
         if (closeButton) {
             closeButton.addEventListener('click', closeMoviesOverlay);
         }
 
-        // Set up sort controls and filters
         const sortAndFilter = document.getElementById('sort_and_filter');
         sortAndFilter.appendChild(createSortControls());
         await setupFilters();
         setupMovieSearch();
 
-        // Filter and render movies
         const moviesContainer = document.getElementById('movies_container');
 	const movies = Array.from(
     	    personData.credits[personType === 'actor' ? 'cast' : 'crew']
@@ -2123,7 +2538,6 @@ async function openMoviesOverlay(personId, personType, personName) {
         await renderMovies(movies);
         sortMovies();
 
-        // Show the overlay
         document.getElementById('movies_overlay').classList.remove("hidden");
     } catch (error) {
         console.error('Error in openMoviesOverlay:', error);
@@ -2174,7 +2588,6 @@ async function openMovieDataOverlay(movieId) {
                 <a href="${movieData.imdb_url}" target="_blank">IMDb</a>
             </div>`;
 
-        // Create action button based on movie status
         if (isInPlex) {
             const watchButton = document.createElement('button');
             watchButton.id = 'watch_movie_button';
@@ -2192,7 +2605,7 @@ async function openMovieDataOverlay(movieId) {
                 requestButton.classList.add('requested');
 	    } else {
                 requestButton.id = 'request_movie_button';
-                requestButton.dataset.movieId = movieId;  // Add data attribute
+                requestButton.dataset.movieId = movieId;  
 		let serviceName;
                 switch(requestServiceStatus.service) {
                     case 'overseerr':
@@ -2228,14 +2641,12 @@ async function openMovieDataOverlay(movieId) {
             overlayContent.appendChild(disabledButton);
         }
 
-        // Add trailer container
         const trailerContainer = document.createElement('div');
         trailerContainer.id = 'trailer_container';
         overlayContent.appendChild(trailerContainer);
 
         document.getElementById('movie_data_overlay_close').addEventListener('click', closeMovieDataOverlay);
 
-        // Load and display the trailer
         const trailerUrl = await getYoutubeTrailer(movieData.title, movieData.year);
         if (trailerUrl !== "Trailer not found on YouTube.") {
             trailerContainer.innerHTML = `<iframe width="560" height="315" src="${trailerUrl}" frameborder="0" allowfullscreen></iframe>`;
@@ -2281,35 +2692,22 @@ function closeMoviesOverlay() {
 
 async function requestMovie(movieId, showNotification = true) {
     try {
-        // Find all request buttons for this movie
         const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
         console.log(`Found ${requestButtons.length} request buttons for movie ${movieId}`);
 
-        // Update buttons to requesting state
         requestButtons.forEach(button => {
             button.disabled = true;
             button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Requesting...';
         });
 
-        const tokenResponse = await fetch('/api/get_overseerr_csrf', {
-            method: 'GET',
-            credentials: 'include'
-        });
-
-        if (!tokenResponse.ok) {
-            throw new Error('Failed to get CSRF token');
-        }
-
-        const { token } = await tokenResponse.json();
-
         const requestResponse = await fetch('/api/request_movie', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': token
+                'X-CSRFToken': getCsrfToken() 
             },
             body: JSON.stringify({ movie_id: movieId }),
-            credentials: 'include'
+            credentials: 'include' 
         });
 
         if (!requestResponse.ok) {
@@ -2317,14 +2715,12 @@ async function requestMovie(movieId, showNotification = true) {
             throw new Error(errorData.error || "Failed to request movie.");
         }
 
-        // Update all instances of the request button for this movie
         requestButtons.forEach(button => {
             button.innerHTML = 'Requested';
             button.classList.add('requested');
             button.disabled = true;
         });
 
-        // Only show toast notification if specifically requested
         if (showNotification) {
             showToast('Movie requested successfully!', 'success');
         }
@@ -2333,12 +2729,10 @@ async function requestMovie(movieId, showNotification = true) {
     } catch (error) {
         console.error("Error requesting movie:", error);
 
-        // Only show toast notification if specifically requested
         if (showNotification) {
             showToast(error.message, 'error');
         }
 
-        // Restore button states on error
         const requestButtons = document.querySelectorAll(`.request-button[data-movie-id="${movieId}"]`);
         requestButtons.forEach(button => {
             button.disabled = false;
@@ -2362,12 +2756,12 @@ async function showClients() {
         if (clients.length === 0) {
 	        listContainer.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
         } else {
-            clients.forEach(client => {
+            clients.forEach((client, index) => { 
                 const clientDiv = document.createElement("div");
                 clientDiv.classList.add("client");
-                clientDiv.textContent = client.title;
+                clientDiv.textContent = client.title; 
                 clientDiv.onclick = function() {
-                    playMovie(client.id);  // Use playMovie directly
+                    playMovie(client.id);
                     closeClientPrompt();
                 };
                 listContainer.appendChild(clientDiv);
@@ -2427,7 +2821,6 @@ async function playMovieFromPoster(clientId, tmdbId) {
         let serviceId;
         let apiEndpoint;
 
-        // Determine correct endpoint based on service
         switch(currentService) {
             case 'plex':
                 apiEndpoint = '/api/get_plex_id/';
@@ -2442,19 +2835,16 @@ async function playMovieFromPoster(clientId, tmdbId) {
                 throw new Error(`Unknown service: ${currentService}`);
         }
 
-        // First try to get stored ID from card
         if (movieCard?.dataset[`${currentService}Id`]) {
             serviceId = movieCard.dataset[`${currentService}Id`];
         } else {
-            // Fallback to API call if not stored
             const response = await fetch(`${apiEndpoint}${tmdbId}`);
             if (!response.ok) {
                 throw new Error(`Failed to get ${currentService} ID`);
             }
             const data = await response.json();
-            serviceId = data[`${currentService}Id`] || data.mediaId; // Handle different response formats
+            serviceId = data[`${currentService}Id`] || data.mediaId; 
 
-            // Store ID in dataset for future use
             if (movieCard && serviceId) {
                 movieCard.dataset[`${currentService}Id`] = serviceId;
             }
@@ -2471,7 +2861,6 @@ async function playMovieFromPoster(clientId, tmdbId) {
             throw new Error(playData.error || "Failed to start playback");
         }
 
-        // Update Trakt after successful playback start
         setTimeout(() => syncTraktWatched(false), 30000);
 
     } catch (error) {
@@ -2555,6 +2944,7 @@ function closeDevicePrompt() {
 
 function closeTrailerPopup() {
     document.getElementById("trailer_iframe").src = "";
+    document.getElementById("trailer_iframe").src = "";
     document.getElementById("trailer_popup").classList.add("hidden");
 }
 
@@ -2562,12 +2952,15 @@ function updateServiceButton() {
     if (window.HOMEPAGE_MODE) return;
 
     const switchButton = document.getElementById("switch_service");
-    if (switchButton) {
-        if (availableServices.length > 1) {
+    if (switchButton) { 
+        if (availableServices.length <= 1) {
+            switchButton.style.display = 'none';
+        } else {
+            switchButton.style.display = 'flex'; 
+
             const currentIndex = availableServices.indexOf(currentService);
-            const nextService = availableServices.find((service, index) =>
-                index > currentIndex && service !== currentService
-            ) || availableServices[0];
+            const nextServiceIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % availableServices.length;
+            const nextService = availableServices[nextServiceIndex];
 
             const serviceNames = {
                 'plex': 'Plex',
@@ -2575,7 +2968,6 @@ function updateServiceButton() {
                 'emby': 'Emby'
             };
 
-            // Restructured HTML for better centering
             switchButton.innerHTML = `
                 <div class="service-info">
                     <span class="service-name">${serviceNames[currentService]}</span>
@@ -2585,12 +2977,12 @@ function updateServiceButton() {
                     <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
                 </svg>
             `;
-            switchButton.style.display = 'flex';
-        } else {
-            switchButton.style.display = 'none';
         }
+    } else {
+        console.warn("Switch service button not found.");
     }
 }
+
 
 async function switchService() {
     if (window.HOMEPAGE_MODE) return;
@@ -2608,8 +3000,7 @@ async function switchService() {
             }
         } catch (error) {
             console.error("Error switching service:", error);
-            showError("Failed to switch service"); // Add error message to user
-            // Revert button state to show correct next service
+            showError("Failed to switch service"); 
             updateServiceButton();
         }
     }
@@ -2624,12 +3015,10 @@ socket.on('movie_removed', function(data) {
 });
 
 async function refreshMovieCache() {
-    // First check if this is Plex service
     try {
         const serviceResponse = await fetch('/current_service');
         const serviceData = await serviceResponse.json();
 
-        // Only show loading and build cache for Plex
         if (serviceData.service === 'plex') {
             showLoadingOverlay();
             try {
@@ -2639,7 +3028,6 @@ async function refreshMovieCache() {
                 await new Promise((resolve) => {
                     socket.once('loading_complete', resolve);
                 });
-                // After cache is complete, reinitialize services
                 await fetch('/api/reinitialize_services');
                 await loadRandomMovie();
             } catch (error) {
@@ -2648,7 +3036,6 @@ async function refreshMovieCache() {
                 hideLoadingOverlay();
             }
         } else {
-            // For non-Plex services, just reinitialize
             await fetch('/api/reinitialize_services');
             await loadRandomMovie();
         }
@@ -2665,14 +3052,17 @@ function handleError(error) {
 
 async function checkAndLoadCache() {
     try {
+        if (cacheInitialized) {
+            console.log('Cache already initialized in this session, skipping check');
+            return;
+        }
+
         const response = await fetch('/debug_service');
         const data = await response.json();
 
-        // Only check cache for Plex service
-        if (data.service === 'plex' && data.cached_movies === 0) {
+        if (data.service === 'plex' && data.cached_movies === 0 && !window.cacheBuilding) {
             console.log('Plex cache is empty. Starting to load movies...');
 
-            // First remove existing event listeners to prevent duplicates
             const filterButton = document.getElementById("filterButton");
             if (filterButton) {
                 const newFilterButton = filterButton.cloneNode(true);
@@ -2681,11 +3071,6 @@ async function checkAndLoadCache() {
 
             await refreshMovieCache();
 
-            // Re-initialize everything after cache is built
-            console.log('Reinitializing after cache build');
-            await loadFilterOptions();
-            setupFilterEventListeners();
-            setupEventListeners();
         }
     } catch (error) {
         console.error('Error checking cache:', error);
@@ -2696,10 +3081,8 @@ let traktFilterMode = 'all'; // 'all', 'watched', or 'unwatched'
 let watchedMovies = [];
 
 function updateFilters() {
-    // Check if we're in the main view by looking for filterButton
     const filterButton = document.getElementById("filterButton");
     if (!filterButton) {
-        // We're not in the main filter view, skip this
         return;
     }
 
@@ -2709,7 +3092,6 @@ function updateFilters() {
         return;
     }
 
-    // Rest of your existing updateFilters code for the main app
     plexFilter.innerHTML = `
         <div class="filter-section">
             <label>
@@ -2741,7 +3123,6 @@ async function setupFilters() {
         <button class="filter-dropdown-button" id="libraryStatusButton">Library Status</button>
     `;
 
-    // Check Trakt status before adding Watch Status filter
     try {
         const response = await fetch('/trakt/status');
         const data = await response.json();
@@ -2755,13 +3136,11 @@ async function setupFilters() {
         console.error('Error checking Trakt status:', error);
     }
 
-    // Find sort controls container and append our new buttons
     const sortButtons = document.querySelector('.sort-controls');
     if (sortButtons) {
         sortButtons.appendChild(filterButtons);
     }
 
-    // Get all movies and counts
     const moviesContainer = document.getElementById('movies_container');
     const movieCards = moviesContainer ? moviesContainer.querySelectorAll('.movie-card') : [];
     const totalMovies = movieCards.length;
@@ -2770,7 +3149,6 @@ async function setupFilters() {
     ).length;
     const notInLibraryCount = totalMovies - inLibraryCount;
 
-    // Create Library Status dropdown
     const libraryStatusDropdown = document.createElement('div');
     libraryStatusDropdown.className = 'filter-dropdown-content hidden';
     libraryStatusDropdown.innerHTML = `
@@ -2790,7 +3168,6 @@ async function setupFilters() {
         </div>
     `;
 
-    // Create Watch Status dropdown
     const watchStatusDropdown = document.createElement('div');
     if (document.getElementById('watchStatusButton')) {
         watchStatusDropdown.className = 'filter-dropdown-content hidden';
@@ -2821,7 +3198,6 @@ async function setupFilters() {
         watchStatusDropdown.style.position = 'fixed';
     }
 
-    // Handle library status button
     const libraryButton = document.getElementById('libraryStatusButton');
     if (libraryButton) {
         libraryButton.addEventListener('click', (e) => {
@@ -2838,7 +3214,6 @@ async function setupFilters() {
         });
     }
 
-    // Handle watch status button
     const watchButton = document.getElementById('watchStatusButton');
     if (watchButton) {
         watchButton.addEventListener('click', (e) => {
@@ -2855,7 +3230,6 @@ async function setupFilters() {
         });
     }
 
-    // Close dropdowns when clicking outside
     document.addEventListener('click', () => {
         libraryStatusDropdown.classList.add('hidden');
         watchStatusDropdown.classList.add('hidden');
@@ -2863,14 +3237,12 @@ async function setupFilters() {
         watchButton?.classList.remove('active');
     });
 
-    // Handle library status changes
     libraryStatusDropdown.addEventListener('change', (e) => {
         plexFilterMode = e.target.value;
         document.getElementById('libraryStatusButton').classList.add('active');
         applyAllFilters();
     });
 
-    // Handle watch status changes
     if (watchButton) {
         watchStatusDropdown.addEventListener('change', (e) => {
             traktFilterMode = e.target.value;
@@ -2886,20 +3258,17 @@ async function updateFilterCounts() {
     const visibleCards = Array.from(movieCards).filter(card => card.style.display !== 'none');
     const totalVisible = visibleCards.length;
 
-    // Update library status counts
     const inLibraryCount = visibleCards.filter(card =>
         card.querySelector('.plex-badge, .jellyfin-badge, .emby-badge')
     ).length;
     const notInLibraryCount = totalVisible - inLibraryCount;
 
-    // Update watch status counts
     const watchedMovies = await getWatchedMovies();
     const watchedCount = visibleCards.filter(card =>
         watchedMovies.includes(parseInt(card.dataset.movieId))
     ).length;
     const unwatchedCount = totalVisible - watchedCount;
 
-    // Update the count displays in dropdowns
     const updateCounts = (dropdown, counts) => {
         const labels = dropdown.querySelectorAll('label');
         labels.forEach(label => {
@@ -2960,7 +3329,6 @@ async function applyAllFilters() {
             let shouldShowByTrakt = true;
             let shouldShowByPlex = true;
 
-            // Apply Trakt filter
             switch (traktFilterMode) {
                 case 'watched':
                     shouldShowByTrakt = isWatched;
@@ -2968,10 +3336,8 @@ async function applyAllFilters() {
                 case 'unwatched':
                     shouldShowByTrakt = !isWatched;
                     break;
-                // 'all' case is handled by default shouldShow = true
             }
 
-            // Apply Library filter
             switch (plexFilterMode) {
                 case 'inPlex':
                     shouldShowByPlex = hasServiceBadge;
@@ -2979,7 +3345,6 @@ async function applyAllFilters() {
                 case 'notInPlex':
                     shouldShowByPlex = !hasServiceBadge;
                     break;
-                // 'all' case is handled by default shouldShow = true
             }
 
             card.style.display = (shouldShowByTrakt && shouldShowByPlex && !isHiddenBySearch) ? 'block' : 'none';
@@ -3006,7 +3371,6 @@ async function syncTraktWatched() {
     const response = await fetch('/sync_trakt_watched');
     if (response.ok) {
         console.log("Trakt watched status synced");
-        // Clear the cache so we fetch the updated list next time
         watchedMovies = [];
     } else {
         console.error("Failed to sync Trakt watched status");
@@ -3036,7 +3400,7 @@ async function isMovieInService(tmdbId) {
             return false;
         }
         const data = await response.json();
-        return data.available;  // All endpoints return {available: true/false}
+        return data.available;  
 
     } catch (error) {
         console.error(`Error checking ${currentService} availability:`, error);
@@ -3044,7 +3408,6 @@ async function isMovieInService(tmdbId) {
     }
 }
 
-// Use the unified function for individual service checks
 async function isMovieInJellyfin(tmdbId) {
     const currentServiceTemp = currentService;
     currentService = 'jellyfin';
@@ -3069,7 +3432,6 @@ async function isMovieInPlex(tmdbId) {
     return result;
 }
 
-// Keep the getServiceId function separate for playback
 async function getServiceId(tmdbId) {
     try {
         let apiEndpoint;
@@ -3114,7 +3476,6 @@ function setupMovieSearch() {
 	sortAndFilter.insertBefore(searchContainer, sortAndFilter.firstChild);
     }
 
-    // Debounce function to avoid too many updates
     let searchTimeout;
     searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
@@ -3126,12 +3487,10 @@ function setupMovieSearch() {
                 const title = card.querySelector('p').textContent.toLowerCase();
                 const matches = title.includes(searchTerm);
 
-                // Check if the movie would be hidden by Trakt filter
                 const isHiddenByTraktFilter = card.style.display === 'none' &&
                     !card.dataset.hiddenBySearch;
 
                 if (searchTerm === '') {
-                    // If search is cleared, respect only Trakt filter
                     card.style.display = isHiddenByTraktFilter ? 'none' : 'block';
                     delete card.dataset.hiddenBySearch;
                 } else {
@@ -3139,13 +3498,12 @@ function setupMovieSearch() {
                         card.style.display = 'none';
                         card.dataset.hiddenBySearch = 'true';
                     } else {
-                        // Only show if not hidden by Trakt filter
                         card.style.display = isHiddenByTraktFilter ? 'none' : 'block';
                         delete card.dataset.hiddenBySearch;
                     }
                 }
             });
-        }, 300); // 300ms debounce
+        }, 300); 
     });
 }
 
@@ -3153,7 +3511,6 @@ function createSortControls() {
     const sortContainer = document.createElement('div');
     sortContainer.className = 'sort-controls';
 
-    // Create Year sort button
     const yearButton = document.createElement('button');
     yearButton.className = 'sort-button active';
     yearButton.dataset.sort = 'year';
@@ -3162,7 +3519,6 @@ function createSortControls() {
     	<span class="sort-direction">(Newest)</span>
     `;
 
-    // Create Rating sort button
     const ratingButton = document.createElement('button');
     ratingButton.className = 'sort-button';
     ratingButton.dataset.sort = 'rating';
@@ -3174,7 +3530,6 @@ function createSortControls() {
     sortContainer.appendChild(yearButton);
     sortContainer.appendChild(ratingButton);
 
-    // Add event listeners
     yearButton.addEventListener('click', () => toggleSort('year'));
     ratingButton.addEventListener('click', () => toggleSort('rating'));
 
@@ -3263,7 +3618,6 @@ function sortMovies() {
         }
     });
 
-    // Clear and re-append sorted movies
     moviesContainer.innerHTML = '';
     movies.forEach(movie => moviesContainer.appendChild(movie));
 }
@@ -3329,7 +3683,6 @@ function showContextLoadingOverlay(context) {
 }
 
 function showToast(message, type = 'success') {
-    // Create container if it doesn't exist
     let container = document.querySelector('.toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -3337,11 +3690,9 @@ function showToast(message, type = 'success') {
         document.body.appendChild(container);
     }
 
-    // Create toast
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
 
-    // Add icon based on type
     const icon = type === 'success'
         ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
         : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
@@ -3351,24 +3702,20 @@ function showToast(message, type = 'success') {
         <div class="toast-message">${message}</div>
     `;
 
-    // Add to container
     container.appendChild(toast);
 
-    // Remove after delay
     setTimeout(() => {
         toast.classList.add('removing');
         setTimeout(() => {
             toast.remove();
-            // Remove container if empty
             if (!container.children.length) {
                 container.remove();
             }
-        }, 300); // Match animation duration
+        }, 300); 
     }, 3000);
 }
 
 async function syncTraktWatched(showLoading = false) {
-    // Prevent rapid repeated syncs
     const now = Date.now();
     if (now - lastTraktSync < TRAKT_FRONTEND_SYNC_MIN_INTERVAL) {
         console.log("Skipping sync - too soon since last sync");
@@ -3384,9 +3731,8 @@ async function syncTraktWatched(showLoading = false) {
         if (response.ok) {
             console.log("Trakt watched status synced at", new Date().toLocaleTimeString());
             lastTraktSync = now;
-            watchedMovies = []; // Clear cache to force refresh
+            watchedMovies = []; 
 
-            // If we're in the movies overlay, reapply the current filter
             const moviesOverlay = document.getElementById('movies_overlay');
             if (moviesOverlay && !moviesOverlay.classList.contains('hidden')) {
 		await applyAllFilters();
@@ -3404,10 +3750,8 @@ async function syncTraktWatched(showLoading = false) {
 }
 
 function startVersionChecker() {
-    // Check on page load
     checkVersion(false);
 
-    // Then check every hour
     setInterval(() => {
         checkVersion(false);
     }, 60 * 60 * 1000);
@@ -3436,7 +3780,6 @@ function showUpdateDialog(updateInfo) {
 
     document.body.appendChild(dialog);
 
-    // Handle close/dismiss
     const closeDialog = () => {
         dialog.remove();
         fetch('/api/dismiss_update').catch(console.error);

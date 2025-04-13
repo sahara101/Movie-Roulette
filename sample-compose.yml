@@ -4,7 +4,10 @@ services:
     container_name: movie-roulette
     environment:
       # Core Settings
+      FLASK_SECRET_KEY: ""           # Random string of characters
       DISABLE_SETTINGS: "FALSE"      # Lock Settings page
+      AUTH_ENABLED: "TRUE"           # Enable authentication
+      AUTH_SESSION_LIFETIME: "86400" # Session lifetime in seconds
 
       # Media Server Configurations - Required if using service
       # Plex Configuration
@@ -30,6 +33,8 @@ services:
       USE_WATCH_BUTTON: "TRUE"       # Show Watch button
       USE_NEXT_BUTTON: "TRUE"        # Show next button
       ENABLE_MOBILE_TRUNCATION: "FALSE"  # Truncate descriptions on mobile
+      ENABLE_MOVIE_LOGOS: "TRUE"     # Show movie titles as logos
+      LOAD_MOVIE_ON_START: "FALSE"   # Adds a button to get a random movie
 
       # Request Service Configuration (Optional)
       # Service URLs and API Keys

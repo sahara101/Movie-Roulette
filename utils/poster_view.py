@@ -9,6 +9,7 @@ import logging
 import requests
 from flask import Response
 from utils.settings import settings
+from utils.auth import auth_manager 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,7 +18,6 @@ logger.setLevel(logging.DEBUG)
 poster_bp = Blueprint('poster', __name__)
 socketio = None
 
-# File to store current movie data
 CURRENT_MOVIE_FILE = '/app/data/current_movie.json'
 
 def init_socket(socket):
@@ -49,7 +49,6 @@ def get_poster_data():
     current_tz = get_current_timezone()
     logger.debug(f"Original start_time: {start_time}, timezone: {current_tz}")
 
-    # Convert to the desired timezone
     if start_time.tzinfo is None:
         start_time = current_tz.localize(start_time)
         logger.debug(f"Localized naive time to: {start_time}")
@@ -62,7 +61,6 @@ def get_poster_data():
     logger.debug(f"Calculated end_time: {end_time}")
 
     movie_data = current_movie['movie']
-    # Ensure these fields exist, using defaults if not present
     movie_data.update({
         'contentRating': movie_data.get('contentRating', 'Not Rated'),
         'videoFormat': movie_data.get('videoFormat', 'Unknown'),
@@ -80,7 +78,7 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
     """Set current movie with authorization check"""
     current_time = datetime.now(get_current_timezone())
 
-    if username:  # Only do auth check if username is provided
+    if username:  
         playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
         if playback_monitor:
             if not playback_monitor.is_poster_user(username, service):
@@ -90,13 +88,11 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
         else:
             logger.warning("PlaybackMonitor not available for authorization check")
 
-    # Check if there's an existing movie file - we'll need to preserve the original start time
     preserve_start_time = None
     if os.path.exists(CURRENT_MOVIE_FILE) and session_type != 'NEW':
         try:
             with open(CURRENT_MOVIE_FILE, 'r') as f:
                 existing_data = json.load(f)
-                # Only preserve start time if it's the same movie and not a NEW session
                 if existing_data.get('movie', {}).get('id') == movie_data.get('id'):
                     preserve_start_time = existing_data.get('start_time')
                     logger.info(f"Preserving original start time: {preserve_start_time}")
@@ -106,9 +102,7 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
     total_duration = timedelta(hours=movie_data['duration_hours'],
                              minutes=movie_data['duration_minutes'])
 
-    # Set the start time based on session type
     if preserve_start_time:
-        # Use the preserved start time if available (for ongoing sessions)
         start_time = datetime.fromisoformat(preserve_start_time)
         logger.info(f"Using preserved start time: {start_time}")
     elif session_type in ['NEW', 'PAUSE']:
@@ -117,7 +111,7 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
             start_time = current_time - elapsed
         else:
             start_time = current_time
-    else:  # session_type == 'STOP'
+    else:  
         start_time = current_time
 
     current_movie = {
@@ -131,7 +125,6 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
     }
     save_current_movie(current_movie)
 
-    # Reset default poster status in the manager before sending the movie change
     default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
     if default_poster_manager:
         default_poster_manager.is_default_poster_active = False
@@ -199,7 +192,6 @@ def get_poster_settings():
     custom_text = os.environ.get('DEFAULT_POSTER_TEXT') or features.get('default_poster_text', '')
     timezone = os.environ.get('TZ') or features.get('timezone', 'UTC')
     poster_mode = os.environ.get('POSTER_MODE') or features.get('poster_mode', 'default')
-    # Ensure proper type conversion for interval
     try:
         interval_str = os.environ.get('SCREENSAVER_INTERVAL') or str(features.get('screensaver_interval', '300'))
         screensaver_interval = int(interval_str)
@@ -213,7 +205,7 @@ def get_poster_settings():
         'timezone': timezone,
         'poster_mode': poster_mode,
         'screensaver_interval': screensaver_interval,
-        'features': features  # Return all features for reference
+        'features': features  
     }
 
 def handle_settings_update(settings_data=None):
@@ -223,17 +215,16 @@ def handle_settings_update(settings_data=None):
             settings_data = settings.get_all()
 
         settings_to_send = get_poster_settings()
-        # Update default poster manager configuration
         default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
         if default_poster_manager:
             logger.info("Applying immediate settings update to poster manager")
             default_poster_manager.configure(settings_data)
-        # Notify clients
         socketio.emit('settings_updated', settings_to_send, namespace='/poster')
     else:
         logger.warning("SocketIO not initialized in poster_view")
 
 @poster_bp.route('/playback_state/<movie_id>')
+@auth_manager.require_auth 
 def playback_state(movie_id):
     try:
         state = get_playback_state(movie_id)
@@ -247,30 +238,27 @@ def playback_state(movie_id):
 
 
 @poster_bp.route('/poster')
+@auth_manager.require_auth 
 def poster():
     logger.info("Poster route called")
     try:
-        # Get PlaybackMonitor first
         playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
 
-        # Get current service more defensively
         try:
             from movie_selector import get_available_service
-            current_service = get_available_service()  # Get default first
-            if hasattr(session, 'get'):  # Check if session is available
+            current_service = get_available_service()  
+            if hasattr(session, 'get'):  
                 current_service = session.get('current_service', current_service)
             logger.info(f"Current service: {current_service}")
         except Exception as e:
             logger.error(f"Error getting service: {e}", exc_info=True)
-            current_service = 'plex'  # Default to plex if there's an issue
+            current_service = 'plex'  
 
-        # Get services from app config
         default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
         plex = current_app.config.get('PLEX_SERVICE')
         jellyfin = current_app.config.get('JELLYFIN_SERVICE')
         emby = current_app.config.get('EMBY_SERVICE')
 
-        # Set the correct service for poster manager
         if not default_poster_manager:
             logger.error("Default poster manager not available")
             raise RuntimeError("Poster manager not configured")
@@ -286,17 +274,14 @@ def poster():
         features = poster_settings.get('features', {})
         custom_text = poster_settings['custom_text']
 
-        # Check if we already have movie data from file FIRST
         poster_data = get_poster_data()
         active_movie_found = False
 
         if poster_data:
             logger.info("Active movie found from file - forcing playback mode")
-            # Ensure default poster flag is reset when we have an active movie
             if default_poster_manager:
                 default_poster_manager.is_default_poster_active = False
 
-            # Get the actual movie poster URL directly from the JSON file
             movie_poster_url = None
             if os.path.exists(CURRENT_MOVIE_FILE):
                 try:
@@ -304,11 +289,10 @@ def poster():
                         movie_data = json.load(f)
                         raw_poster_url = movie_data['movie']['poster']
 
-                        # Process the poster URL same as get_current_poster would
-                        if '/library/metadata/' in raw_poster_url:  # Plex
+                        if '/library/metadata/' in raw_poster_url:  
                             parts = raw_poster_url.split('/library/metadata/')[1].split('?')[0]
                             movie_poster_url = f"/proxy/poster/plex/{parts}"
-                        elif '/Items/' in raw_poster_url:  # Jellyfin or Emby
+                        elif '/Items/' in raw_poster_url:  
                             item_id = raw_poster_url.split('/Items/')[1].split('/Images')[0]
                             if jellyfin and jellyfin.server_url in raw_poster_url:
                                 movie_poster_url = f"/proxy/poster/jellyfin/{item_id}"
@@ -322,7 +306,6 @@ def poster():
                 except Exception as e:
                     logger.error(f"Error processing movie poster URL: {e}")
 
-            # Use the direct URL if we have it, otherwise fall back to manager
             current_poster = movie_poster_url if movie_poster_url else default_poster_manager.get_current_poster()
             active_movie_found = True
 
@@ -334,13 +317,11 @@ def poster():
                                 current_poster=current_poster,
                                 custom_text=custom_text,
                                 features={
-                                    'poster_mode': 'default',  # Force default mode for active movies
+                                    'poster_mode': 'default',  
                                     'screensaver_interval': features.get('screensaver_interval', 300)
                                 })
 
-        # Only check for active sessions if we didn't find a movie from file
         if not active_movie_found:
-            # Force an immediate check for active playback
             active_movie = None
             if current_service == 'plex' and plex:
                 sessions = plex.plex.sessions()
@@ -365,24 +346,19 @@ def poster():
 
             if active_movie:
                 logger.info(f"Active movie found from immediate check: {active_movie.get('title')}")
-                # Reset default poster flag explicitly
                 if default_poster_manager:
                     default_poster_manager.is_default_poster_active = False
-                # Force update of current_movie.json
                 set_current_movie(active_movie, current_service)
                 playback_monitor.current_movie_id = active_movie.get('id')
 
-                # Reload poster data after updating
                 poster_data = get_poster_data()
                 if poster_data:
-                    # Get poster URL directly from movie data to avoid initial default poster
                     movie_poster_url = active_movie.get('poster', '')
 
-                    # Process the URL as needed
-                    if '/library/metadata/' in movie_poster_url:  # Plex
+                    if '/library/metadata/' in movie_poster_url:  
                         parts = movie_poster_url.split('/library/metadata/')[1].split('?')[0]
                         movie_poster_url = f"/proxy/poster/plex/{parts}"
-                    elif '/Items/' in movie_poster_url:  # Jellyfin or Emby
+                    elif '/Items/' in movie_poster_url:  
                         item_id = movie_poster_url.split('/Items/')[1].split('/Images')[0]
                         if jellyfin and jellyfin.server_url in movie_poster_url:
                             movie_poster_url = f"/proxy/poster/jellyfin/{item_id}"
@@ -397,14 +373,12 @@ def poster():
                                         current_poster=movie_poster_url,
                                         custom_text=custom_text,
                                         features={
-                                            'poster_mode': 'default',  # Force default mode for active movies
+                                            'poster_mode': 'default',  
                                             'screensaver_interval': features.get('screensaver_interval', 300)
                                         })
 
-        # If no active movie, proceed with normal logic for default/screensaver
         current_poster = default_poster_manager.get_current_poster()
 
-        # Check screensaver mode only if no active movie
         if features.get('poster_mode') == 'screensaver':
             logger.info("Configuring screensaver mode")
             settings_data = settings.get_all()
@@ -423,10 +397,10 @@ def poster():
                     original_url = random_movie.get('poster', '')
                     proxy_url = None
 
-                    if '/library/metadata' in original_url:  # Plex
+                    if '/library/metadata' in original_url:  
                         parts = original_url.split('/library/metadata/')[1].split('?')[0]
                         proxy_url = f"/proxy/poster/plex/{parts}"
-                    elif '/Items/' in original_url:  # Both Jellyfin and Emby
+                    elif '/Items/' in original_url:  
                         item_id = original_url.split('/Items/')[1].split('/Images')[0]
                         if jellyfin and jellyfin.server_url in original_url:
                             proxy_url = f"/proxy/poster/jellyfin/{item_id}"
@@ -449,7 +423,6 @@ def poster():
                 else:
                     logger.warning("Failed to get random movie for screensaver")
 
-        # Handle default poster case
         if current_poster == default_poster_manager.default_poster:
             logger.info("Rendering default poster")
             return render_template('poster.html',
@@ -461,7 +434,6 @@ def poster():
                                     'screensaver_interval': features.get('screensaver_interval', 300)
                                 })
 
-        # Fallback to default poster
         logger.info("Fallback to default poster")
         return render_template('poster.html',
                             current_poster=default_poster_manager.default_poster,
@@ -484,6 +456,7 @@ def poster():
                             })
 
 @poster_bp.route('/current_poster')
+@auth_manager.require_auth 
 def current_poster():
     default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
     current_poster = default_poster_manager.get_current_poster()
@@ -491,11 +464,13 @@ def current_poster():
     return jsonify({'poster': current_poster})
 
 @poster_bp.route('/poster_settings')
+@auth_manager.require_auth 
 def poster_settings():
     settings = get_poster_settings()
     return jsonify(settings)
 
 @poster_bp.route('/proxy/poster/<service>/<path:poster_id>')
+@auth_manager.require_auth 
 def proxy_poster(service, poster_id):
     try:
         if service == 'plex':
@@ -506,7 +481,6 @@ def proxy_poster(service, poster_id):
 
             base_url = plex_service.PLEX_URL
             token = plex_service.PLEX_TOKEN
-            # Extract base ID and timestamp if present
             parts = poster_id.split('/')
             base_id = parts[0]
             full_url = f"{base_url}/library/metadata/{base_id}/thumb"

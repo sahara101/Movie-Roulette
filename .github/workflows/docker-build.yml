@@ -28,7 +28,6 @@ jobs:
         with:
           toolchain: stable
           override: true
-      # Add cache step
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
@@ -36,7 +35,6 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
-      # Login to both registries
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -48,7 +46,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Build AMD64 image
       - name: Build and push AMD64
         #if: false
         uses: docker/build-push-action@v5
@@ -59,10 +56,9 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:latest
-            sahara101/movie-roulette:v3.4
+            sahara101/movie-roulette:v4.0
             ghcr.io/sahara101/movie-roulette:latest
-            ghcr.io/sahara101/movie-roulette:v3.4
-      # Build ARM image
+            ghcr.io/sahara101/movie-roulette:v4.0
       - name: Build and push ARM
         #if: false
         uses: docker/build-push-action@v5
@@ -73,9 +69,9 @@ jobs:
           push: true
           tags: |
             sahara101/movie-roulette:arm-latest
-            sahara101/movie-roulette:arm-v3.4
+            sahara101/movie-roulette:arm-v4.0
             ghcr.io/sahara101/movie-roulette:arm-latest
-            ghcr.io/sahara101/movie-roulette:arm-v3.4
+            ghcr.io/sahara101/movie-roulette:arm-v4.0
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
       - name: Move cache

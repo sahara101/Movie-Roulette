@@ -1,0 +1,444 @@
+/* Login Page Styles - Matched to Movie Roulette theme */
+:root {
+    --primary-color: #E5A00D;       
+    --primary-dark: #D29000;
+    --primary-light: #F8D68B;
+    --text-color: #EAEAEC;
+    --text-light: #9CA3AF;
+    --background-color: #222222;
+    --card-background: #3A3C41;
+    --input-background: #282A2D;
+    --dropdown-background: #2A2C31;
+    --error-color: #DC2626;
+    --success-color: #059669;
+    --border-color: #4A4C51;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --plex-color: #E5A00D;
+    --jellyfin-color: #00A4DC;
+    --emby-color: #52B54B;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+}
+
+.login-card {
+    background-color: var(--card-background);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px var(--shadow-color);
+    padding: 30px;
+    overflow: hidden;
+}
+
+.setup-card {
+    max-width: 480px;
+}
+
+.logo-section {
+    text-align: center;
+    margin-bottom: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logo-section h1 {
+    font-size: 24px;
+    color: var(--primary-color);
+    margin: 15px 0;
+    font-weight: 700;
+}
+
+.app-logo {
+    width: 100px;
+    height: 100px;
+    border-radius: 12px;
+}
+
+.setup-description {
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--text-light);
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.form-group label {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.input-with-icon {
+    position: relative;
+}
+
+.input-with-icon i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-light);
+}
+
+.input-with-icon input {
+    width: 100%;
+    padding: 12px 15px 12px 45px;
+    font-size: 16px;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border-radius: 4px;
+    transition: border-color 0.3s;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.input-with-icon input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(229, 160, 13, 0.2);
+}
+
+.remember-me {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;  
+    margin-bottom: 15px; 
+}
+
+.remember-me input {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+.remember-me label {
+    margin: 0;
+    cursor: pointer;
+}
+
+.login-button {
+    margin-top: 25px; 
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: #282A2D;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.login-button:hover {
+    background-color: var(--primary-light);
+}
+
+.login-button i {
+    font-size: 18px;
+}
+
+.error-message {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: var(--error-color);
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.error-message i {
+    font-size: 18px;
+}
+
+.password-match-indicator {
+    font-size: 14px;
+    margin-top: 5px;
+    display: none;
+}
+
+.password-match-indicator.match {
+    color: var(--success-color);
+}
+
+.password-match-indicator.mismatch {
+    color: var(--error-color);
+}
+
+/* Media Services Login Section */
+.services-login-section {
+    width: 100%;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Media Server Dropdown */
+.media-server-dropdown {
+    position: relative;
+    width: 100%;
+}
+
+.dropdown-toggle {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.dropdown-toggle:hover {
+    background-color: var(--dropdown-background);
+    border-color: var(--primary-color);
+}
+
+.dropdown-toggle i:first-child {
+    margin-right: 10px;
+}
+
+.dropdown-toggle i:last-child {
+    margin-left: 10px;
+    transition: transform 0.2s ease;
+}
+
+.dropdown-toggle:hover i:last-child {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    width: 100%;
+    background-color: var(--dropdown-background);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px var(--shadow-color);
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+}
+
+.dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 15px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 16px;
+    font-family: 'Montserrat', sans-serif;
+    transition: background-color 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: var(--input-background);
+}
+
+/* Service-specific styles */
+.plex-item {
+    color: var(--plex-color);
+}
+
+.jellyfin-item {
+    color: var(--jellyfin-color);
+}
+
+.emby-item {
+    color: var(--emby-color);
+}
+
+.separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    margin: 20px 0;
+    color: var(--text-light);
+}
+
+.separator::before,
+.separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.separator span {
+    padding: 0 10px;
+    font-size: 14px;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: var(--card-background);
+    color: var(--text-color);
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 4px 20px var(--shadow-color);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.modal-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 30px 0;
+}
+
+.modal-loader i {
+    font-size: 30px;
+    color: var(--primary-color);
+    margin-bottom: 15px;
+}
+
+/* Form inside modals */
+.modal .form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.form-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    gap: 10px;
+}
+
+.cancel-button {
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.cancel-button:hover {
+    background-color: #1f2022;
+}
+
+.submit-button {
+    background-color: var(--primary-color);
+    color: #282A2D;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.submit-button:hover {
+    background-color: var(--primary-light);
+}
+
+/* Media Queries */
+@media (max-width: 480px) {
+    .login-container {
+        padding: 10px;
+    }
+
+    .login-card {
+        padding: 20px;
+    }
+
+    .logo-section h1 {
+        font-size: 20px;
+    }
+
+    .app-logo {
+        width: 80px;
+        height: 80px;
+    }
+
+    .modal-content {
+        padding: 20px;
+    }
+}

@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token() }}"> {# Added CSRF token meta tag #}
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="orientation" content="portrait">
@@ -16,6 +17,7 @@
     <link rel="icon" href="/static/icons/icon-192x192.png" type="image/png" sizes="192x192">
     <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
     <link rel="stylesheet" href="/static/style/style.css">
+    <link rel="stylesheet" href="/static/style/auth.css">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
@@ -30,6 +32,11 @@
         document.body.classList.add('in-iframe');
     }
 </script>
+    {# Container for the movie title logo #}
+    <div id="movie-logo-container">
+        <img id="movie-logo-img" src="" alt="Movie Title Logo" style="display: none;"> {# Initially hidden #}
+    </div>
+
     <main>
         <div id="loading-overlay" class="hidden">
             <div id="loading-content" class="custom-loading">
@@ -81,9 +88,9 @@
             		    <option value="watched">Watched Movies</option>
         		</select>
     		    </div>
-                    <button id="applyFilter">Apply Filter</button>
-                    <button id="clearFilter">Clear Filter</button>
-                </div>
+    		              <button id="applyFilter">Apply Filter</button>
+    		              <button id="clearFilter">Clear Filter</button>
+    		          </div>
             </div>
             {% endif %}
 
@@ -101,7 +108,8 @@
     	    	</div>
 	    </div>
 
-            <div id="movieContent">
+            <button id="btn_get_movie" class="button large-button initially-hidden{% if load_movie_on_start %} hidden{% endif %}">Get Random Movie</button> {# Conditionally hidden #}
+            <div id="movieContent"{% if not load_movie_on_start %} class="hidden"{% endif %}> {# Conditionally hidden #}
                 <div class="movie_poster">
                     <img src="" alt="" id="poster_img">
                 </div>
@@ -115,16 +123,16 @@
                     <p id="description"></p>
                     {% if not homepage_mode and use_links %}
                     <div class="logo-container">
-                        <a href="#" id="tmdb_link" target="_blank"><img src="/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
-                        <a href="#" id="trakt_link" target="_blank"><img src="/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
-                        <a href="#" id="imdb_link" target="_blank"><img src="/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
-                        <a href="#" id="trailer_link"><img src="/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
+                        <a href="#" id="tmdb_link" target="_blank"><img src="/static/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
+                        <a href="#" id="trakt_link" target="_blank"><img src="/static/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
+                        <a href="#" id="imdb_link" target="_blank"><img src="/static/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
+                        <a href="#" id="trailer_link"><img src="/static/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
                     </div>
                     {% endif %}
                 </div>
 
                 {% if not homepage_mode %}
-                <div class="button_container">
+                <div class="button_container{% if not load_movie_on_start %} hidden{% endif %}"> {# Conditionally hidden #}
                     {% if use_watch_button %}
                     <button id="btn_watch" class="button">WATCH</button>
                     {% endif %}
@@ -225,27 +233,84 @@
             </div>
         </div>
 
+	<div id="change-password-modal" class="hidden">
+    	    <div class="change-password-content">
+        	<div id="change-password-close" onclick="closeChangePasswordModal()">
+            	    <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
+                	<path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+            	    </svg>
+        	</div>
+        	<div class="change-password-form">
+            	    <h3>Change Password</h3>
+            	    <div id="password-error" class="error-message" style="display: none;"></div>
+            
+            	    <div class="form-group">
+                	<label for="current-password">Current Password</label>
+                	<input type="password" id="current-password" required>
+            	    </div>
+            
+            	    <div class="form-group">
+                	<label for="new-password">New Password</label>
+                	<input type="password" id="new-password" required>
+            	    </div>
+            
+            	    <div class="form-group">
+                	<label for="confirm-password">Confirm New Password</label>
+                	<input type="password" id="confirm-password" required>
+            	    </div>
+            
+            	    <div class="password-actions">
+                	<button type="button" onclick="closeChangePasswordModal()">Cancel</button>
+                	<button type="button" onclick="submitChangePassword()">Update Password</button>
+            	    </div>
+        	</div>
+    	    </div>
+	</div>
+
     </main>
 
     <nav class="main-nav">
-        <div class="nav-links">
+    	<div class="nav-links">
             <a href="/" class="nav-link active">Movies</a>
             <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
-	    {% if not settings_disabled %}
+        
+            {% if auth_enabled %}
+            <div class="nav-link user-menu">
+            	<span class="user-menu-trigger">
+                    <i class="fa-solid fa-user-circle"></i>
+                    <span class="user-name">{{ session.username }}</span>
+            	</span>
+            	<div class="user-dropdown">
+                    {% if not settings_disabled %}
+                    <a href="/settings" class="dropdown-item">
+                    	<i class="fa-solid fa-cog"></i> Settings
+                    </a>
+                    {% endif %}
+                    {# Only show Change Password if user is local admin #}
+                    <a href="/logout" class="dropdown-item">
+                    	<i class="fa-solid fa-sign-out-alt"></i> Logout
+                    </a>
+            	</div>
+            </div>
+            {% else %}
+            {% if not settings_disabled %}
             <a href="/settings" class="nav-link">Settings</a>
-	    {% endif %}
-        </div>
+            {% endif %}
+            {% endif %}
+    	</div>
     </nav>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script type="text/javascript" src="/js/script.js"></script>
     <script>
-        window.HOMEPAGE_MODE = {{ 'true' if homepage_mode else 'false' }};
-        window.USE_LINKS = {{ 'true' if use_links else 'false' }};
-        window.USE_FILTER = {{ 'true' if use_filter else 'false' }};
-        window.USE_WATCH_BUTTON = {{ 'true' if use_watch_button else 'false' }};
-        window.USE_NEXT_BUTTON = {{ 'true' if use_next_button else 'false' }};
-	window.MOBILE_TRUNCATION = {{ 'true' if mobile_truncation else 'false' }};
+        window.HOMEPAGE_MODE = {{ homepage_mode | tojson }};
+        window.USE_LINKS = {{ use_links | tojson }};
+        window.USE_FILTER = {{ use_filter | tojson }};
+        window.USE_WATCH_BUTTON = {{ use_watch_button | tojson }};
+        window.USE_NEXT_BUTTON = {{ use_next_button | tojson }};
+ window.MOBILE_TRUNCATION = {{ mobile_truncation | tojson }};
+        window.ENABLE_MOVIE_LOGOS = {{ enable_movie_logos | tojson }}; 
+        window.LOAD_MOVIE_ON_START = {{ load_movie_on_start | tojson }}; 
     </script>
     <script>
         if ('serviceWorker' in navigator) {
@@ -258,6 +323,7 @@
             });
         }
     </script>
+    <script type="text/javascript" src="/js/auth.js"></script>
 </body>
 
 </html>

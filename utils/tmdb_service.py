@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 class TMDBService:
     """Centralized service for TMDB API operations"""
 
-    # Built-in API key - replace with your actual key
     DEFAULT_API_KEY = "896235c937dfa129af11760d5e57c366"
     BASE_URL = "https://api.themoviedb.org/3"
 
@@ -29,7 +28,7 @@ class TMDBService:
         self.get_person_details.cache_clear()
         self.get_movie_details.cache_clear()
         self.get_movie_credits.cache_clear()
-        # Clear new collection-related caches
+        self.get_configuration.cache_clear() 
         if hasattr(self, 'get_collection_details'):
             self.get_collection_details.cache_clear()
         if hasattr(self, 'get_movie_collection_info'):
@@ -46,19 +45,16 @@ class TMDBService:
         2. User configured key (if enabled)
         3. Built-in key
         """
-        # Check environment variable first
         env_key = os.getenv('TMDB_API_KEY')
         if env_key:
             logger.debug("Using TMDB API key from environment")
             return env_key
 
-        # Check user configuration
         tmdb_settings = settings.get('tmdb', {})
         if tmdb_settings.get('enabled') and tmdb_settings.get('api_key'):
             logger.debug("Using TMDB API key from user settings")
             return tmdb_settings['api_key']
 
-        # Fall back to built-in key
         logger.debug("Using built-in TMDB API key")
         return self.DEFAULT_API_KEY
 
@@ -87,10 +83,8 @@ class TMDBService:
         """Get detailed information about a person including IMDb ID"""
         logger.debug(f"Getting person details with external IDs for ID: {person_id}")
         try:
-            # Get basic person details
             data = self._make_request(f"person/{person_id}")
             if data:
-                # Get external IDs in a separate request
                 external_ids = self.get_person_external_ids(person_id)
 
                 return {
@@ -182,7 +176,8 @@ class TMDBService:
     def get_movie_details(self, movie_id):
         """Get detailed information about a movie"""
         logger.debug(f"Getting movie details for ID: {movie_id}")
-        return self._make_request(f"movie/{movie_id}")
+        params = {'append_to_response': 'images'}
+        return self._make_request(f"movie/{movie_id}", params=params)
 
     @lru_cache(maxsize=100)
     def get_movie_credits(self, movie_id):
@@ -191,12 +186,61 @@ class TMDBService:
         try:
             data = self._make_request(f"movie/{movie_id}/credits")
             if data and 'crew' in data:
-                # Debug log to see all unique job types in crew
                 jobs = set(member['job'] for member in data['crew'])
                 logger.debug(f"Found job types in crew: {jobs}")
             return data
         except Exception as e:
             logger.error(f"Error getting movie credits: {e}")
+            return None
+
+    @lru_cache(maxsize=1)
+    def get_configuration(self):
+        """Fetch and cache the TMDB API configuration"""
+        logger.debug("Fetching TMDB API configuration")
+        return self._make_request("configuration")
+
+    @lru_cache(maxsize=100)
+    def get_movie_logo_url(self, movie_id):
+        """Get the best available movie logo URL (preferring English or no language)"""
+        logger.debug(f"Getting movie logo for ID: {movie_id}")
+        details = self.get_movie_details(movie_id) 
+        config = self.get_configuration()
+
+        if not details or 'images' not in details or 'logos' not in details['images']:
+            logger.warning(f"No image or logo data found for movie ID: {movie_id}")
+            return None
+        if not config or 'images' not in config:
+            logger.error("Failed to get TMDB configuration for image URLs")
+            return None
+
+        logos = details['images']['logos']
+        if not logos:
+            logger.info(f"No logos available in TMDB data for movie ID: {movie_id}")
+            return None
+
+        def sort_key(logo):
+            lang = logo.get('iso_639_1')
+            if lang == 'en':
+                return 0 
+            elif lang is None or lang == 'null' or lang == '': 
+                 return 1 
+            else:
+                 return 2 
+
+        sorted_logos = sorted(logos, key=sort_key)
+
+        base_url = config['images'].get('secure_base_url', 'https://image.tmdb.org/t/p/')
+        logo_sizes = config['images'].get('logo_sizes', ['original'])
+        logo_size = 'w500' if 'w500' in logo_sizes else logo_sizes[-1] if logo_sizes else 'original'
+
+        logo_path = sorted_logos[0].get('file_path')
+
+        if logo_path:
+            full_logo_url = f"{base_url}{logo_size}{logo_path}"
+            logger.info(f"Constructed logo URL for movie ID {movie_id}: {full_logo_url}") 
+            return full_logo_url
+        else:
+            logger.warning(f"Selected logo has no file_path for movie ID: {movie_id}")
             return None
 
     @lru_cache(maxsize=100)
@@ -209,7 +253,6 @@ class TMDBService:
             if credits:
                 movies = []
 
-                # Add crew credits with department info
                 if 'crew' in credits:
                     for crew_entry in credits['crew']:
                         if crew_entry.get('media_type') == 'movie':
@@ -219,7 +262,6 @@ class TMDBService:
                                 'job': crew_entry.get('job', '')
                             })
 
-                # Add cast credits
                 if 'cast' in credits:
                     cast_movies = [
                         {
@@ -249,7 +291,6 @@ class TMDBService:
         imdb_id = movie.get('imdb_id')
         imdb_url = f"https://www.imdb.com/title/{imdb_id}" if imdb_id else None
 
-        # Try to get Trakt URL
         try:
             trakt_api_url = f"https://api.trakt.tv/search/tmdb/{movie_id}?type=movie"
             headers = {
@@ -269,7 +310,6 @@ class TMDBService:
 
         return tmdb_url, None, imdb_url
 
-    # New collection-related methods
     @lru_cache(maxsize=100)
     def get_collection_details(self, collection_id):
         """Get detailed information about a movie collection by ID"""
@@ -286,5 +326,4 @@ class TMDBService:
             return self.get_collection_details(collection_id)
         return None
 
-# Create a singleton instance
 tmdb_service = TMDBService()

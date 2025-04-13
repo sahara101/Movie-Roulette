@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="orientation" content="portrait">
+    <meta name="screen-orientation" content="portrait">
+    <title>Login - Movie Roulette</title>
+    <link rel="stylesheet" href="/static/style/login.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/icons/favicon.ico">
+    <meta name="csrf-token" content="{{ csrf_token() }}"> 
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo-section">
+                <img src="/static/icons/icon-192x192.png" alt="Movie Roulette Logo" class="app-logo">
+                <h1>Movie Roulette</h1>
+            </div>
+
+            {% if any_service_enabled %}
+            <div class="services-login-section">
+                <div class="media-server-dropdown">
+                    <button class="dropdown-toggle" id="media-server-toggle">
+                        <i class="fas fa-server"></i>
+                        <span>Login with Media Server</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-menu" id="media-server-menu">
+                        {% if services.plex %}
+                        <button type="button" class="dropdown-item plex-item" id="plex-login-btn">
+                            <i class="fas fa-play-circle"></i>
+                            Plex
+                        </button>
+                        {% endif %}
+
+                        {% if services.jellyfin %}
+                        <button type="button" class="dropdown-item jellyfin-item" id="jellyfin-login-btn">
+                            <i class="fas fa-play-circle"></i>
+                            Jellyfin
+                        </button>
+                        {% endif %}
+
+                        {% if services.emby %}
+                        <button type="button" class="dropdown-item emby-item" id="emby-login-btn">
+                            <i class="fas fa-play-circle"></i>
+                            Emby
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="separator">
+                    <span>or use local account</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <form action="/login" method="POST" class="login-form">
+                {% if error %}
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    {{ error }}
+                </div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> 
+        <input type="hidden" name="next" value="{{ next }}">
+                <button type="submit" class="login-button">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% if services.plex %}
+    <div id="plex-auth-modal" class="modal">
+        <div class="modal-content">
+            <h2>Sign In with Plex</h2>
+            <p>Authentication in progress...</p>
+            <div class="modal-loader">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Waiting for Plex authentication...</span>
+            </div>
+            <button id="cancel-plex-auth" class="cancel-button">Cancel</button>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if services.jellyfin %}
+    <div id="jellyfin-auth-modal" class="modal">
+        <div class="modal-content">
+            <h2>Sign In with Jellyfin</h2>
+            <form id="jellyfin-auth-form">
+                <div class="form-group">
+                    <label for="jellyfin-username">Username</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="jellyfin-username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="jellyfin-password">Password</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="jellyfin-password" required>
+                    </div>
+                </div>
+                <div class="form-buttons">
+                    <button type="button" id="cancel-jellyfin-auth" class="cancel-button">Cancel</button>
+                    <button type="submit" class="submit-button">Sign In</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if services.emby %}
+    <div id="emby-auth-modal" class="modal">
+        <div class="modal-content">
+            <h2>Sign In with Emby</h2>
+            <form id="emby-auth-form"> 
+                <div class="form-group">
+                    <label for="emby-username">Username</label> 
+                    <div class="input-with-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="emby-username" required> 
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="emby-password">Password</label> 
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="emby-password" required> 
+                    </div>
+                </div>
+                <div class="form-buttons">
+                    <button type="button" id="cancel-emby-auth" class="cancel-button">Cancel</button> 
+                    <button type="submit" class="submit-button">Sign In</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if services.plex %}
+    <script src="/static/js/plex-auth.js"></script>
+    {% endif %}
+
+    {% if services.jellyfin %}
+    <script src="/static/js/jellyfin-auth.js"></script>
+    {% endif %}
+
+    {% if services.emby %}
+    <script src="/static/js/emby-auth.js"></script>
+    {% endif %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleBtn = document.getElementById('media-server-toggle');
+            const dropdownMenu = document.getElementById('media-server-menu');
+
+            if (toggleBtn && dropdownMenu) {
+                toggleBtn.addEventListener('click', function() {
+                    dropdownMenu.classList.toggle('show');
+                });
+
+                document.addEventListener('click', function(event) {
+                    if (!toggleBtn.contains(event.target) && !dropdownMenu.contains(event.target)) {
+                        dropdownMenu.classList.remove('show');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

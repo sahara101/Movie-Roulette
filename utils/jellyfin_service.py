@@ -5,6 +5,7 @@ import logging
 import random
 import time
 import threading
+import re 
 from threading import Thread, Lock
 from datetime import datetime, timedelta
 from .settings import settings
@@ -14,21 +15,14 @@ logger = logging.getLogger(__name__)
 
 class JellyfinService:
     def __init__(self, url=None, api_key=None, user_id=None, update_interval=600):
-        # Try settings first, then fall back to ENV
-        self.server_url = url or settings.get('jellyfin', 'url') or os.getenv('JELLYFIN_URL')
-        self.api_key = api_key or settings.get('jellyfin', 'api_key') or os.getenv('JELLYFIN_API_KEY')
-        self.user_id = user_id or settings.get('jellyfin', 'user_id') or os.getenv('JELLYFIN_USER_ID')
+        jellyfin_settings = settings.get('jellyfin', {}) 
+        self.server_url = url or jellyfin_settings.get('url') or os.getenv('JELLYFIN_URL')
+        self.admin_api_key = api_key or jellyfin_settings.get('api_key') or os.getenv('JELLYFIN_API_KEY')
+        self.admin_user_id = user_id or jellyfin_settings.get('user_id') or os.getenv('JELLYFIN_USER_ID')
 
-        # Only validate if service is enabled
         if settings.get('jellyfin', 'enabled'):
-            if not all([self.server_url, self.api_key, self.user_id]):
-                raise ValueError("Jellyfin URL, API key, and user ID are required when enabled")
-
-        # Initialize headers
-        self.headers = {
-            'X-Emby-Token': self.api_key,
-            'Content-Type': 'application/json'
-        }
+            if not all([self.server_url, self.admin_api_key, self.admin_user_id]):
+                logger.warning("Jellyfin URL, default API key, or default user ID might be missing in settings/ENV. Background tasks might fail if user-specific credentials aren't provided.")
 
         self.update_interval = update_interval
         self.last_cache_update = 0
@@ -39,6 +33,20 @@ class JellyfinService:
         self._start_cache_updater()
 
         self.playback_start_times = {}
+
+    def _get_request_details(self, user_id=None, api_key=None):
+        """Determines the user_id, api_key, and headers for a request."""
+        target_user_id = user_id or self.admin_user_id
+        target_api_key = api_key or self.admin_api_key
+
+        if not target_user_id or not target_api_key:
+            raise ValueError("Cannot make Jellyfin request: Missing User ID or API Key (either user-specific or admin default).")
+
+        headers = {
+            'X-Emby-Token': target_api_key,
+            'Content-Type': 'application/json'
+        }
+        return target_user_id, target_api_key, headers
 
     def _start_cache_updater(self):
         """Start the cache updater thread"""
@@ -57,14 +65,15 @@ class JellyfinService:
                 current_time = time.time()
                 if current_time - self.last_cache_update >= self.update_interval:
                     with self._cache_lock:
-                        logger.info("Starting Jellyfin cache update")
-                        self.cache_all_jellyfin_movies()
-                        self.last_cache_update = current_time
-                        logger.info("Jellyfin cache update completed")
-                time.sleep(60)  # Check every minute
+                        if self.admin_user_id and self.admin_api_key: 
+                            logger.info("Starting Jellyfin cache update using admin credentials")
+                            self.cache_all_jellyfin_movies() 
+                            self.last_cache_update = current_time
+                            logger.info("Jellyfin cache update completed")
+                time.sleep(60)  
             except Exception as e:
                 logger.error(f"Error in Jellyfin cache update loop: {e}")
-                time.sleep(5)  # Short sleep on error
+                time.sleep(5)  
 
     def cache_all_jellyfin_movies(self):
         """Cache all movies for Jellyfin badge checking"""
@@ -74,13 +83,14 @@ class JellyfinService:
 
         try:
             self.is_updating = True
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            cache_user_id, cache_api_key, cache_headers = self._get_request_details() 
+            movies_url = f"{self.server_url}/Users/{cache_user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'Fields': 'ProviderIds'
             }
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(movies_url, headers=cache_headers, params=params)
             response.raise_for_status()
             movies = response.json().get('Items', [])
 
@@ -88,10 +98,9 @@ class JellyfinService:
             for movie in movies:
                 all_movies.append({
                     "jellyfin_id": movie['Id'],
-                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb')  # This can be None
+                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb')  
                 })
 
-            # Save to disk atomically
             temp_path = f"{self.cache_path}.tmp"
             with open(temp_path, 'w') as f:
                 json.dump(all_movies, f)
@@ -105,16 +114,18 @@ class JellyfinService:
         finally:
             self.is_updating = False
 
-    def get_unwatched_count(self):
+    def get_unwatched_count(self, user_id=None, api_key=None):
         """Get count of unwatched movies"""
         try:
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
+            movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
+
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
-                'IsPlayed': 'false'  # Get only unwatched movies
+                'IsPlayed': 'false'  
             }
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(movies_url, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
             return data.get('TotalRecordCount', 0)
@@ -122,9 +133,10 @@ class JellyfinService:
             logger.error(f"Error getting unwatched count: {e}")
             return 0
 
-    def get_random_movie(self):
+    def get_random_movie(self, user_id=None, api_key=None):
         try:
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
+            movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
@@ -132,7 +144,7 @@ class JellyfinService:
                 'Limit': '1',
                 'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating'
             }
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(movies_url, headers=headers, params=params)
             response.raise_for_status()
             movies = response.json()
             if movies.get('Items'):
@@ -144,25 +156,24 @@ class JellyfinService:
             logger.error(f"Error fetching random movie: {e}")
             return None
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None):
         try:
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
+            movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
                 'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating',
-                'IsPlayed': 'false'
+                'IsPlayed': 'false' 
             }
 
-            # Handle watch status
             if watch_status == 'unwatched':
                 params['IsPlayed'] = 'false'
             elif watch_status == 'watched':
                 params['IsPlayed'] = 'true'
 
-            # Handle empty lists as None
             genres = genres if genres and genres[0] else None
             years = years if years and years[0] else None
             pg_ratings = pg_ratings if pg_ratings and pg_ratings[0] else None
@@ -176,20 +187,18 @@ class JellyfinService:
 
             logger.debug(f"Jellyfin API request params: {params}")
 
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(movies_url, headers=headers, params=params)
             response.raise_for_status()
             movies = response.json().get('Items', [])
 
             logger.debug(f"Jellyfin API returned {len(movies)} movies")
 
-            # If no movies are returned, we can't proceed
             if not movies:
                 logger.warning("No unwatched movies found matching the criteria")
                 return None
 
-            # Randomly select a movie from the returned list
             chosen_movie = random.choice(movies)
-            return self.get_movie_data(chosen_movie)
+            return self.get_movie_data(chosen_movie, user_id=target_user_id, api_key=api_key)
         except Exception as e:
             logger.error(f"Error filtering movies: {str(e)}")
             return None
@@ -203,13 +212,13 @@ class JellyfinService:
             return False
         return True
 
-    def get_movie_data(self, movie):
+    def get_movie_data(self, movie, user_id=None, api_key=None):
+        target_user_id, target_api_key, _ = self._get_request_details(user_id, api_key)
         run_time_ticks = movie.get('RunTimeTicks', 0)
-        total_minutes = run_time_ticks // 600000000  # Convert ticks to minutes
+        total_minutes = run_time_ticks // 600000000  
         hours = total_minutes // 60
         minutes = total_minutes % 60
 
-        # Extract video format information
         video_format = "Unknown"
         audio_format = "Unknown"
 
@@ -219,7 +228,6 @@ class JellyfinService:
                 media_source = media_sources[0]
 
                 if 'MediaStreams' in media_source:
-                    # Video format extraction
                     video_streams = [s for s in media_source['MediaStreams'] if s['Type'] == 'Video']
                     if video_streams:
                         video_stream = video_streams[0]
@@ -244,7 +252,7 @@ class JellyfinService:
                                 hdr_types.append('HDR10')
                             elif video_stream.get('VideoRangeType') == 'HDR10+':
                                 hdr_types.append('HDR10+')
-                            elif not hdr_types:  # If no specific type is identified, just add HDR
+                            elif not hdr_types:  
                                 hdr_types.append('HDR')
 
                         video_format_parts = [resolution]
@@ -253,24 +261,19 @@ class JellyfinService:
 
                         video_format = ' '.join(video_format_parts)
 
-                    # Audio format extraction
                     audio_streams = [s for s in media_source['MediaStreams'] if s['Type'] == 'Audio']
                     if audio_streams:
                         audio_stream = audio_streams[0]
 
-                        # Start with the Profile information
                         profile = audio_stream.get('Profile', '')
                         if profile:
-                            # Split the profile into its components
                             profile_parts = [part.strip() for part in profile.split('+')]
 
-                            # Remove redundant "Dolby" from TrueHD if Atmos is present
                             if "Dolby TrueHD" in profile_parts and "Dolby Atmos" in profile_parts:
                                 profile_parts = ["TrueHD" if part == "Dolby TrueHD" else part for part in profile_parts]
 
                             audio_format = ' + '.join(profile_parts)
                         else:
-                            # Fallback to Codec if Profile is not available
                             codec = audio_stream.get('Codec', '').upper()
                             codec_map = {
                                 'AC3': 'Dolby Digital',
@@ -283,16 +286,13 @@ class JellyfinService:
                             }
                             audio_format = codec_map.get(codec, codec)
 
-                        # Add layout if available and not already included
                         layout = audio_stream.get('Layout', '')
                         if layout and layout not in audio_format:
                             audio_format += f" {layout}"
 
-                        # Remove any duplicate words
                         parts = audio_format.split()
                         audio_format = ' '.join(dict.fromkeys(parts))
 
-        # Get all people and process them by type
         all_people = movie.get('People', [])
     
         directors = [
@@ -336,18 +336,16 @@ class JellyfinService:
             "duration_minutes": minutes,
             "description": movie.get('Overview', ''),
             "genres": movie.get('Genres', []),
-            "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={self.api_key}",
-            "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}" if movie.get('BackdropImageTags') else None,
+            "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={target_api_key}", 
+            "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={target_api_key}" if movie.get('BackdropImageTags') else None, 
             "ProviderIds": movie.get('ProviderIds', {}),
             "contentRating": movie.get('OfficialRating', ''),
             "videoFormat": video_format,
             "audioFormat": audio_format,
             "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb'),
-            # Return enriched data for all roles
             "directors_enriched": directors,
             "writers_enriched": writers,
             "actors_enriched": actors,
-            # Keep original arrays for backwards compatibility
             "directors": [d["name"] for d in directors],
             "writers": [w["name"] for w in writers],
             "actors": [a["name"] for a in actors]
@@ -355,14 +353,15 @@ class JellyfinService:
 
     def get_genres(self):
         try:
-            items_url = f"{self.server_url}/Items"
+            target_user_id, _, headers = self._get_request_details() 
+            items_url = f"{self.server_url}/Users/{target_user_id}/Items" 
             params = {
                 'Recursive': 'true',
                 'Fields': 'Genres',
                 'IncludeItemTypes': 'Movie'
             }
 
-            response = requests.get(items_url, headers=self.headers, params=params)
+            response = requests.get(items_url, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
 
@@ -379,13 +378,14 @@ class JellyfinService:
 
     def get_years(self):
         try:
-            movies_url = f"{self.server_url}/Items"
+            target_user_id, _, headers = self._get_request_details() 
+            movies_url = f"{self.server_url}/Users/{target_user_id}/Items" 
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'Fields': 'ProductionYear'
             }
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            response = requests.get(movies_url, headers=headers, params=params)
             response.raise_for_status()
             movies = response.json()
             years = set(movie.get('ProductionYear') for movie in movies.get('Items', []) if movie.get('ProductionYear'))
@@ -398,14 +398,15 @@ class JellyfinService:
 
     def get_pg_ratings(self):
         try:
-            items_url = f"{self.server_url}/Items"
+            target_user_id, _, headers = self._get_request_details() 
+            items_url = f"{self.server_url}/Users/{target_user_id}/Items" 
             params = {
                 'Recursive': 'true',
                 'Fields': 'OfficialRating',
                 'IncludeItemTypes': 'Movie'
             }
 
-            response = requests.get(items_url, headers=self.headers, params=params)
+            response = requests.get(items_url, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
 
@@ -422,10 +423,11 @@ class JellyfinService:
             logger.error(f"Error fetching PG ratings: {e}")
             return []
 
-    def get_playback_info(self, item_id):
+    def get_playback_info(self, item_id, user_id=None, api_key=None):
         try:
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
             sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=self.headers)
+            response = requests.get(sessions_url, headers=headers, params={'userId': target_user_id}) 
             response.raise_for_status()
             sessions = response.json()
             for session in sessions:
@@ -437,14 +439,12 @@ class JellyfinService:
                     position_seconds = position_ticks / 10_000_000
                     total_duration = session['NowPlayingItem']['RunTimeTicks'] / 10_000_000
 
-                    # Use stored start time or current time if not available
                     if item_id not in self.playback_start_times:
                         self.playback_start_times[item_id] = datetime.now()
 
                     start_time = self.playback_start_times[item_id]
                     end_time = start_time + timedelta(seconds=total_duration)
 
-                    # Check if the session is inactive or if NowPlayingItem is None
                     is_stopped = session.get('PlayState', {}).get('PlayMethod') is None or session.get('NowPlayingItem') is None
 
                     return {
@@ -456,7 +456,6 @@ class JellyfinService:
                         'end_time': end_time.isoformat(),
                         'duration': total_duration
                     }
-            # If we didn't find a matching session, the movie is stopped
             return {
                 'is_playing': False,
                 'IsPaused': False,
@@ -470,10 +469,11 @@ class JellyfinService:
             logger.error(f"Error fetching playback info: {e}")
         return None
 
-    def get_clients(self):
+    def get_clients(self, user_id=None, api_key=None):
         try:
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
             sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=self.headers)
+            response = requests.get(sessions_url, headers=headers, params={'userId': target_user_id}) 
             response.raise_for_status()
             sessions = response.json()
 
@@ -525,7 +525,6 @@ class JellyfinService:
             sessions_json = response.json()
             logger.debug(f"Sessions JSON Response: {json.dumps(sessions_json, indent=2)}")
 
-            # Check if the response is a list
             if isinstance(sessions_json, list):
                 sessions = sessions_json
             elif isinstance(sessions_json, dict):
@@ -543,40 +542,42 @@ class JellyfinService:
                 if now_playing:
                     return {
                         'id': now_playing.get('Id'),
-                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000  # Convert ticks to seconds
+                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000  
                     }
             return None
         except Exception as e:
             logger.error(f"Error fetching current playback: {e}")
             return None
 
-    def play_movie(self, movie_id, session_id):
+    def play_movie(self, movie_id, session_id, user_id=None, api_key=None):
+        """Play a movie on a specific Jellyfin session"""
         try:
+            target_user_id, target_api_key, headers = self._get_request_details(user_id, api_key)
+
             playback_url = f"{self.server_url}/Sessions/{session_id}/Playing"
             params = {
                 'ItemIds': movie_id,
                 'PlayCommand': 'PlayNow'
             }
 
-            # Get session info to find username
             username = None
             try:
                 session_info_url = f"{self.server_url}/Sessions/{session_id}"
-                session_response = requests.get(session_info_url, headers=self.headers)
+                session_response = requests.get(session_info_url, headers=headers)
                 session_response.raise_for_status()
                 session_data = session_response.json()
                 username = session_data.get('UserName')
                 logger.info(f"Playing movie for Jellyfin user: {username}")
-            except:
-                logger.info("Could not determine Jellyfin username for session")
+            except Exception as session_err:
+                logger.warning(f"Could not determine Jellyfin username for session {session_id}: {session_err}")
 
-            response = requests.post(playback_url, headers=self.headers, params=params)
+            response = requests.post(playback_url, headers=headers, params=params)
             response.raise_for_status()
             logger.debug(f"Playing movie {movie_id} on session {session_id}")
             logger.debug(f"Response: {response.text}")
         
             self.playback_start_times[movie_id] = datetime.now()
-            movie_data = self.get_movie_by_id(movie_id)
+            movie_data = self.get_movie_by_id(movie_id, user_id=target_user_id, api_key=target_api_key)
         
             if movie_data:
                 start_time = self.playback_start_times[movie_id]
@@ -603,8 +604,9 @@ class JellyfinService:
 
     def get_active_sessions(self):
         try:
+            _, _, headers = self._get_request_details() 
             sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=self.headers)
+            response = requests.get(sessions_url, headers=headers) 
             response.raise_for_status()
             sessions = response.json()
 
@@ -633,10 +635,11 @@ class JellyfinService:
             logger.error(f"Error getting current Jellyfin username: {e}")
             return None
 
-    def search_movies(self, query):
+    def search_movies(self, query, user_id=None, api_key=None):
         """Search for movies matching the query in titles only"""
         try:
-            movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
+            target_user_id, target_api_key, headers = self._get_request_details(user_id, api_key)
+            movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
@@ -644,23 +647,87 @@ class JellyfinService:
                 'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
                 'SearchFields': 'Name',
                 'EnableTotalRecordCount': True,
-                'Limit': 50
+                'Limit': 50,
+                'UserId': target_user_id 
             }
 
-            logger.info(f"Searching Jellyfin movies with query: {query}")
-            response = requests.get(movies_url, headers=self.headers, params=params)
+            logger.info(f"Searching Jellyfin movies with query: {query} for user {target_user_id}")
+            response = requests.get(movies_url, headers=headers, params=params)
             response.raise_for_status()
             movies = response.json().get('Items', [])
 
-            # Double check title match and process results
             results = []
+            try:
+                pattern = re.compile(r'\b' + re.escape(query) + r'\b', re.IGNORECASE)
+                logger.debug(f"Using regex pattern for Jellyfin search: {pattern.pattern}")
+            except re.error as e:
+                 logger.error(f"Invalid regex pattern generated for query '{query}': {e}")
+                 pattern = None 
+
             for movie in movies:
-                if query.lower() in movie.get('Name', '').lower():
-                    movie_data = self.get_movie_data(movie)
+                movie_name = movie.get('Name', '')
+                if pattern and movie_name and pattern.search(movie_name):
+                    movie_data = self.get_movie_data(movie, user_id=target_user_id, api_key=target_api_key)
                     results.append(movie_data)
 
             logger.info(f"Found {len(results)} Jellyfin movies matching title: {query}")
             return results
+        except Exception as e:
+            logger.error(f"Error searching Jellyfin movies: {e}")
+            return [] 
+
+    def get_filtered_movie_count(self, filters, user_id=None, api_key=None):
+        """
+        Counts movies matching the provided filters by querying the Jellyfin API.
+
+        Args:
+            filters (dict): A dictionary containing filter criteria:
+                            {'genres': list, 'years': list, 'pgRatings': list, 'watch_status': str}
+            user_id (str, optional): The Jellyfin user ID. Defaults to admin user ID.
+            api_key (str, optional): The Jellyfin API key. Defaults to admin API key.
+
+        Returns:
+            int: The count of matching movies.
+        """
+        try:
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
+            movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
+            params = {
+                'IncludeItemTypes': 'Movie',
+                'Recursive': 'true'
+            }
+
+            watch_status = filters.get('watch_status', 'unwatched')
+            selected_genres = filters.get('genres', [])
+            selected_years = filters.get('years', [])
+            selected_pg_ratings = filters.get('pgRatings', [])
+
+            if watch_status == 'unwatched':
+                params['IsPlayed'] = 'false'
+            elif watch_status == 'watched':
+                params['IsPlayed'] = 'true'
+
+            if selected_genres:
+                params['Genres'] = selected_genres 
+            if selected_years:
+                params['Years'] = selected_years 
+            if selected_pg_ratings:
+                params['OfficialRatings'] = selected_pg_ratings 
+
+            logger.debug(f"Jellyfin API count request params (will use repeated params for lists): {params}")
+
+            response = requests.get(movies_url, headers=headers, params=params, timeout=15) 
+            response.raise_for_status() 
+
+            data = response.json()
+
+            count = data.get('TotalRecordCount', 0)
+            logger.debug(f"Jellyfin API returned count: {count}") 
+            return count
+
+        except Exception as e:
+            logger.error(f"Error getting filtered movie count from Jellyfin: {str(e)}")
+            return 0 
 
         except Exception as e:
             logger.error(f"Error searching Jellyfin movies: {str(e)}")

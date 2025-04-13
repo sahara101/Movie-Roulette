@@ -8,6 +8,7 @@ from utils.overseerr_service import request_movie, get_overseerr_csrf_token, get
 from utils.jellyseerr_service import request_movie as jellyseerr_request_movie, get_jellyseerr_csrf_token, get_media_status as jellyseerr_get_media_status, JELLYSEERR_INITIALIZED
 from utils.ombi_service import request_movie as ombi_request_movie, get_ombi_csrf_token, get_media_status as ombi_get_media_status, OMBI_INITIALIZED
 from movie_selector import get_available_service, PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE
+from utils.auth import auth_manager 
 
 overseerr_bp = Blueprint('overseerr_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -26,7 +27,6 @@ def get_request_service():
     write_debug(f"\n=== get_request_service called ===")
     write_debug(f"Current service: {current_service}")
 
-    # Get settings
     request_services = settings.get('request_services', {})
     overseerr_settings = settings.get('overseerr', {})
     jellyseerr_settings = settings.get('jellyseerr', {})
@@ -34,7 +34,6 @@ def get_request_service():
 
     write_debug(f"Request services settings: {request_services}")
 
-    # Check state files for all services
     overseerr_initialized = False
     jellyseerr_initialized = False
     ombi_initialized = False
@@ -71,12 +70,10 @@ def get_request_service():
 
     write_debug(f"Service states - Overseerr: {overseerr_initialized}, Jellyseerr: {jellyseerr_initialized}, Ombi: {ombi_initialized}")
 
-    # Check ENV configurations
     has_overseerr_env = bool(os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY'))
     has_jellyseerr_env = bool(os.getenv('JELLYSEERR_URL') and os.getenv('JELLYSEERR_API_KEY'))
     has_ombi_env = bool(os.getenv('OMBI_URL') and os.getenv('OMBI_API_KEY'))
     
-    # Get service preference and global default
     global_default = request_services.get('default')
     write_debug(f"Global default service: {global_default}")
     
@@ -101,21 +98,17 @@ def get_request_service():
             return ombi_initialized or has_ombi_env
         return False
     
-    # For non-Plex services (Jellyfin/Emby)
     if current_service in ['jellyfin', 'emby']:
         write_debug("Processing non-Plex service path")
         
-        # First check explicit preference
         if service_pref in ['jellyseerr', 'ombi'] and check_service_available(service_pref):
             write_debug(f"Returning {service_pref} (preferred)")
             return service_pref
 
-        # If global default is set and available
         if global_default in ['jellyseerr', 'ombi'] and check_service_available(global_default):
             write_debug(f"Returning {global_default} (global default)")
             return global_default
 
-        # Try default fallback order
         if jellyseerr_initialized or has_jellyseerr_env:
             write_debug("Returning jellyseerr (fallback)")
             return 'jellyseerr'
@@ -123,21 +116,17 @@ def get_request_service():
             write_debug("Returning ombi (fallback)")
             return 'ombi'
 
-    # For Plex
     elif current_service == 'plex':
         write_debug("Processing Plex service path")
         
-        # First check explicit preference if set
         if service_pref != 'auto' and check_service_available(service_pref):
             write_debug(f"Returning {service_pref} (preferred)")
             return service_pref
 
-        # If global default is set and available
         if global_default != 'auto' and check_service_available(global_default):
             write_debug(f"Returning {global_default} (global default)")
             return global_default
 
-        # Fallback to default order
         if overseerr_initialized or has_overseerr_env:
             write_debug("Returning overseerr (fallback)")
             return 'overseerr'
@@ -152,11 +141,11 @@ def get_request_service():
     return None
 
 @overseerr_bp.route('/api/overseerr/status')
+@auth_manager.require_auth 
 def get_overseerr_status():
     """Check if any request service is available and properly configured"""
     current_service = session.get('current_service', get_available_service())
 
-    # Get settings for service details
     overseerr_settings = settings.get('overseerr', {})
     jellyseerr_settings = settings.get('jellyseerr', {})
     ombi_settings = settings.get('ombi', {})
@@ -176,6 +165,7 @@ def get_overseerr_status():
     })
 
 @overseerr_bp.route('/api/search_person', methods=['GET'])
+@auth_manager.require_auth 
 def search_person_route():
     """Endpoint to search for a person by name."""
     name = request.args.get('name')
@@ -188,6 +178,7 @@ def search_person_route():
         return jsonify({"error": "Person not found"}), 404
 
 @overseerr_bp.route('/api/movies_by_person', methods=['GET'])
+@auth_manager.require_auth 
 def movies_by_person_route():
     """Endpoint to fetch person details and their movies from TMDb."""
     person_id = request.args.get('person_id')
@@ -200,6 +191,7 @@ def movies_by_person_route():
         return jsonify({"error": "Failed to fetch person details and credits"}), 500
 
 @overseerr_bp.route('/api/get_overseerr_csrf', methods=['GET'])
+@auth_manager.require_auth 
 def get_overseerr_csrf():
     """Endpoint to get CSRF token from appropriate service."""
     service = get_request_service()
@@ -221,6 +213,7 @@ def get_overseerr_csrf():
         return jsonify({'message': 'CSRF token not available. Requests will be made without CSRF.'}), 200
 
 @overseerr_bp.route('/api/request_movie', methods=['POST'])
+@auth_manager.require_auth 
 def request_movie_route():
     """Endpoint to request a movie via appropriate service."""
     service = get_request_service()
@@ -248,6 +241,7 @@ def request_movie_route():
         return jsonify({"error": "Failed to request movie. Check server logs for details."}), 500
 
 @overseerr_bp.route('/api/overseerr/media/<int:tmdb_id>')
+@auth_manager.require_auth 
 def get_media_status_route(tmdb_id):
     """Check media status in appropriate service"""
     service = get_request_service()

@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}"> 
     <title>Settings - Movie Roulette</title>
     <link href="/static/style/style.css" rel="stylesheet">
     <link href="/static/style/settings.css" rel="stylesheet">
+    <link href="/static/style/auth.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -64,15 +66,12 @@ EMBY_USER_ID=your-user-id</pre>
         {% endwith %}
         <div id="settings-root"></div>
         <script src="/static/js/settings.js"></script>
+        <script src="/static/js/auth.js"></script>
     {% endif %}
     <div class="bottom-links">
     	<a href="https://github.com/sahara101/Movie-Roulette" target="_blank" class="version-label">
             <i class="fab fa-github"></i>
             <span>v{{ version }}</span>
-    	</a>
-    	<a href="https://github.com/sahara101/Movie-Roulette/tree/macOS" target="_blank" class="download-badge">
-            <i class="fab fa-apple apple-icon"></i>
-            Download for macOS
     	</a>
     </div>
     <script>
