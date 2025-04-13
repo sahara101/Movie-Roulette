@@ -201,10 +201,17 @@ Movie Roulette offers two ways to configure the application:
 | `EMBY_USER_ID` | Emby user ID | - | ✅ Settings |
 
 ### Optional, but highly recommended
+| Variable | Description | Default | UI Alternative |
+|----------|-------------|---------|----------------|
+| `FLASK_SECRET_KEY` | Securely sign the session cookie | Random on startup | ❌ Automatic |
 
 ### Optional Features
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
+| `AUTH_ENABLED` | Authentication | FALSE | ✅ Settings |
+| `AUTH_SESSION_LIFETIME` | Auth session lifetime in s | 86400 | ✅ Settings |
+| `ENABLE_MOVIE_LOGOS` | Show TMDB title logos | FALSE | ✅ Settings |
+| `LOAD_MOVIE_ON_START` | Directly show a movie or show a button | TRUE | ✅ Settings |
 | `DISABLE_SETTINGS` | Lock Settings page | FALSE | - |
 | `HOMEPAGE_MODE` | Homepage widget mode | FALSE | ✅ Settings |
 | `TMDB_API_KEY` | Custom TMDb key | Built-in key | ✅ Settings |
