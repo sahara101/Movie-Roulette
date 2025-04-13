@@ -19,6 +19,9 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 - [Cinema Poster Mode](.github/screenshots/poster-mode.png)
 - [Homepage Widget](.github/screenshots/homepage-mode-iframe.png)
 - [PWA on Mobile](.github/screenshots/pwa-interface-mobile.png)
+- [Login Page](.github/screenshots/login-page.png)
+- [Cache Admin](.github/screenshots/cache-admin.png)
+- [Test Theme](.github/screenshots/test-theme.png)
 
 ## Rich Information
 - [Cast & Crew Details](.github/screenshots/cast-example.png)
