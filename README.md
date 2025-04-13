@@ -108,10 +108,12 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 
 ## First Run
 
-1. Automatically redirects to settings if no services configured
+1. Automatically redirects to settings if no services are configured
 2. Set up at least one media server (Plex/Jellyfin/Emby)
-3. Wait for initial cache building for Plex
-4. Optional: Configure additional services (Trakt, Overseerr, etc.)
+3. Optional: Enable Auth
+4. Automatic redirection to admin user setup page
+5. Wait for initial cache building for Plex
+6. Optional: Configure additional services (Trakt, Overseerr, etc.)
 
 ## Key Configuration
 
@@ -197,6 +199,8 @@ Movie Roulette offers two ways to configure the application:
 | `EMBY_URL` | Emby server URL | - | ✅ Settings |
 | `EMBY_API_KEY` | Emby API key | - | ✅ Settings |
 | `EMBY_USER_ID` | Emby user ID | - | ✅ Settings |
+
+### Optional, but highly recommended
 
 ### Optional Features
 | Variable | Description | Default | UI Alternative |
