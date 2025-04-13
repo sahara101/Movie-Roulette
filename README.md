@@ -203,7 +203,7 @@ Movie Roulette offers two ways to configure the application:
 ### Optional, but highly recommended
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
-| `FLASK_SECRET_KEY` | Securely sign the session cookie | Random on startup | ❌ Automatic |
+| `FLASK_SECRET_KEY` | Securely sign the session cookie | Random on startup | - |
 
 ### Optional Features
 | Variable | Description | Default | UI Alternative |
