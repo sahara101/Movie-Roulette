@@ -603,6 +603,10 @@ async function performSearch(query) {
                     writers_enriched: movie.writers_enriched
                 };
                 updateMovieDisplay(currentMovie);
+                if (currentMovie && currentMovie.tmdb_id) {
+                    fetchMovieDetailsAsync(currentMovie.tmdb_id);
+                    fetchTrailerAsync(currentMovie.title, currentMovie.year);
+                }
                 closeSearchModal();
             });
 
