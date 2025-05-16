@@ -5,9 +5,12 @@ import time
 import os.path
 from threading import Thread, Lock
 from datetime import datetime, timedelta
+import logging
 from utils.settings import settings
 from flask import request, session, current_app 
 from utils.auth.manager import auth_manager 
+
+logger = logging.getLogger(__name__)
 
 TRAKT_SETTINGS = settings.get('trakt', {})
 TMDB_SETTINGS = settings.get('tmdb', {})
@@ -78,6 +81,7 @@ def is_trakt_globally_enabled():
 
 def is_trakt_enabled_for_user(user_id=None):
     """Check if Trakt is enabled for a specific user."""
+
     if user_id is None:
         user_id = get_current_user_id()
 
@@ -86,16 +90,34 @@ def is_trakt_enabled_for_user(user_id=None):
         return bool(os.getenv('TRAKT_ACCESS_TOKEN')) 
 
     if user_id == 'global':
-         return settings.get('trakt', {}).get('enabled', False)
+        return settings.get('trakt', {}).get('enabled', False)
 
-    user_data = auth_manager.db.get_user(user_id)
+    token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
+    session_data = auth_manager.verify_auth(token) if token else None
+    user_type = session_data.get('user_type', 'local') if session_data and session_data.get('username') == user_id else 'local'
+
+    user_data = None
+    if user_type == 'plex_managed':
+        user_data = auth_manager.db.get_managed_user_by_username(user_id)
+    else:
+        user_data = auth_manager.db.get_user(user_id)
+
     if not user_data:
-        return False 
+        if session_data and session_data.get('username') == user_id:
+             user_type = session_data.get('user_type', 'local')
+             if user_type == 'plex_managed':
+                 user_data = auth_manager.db.get_managed_user_by_username(user_id)
+             else:
+                 user_data = auth_manager.db.get_user(user_id)
+
+    if not user_data:
+         return False
 
     return user_data.get('trakt_enabled', False) and bool(user_data.get('trakt_access_token'))
 
 def get_user_trakt_tokens(user_id=None):
     """Get Trakt tokens for a specific user from AuthDB or ENV."""
+
     if user_id is None:
         user_id = get_current_user_id()
 
@@ -116,9 +138,26 @@ def get_user_trakt_tokens(user_id=None):
          else:
              return None
 
-    user_data = auth_manager.db.get_user(user_id)
+    token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
+    session_data = auth_manager.verify_auth(token) if token else None
+    user_type = session_data.get('user_type', 'local') if session_data and session_data.get('username') == user_id else 'local'
+
+    user_data = None
+    if user_type == 'plex_managed':
+        user_data = auth_manager.db.get_managed_user_by_username(user_id)
+    else:
+        user_data = auth_manager.db.get_user(user_id)
+
     if not user_data:
-        return None 
+        if session_data and session_data.get('username') == user_id:
+             user_type = session_data.get('user_type', 'local')
+             if user_type == 'plex_managed':
+                 user_data = auth_manager.db.get_managed_user_by_username(user_id)
+             else:
+                 user_data = auth_manager.db.get_user(user_id)
+
+    if not user_data:
+         return None
 
     access = user_data.get('trakt_access_token')
     refresh = user_data.get('trakt_refresh_token')
@@ -160,28 +199,49 @@ def refresh_user_trakt_token(user_id=None):
         if response.ok:
             data = response.json()
             new_access_token = data['access_token']
-            new_refresh_token = data['refresh_token'] 
+            new_refresh_token = data['refresh_token']
 
             update_data = {
                 'trakt_access_token': new_access_token,
                 'trakt_refresh_token': new_refresh_token
             }
-            success, message = auth_manager.db.update_user_data(user_id, update_data)
+
+            token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
+            session_data = auth_manager.verify_auth(token) if token else None
+            user_type = session_data.get('user_type', 'local') if session_data and session_data.get('username') == user_id else 'local'
+
+            if user_type == 'local' and not auth_manager.db.get_user(user_id):
+                 if auth_manager.db.get_managed_user_by_username(user_id):
+                     user_type = 'plex_managed'
+
+
+            success = False
+            message = "User type not handled for token refresh save"
+
+            if user_type == 'plex_managed':
+                success, message = auth_manager.db.update_managed_user_data(user_id, update_data)
+            else:
+                success, message = auth_manager.db.update_user_data(user_id, update_data)
+
 
             if success:
-                print(f"Successfully refreshed and saved Trakt token for user {user_id}")
+                print(f"Successfully refreshed and saved Trakt token for user {user_id} (type: {user_type})")
                 return True
             else:
-                print(f"Failed to save refreshed Trakt token for user {user_id}: {message}")
+                print(f"Failed to save refreshed Trakt token for user {user_id} (type: {user_type}): {message}")
                 return False
         else:
-            print(f"Trakt token refresh API call failed for user {user_id}: {response.status_code} - {response.text}")
+            print(f"Trakt token refresh API call failed for user {user_id} (type: {user_type}): {response.status_code} - {response.text}")
             if response.status_code == 401:
-                 print(f"Refresh token for user {user_id} seems invalid. Clearing tokens.")
-                 auth_manager.db.update_user_data(user_id, {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False})
+                 print(f"Refresh token for user {user_id} (type: {user_type}) seems invalid. Clearing tokens and disabling.")
+                 clear_data = {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False}
+                 if user_type == 'plex_managed':
+                     auth_manager.db.update_managed_user_data(user_id, clear_data)
+                 else:
+                     auth_manager.db.update_user_data(user_id, clear_data)
             return False
     except Exception as e:
-        print(f"Exception during Trakt token refresh for user {user_id}: {e}")
+        print(f"Exception during Trakt token refresh for user {user_id} (type: {user_type}): {e}")
         return False
 
 def get_trakt_headers(user_id=None):
@@ -342,14 +402,34 @@ def sync_watched_status(user_id=None):
 
     watched_movies = get_watched_movies(user_id) 
 
-    if user_id == 'global':
-        watched_file = DEFAULT_WATCHED_FILE
-    else:
-        user_dir = os.path.join(USER_DATA_DIR, user_id)
-        os.makedirs(user_dir, exist_ok=True) 
+    directory_key = user_id
+    watched_file = DEFAULT_WATCHED_FILE
+
+    if user_id != 'global':
+        user_data = None
+        managed_user_data = auth_manager.db.get_managed_user_by_username(user_id)
+        if managed_user_data:
+            user_type = 'plex_managed'
+            user_data = managed_user_data
+        else:
+            regular_user_data = auth_manager.db.get_user(user_id)
+            if regular_user_data:
+                 user_type = regular_user_data.get('service_type', 'local')
+                 user_data = regular_user_data
+
+        if user_type == 'plex_managed' and user_data:
+            plex_user_id = user_data.get('plex_user_id')
+            if plex_user_id:
+                directory_key = f"plex_managed_{plex_user_id}"
+                logger.info(f"Using directory key for managed user {user_id}: {directory_key}")
+            else:
+                logger.error(f"Managed user {user_id} is missing plex_user_id in DB record. Cannot determine correct data path.")
+                directory_key = user_id
+
+        user_dir = os.path.join(USER_DATA_DIR, directory_key)
+        os.makedirs(user_dir, exist_ok=True)
         watched_file = os.path.join(user_dir, 'trakt_watched_movies.json')
-    
-    os.makedirs(os.path.dirname(watched_file), exist_ok=True)
+
     with open(watched_file, 'w') as f:
         json.dump(watched_movies, f)
         
@@ -360,11 +440,32 @@ def get_local_watched_movies(user_id=None):
     if user_id is None:
         user_id = get_current_user_id()
         
-    if user_id == 'global':
-        watched_file = DEFAULT_WATCHED_FILE
-    else:
-        user_dir = os.path.join(USER_DATA_DIR, user_id)
+    directory_key = user_id
+    watched_file = DEFAULT_WATCHED_FILE
+
+    if user_id != 'global':
+        user_data = None
+        managed_user_data = auth_manager.db.get_managed_user_by_username(user_id)
+        if managed_user_data:
+            user_type = 'plex_managed'
+            user_data = managed_user_data
+        else:
+            regular_user_data = auth_manager.db.get_user(user_id)
+            if regular_user_data:
+                 user_type = regular_user_data.get('service_type', 'local')
+                 user_data = regular_user_data
+
+        if user_type == 'plex_managed' and user_data:
+            plex_user_id = user_data.get('plex_user_id')
+            if plex_user_id:
+                directory_key = f"plex_managed_{plex_user_id}"
+            else:
+                logger.error(f"Managed user {user_id} is missing plex_user_id in DB record. Cannot determine correct data path for get_local_watched_movies.")
+                directory_key = user_id
+
+        user_dir = os.path.join(USER_DATA_DIR, directory_key)
         watched_file = os.path.join(user_dir, 'trakt_watched_movies.json')
+
     if os.path.exists(watched_file):
         try:
             with open(watched_file, 'r') as f:
@@ -420,25 +521,36 @@ def get_trakt_id_from_tmdb(tmdb_id, user_id=None):
         return None
 
 def update_watched_status_for_users():
-    """Sync watched status for all users with Trakt enabled in AuthDB."""
+    """Sync watched status for all users (regular and managed) with Trakt enabled."""
     print("Starting periodic Trakt watched status sync...")
-    all_users = auth_manager.db.get_users() 
+    users_to_sync = []
 
-    user_ids_to_check = list(all_users.keys())
     if not auth_manager.auth_enabled:
         if is_trakt_enabled_for_user('global'):
-             user_ids_to_check = ['global']
-        else:
-             user_ids_to_check = [] 
+            users_to_sync.append('global')
     else:
-        user_ids_to_check = [uid for uid in all_users if is_trakt_enabled_for_user(uid)]
+        all_regular_users = auth_manager.db.get_users()
+        for user_id, user_data in all_regular_users.items():
+            if user_data.get('trakt_enabled') and user_data.get('trakt_access_token'):
+                users_to_sync.append(user_id)
 
+        all_managed_users = auth_manager.db.get_all_managed_users()
+        for user_id, user_data in all_managed_users.items():
+             full_managed_user_data = auth_manager.db.get_managed_user_by_username(user_id)
+             if full_managed_user_data and \
+                full_managed_user_data.get('trakt_enabled') and \
+                full_managed_user_data.get('trakt_access_token'):
+                 users_to_sync.append(user_id)
 
     synced_count = 0
-    for user_id in user_ids_to_check:
+    unique_user_ids = list(set(users_to_sync))
+
+    print(f"Found {len(unique_user_ids)} users with Trakt enabled for sync: {unique_user_ids}")
+
+    for user_id in unique_user_ids:
         print(f"Syncing Trakt watched status for user: {user_id}")
         try:
-            sync_watched_status(user_id)
+            sync_watched_status(user_id=user_id)
             synced_count += 1
         except Exception as e:
             print(f"Error syncing watched status for user {user_id}: {e}")

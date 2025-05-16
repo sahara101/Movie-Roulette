@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return obj;
     }
 
-    function showMessage(message) {
+    window.showMessage = function(message) {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'info-message';
         messageDiv.textContent = message;
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => messageDiv.remove(), 3000);
     }
 
-    function showError(message) {
+    window.showError = function(message) {
         const error = document.createElement('div');
         error.className = 'error-message';
         error.textContent = message;
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => error.remove(), 3000);
     }
 
-    function showSuccess(message) {
+    window.showSuccess = function(message) {
         const success = document.createElement('div');
         success.className = 'success-message';
         success.textContent = message;
@@ -115,8 +115,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             current[keyParts[keyParts.length - 1]] = value;
 
-            console.log('Updating setting:', key, 'with value:', value);
-
             const csrfToken = getCsrfToken(); 
 
             if (!csrfToken) {
@@ -158,6 +156,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     preferredUserContainer.innerHTML = '';
                     renderPreferredUserSelector(preferredUserContainer);
             	}
+            }
+
+            if (key === 'auth.passkey_enabled' || key === 'auth.enabled') {
+                const activeTab = document.querySelector('.settings-tabs .tab.active');
+                if (activeTab && activeTab.dataset.tab === 'auth') {
+                    loadTabContent('auth');
+                }
             }
 
     	} catch (error) {
@@ -233,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
                            spellcheck="false">
                     <div class="dialog-note">
                         <i class="fa-solid fa-info-circle"></i>
-                        Paste the code from Trakt and click Connect. You can close the Trakt window after.
+                        Authorize in the Trakt window. Then, copy the code provided by Trakt and paste it here.
                     </div>
                     <div class="dialog-buttons">
                         <button class="cancel-button">Cancel</button>
@@ -393,7 +398,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else if (data.status === 'success') {
                         showSuccess('Successfully disconnected from Trakt');
                         traktStatus.connected = false;
-                        checkConnectionStatus(); // Update button
+                        checkConnectionStatus();
                     }
                 } catch (error) {
                     showError(error.message || 'Failed to disconnect from Trakt');
@@ -436,16 +441,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
         wrapper.appendChild(button);
         container.appendChild(wrapper);
-        checkConnectionStatus(); 
+        checkConnectionStatus();
     }
 
     function renderSettingsSection(title, settings, envOverrides, fields) {
     	const section = document.createElement('div');
     	section.className = 'settings-section';
+        if (title === 'General Features') {
+            section.classList.add('general-features-section');
+        }
 
     	const titleElem = document.createElement('h2');
     	titleElem.textContent = title;
     	section.appendChild(titleElem);
+
+        let fieldsParent = section;
+
+        if (title === 'General Features') {
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'fields-grid-container';
+            section.appendChild(gridContainer);
+            fieldsParent = gridContainer;
+        }
 
     	fields.forEach(async field => { 
             const fieldContainer = document.createElement('div');
@@ -473,13 +490,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 fieldContainer.appendChild(buttonLabel);
 
             	createTraktIntegration(fieldContainer); 
-            	section.appendChild(fieldContainer);
+            	fieldsParent.appendChild(fieldContainer);
             	return; 
             }
 
             if (field.type === 'custom' && typeof field.render === 'function') {
-            	field.render(fieldContainer);
-            	section.appendChild(fieldContainer);
+            	field.render(fieldContainer, currentSettings, getNestedValue); 
+            	fieldsParent.appendChild(fieldContainer);
             	return;
             }
 
@@ -523,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.setAttribute('data-field-key', 'tmdb.api_key');
                     fieldContainer.appendChild(input);
             	}
-            	section.appendChild(fieldContainer);
+            	fieldsParent.appendChild(fieldContainer);
             	return;
             }
 
@@ -661,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     (checked) => handleSettingChange(field.key, checked) 
             	);
             	fieldContainer.appendChild(toggle);
-            	   if (isOverridden) { // Use the isOverridden determined earlier
+            	   if (isOverridden) {
             	       const overrideIndicator = document.createElement('div');
             	       overrideIndicator.className = 'env-override';
             	       overrideIndicator.textContent = 'Set by environment variable';
@@ -678,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
             	);
             	   input.setAttribute('data-field-key', field.key); 
             	   fieldContainer.appendChild(input);
-            	      if (isOverridden) { // Use the isOverridden determined earlier
+            	      if (isOverridden) {
             	          const overrideIndicator = document.createElement('div');
             	          overrideIndicator.className = 'env-override';
             	          overrideIndicator.textContent = 'Set by environment variable';
@@ -686,8 +703,7 @@ document.addEventListener('DOMContentLoaded', function() {
             	      }
             }
  
-            // Append the fully constructed field container to the section
-            section.appendChild(fieldContainer);
+            fieldsParent.appendChild(fieldContainer);
     	});
 
     	return section;
@@ -904,23 +920,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 {
                     title: 'General Features',
                     fields: [
-                        { key: 'features.use_links', label: 'Enable Links', type: 'switch' },
-                        { key: 'features.use_filter', label: 'Enable Filters', type: 'switch' },
-                        { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch' },
-                        { key: 'features.use_next_button', label: 'Enable Next Button', type: 'switch' },
-			{ key: 'features.mobile_truncation', label: 'Enable Mobile Description Truncation', type: 'switch' },
+                        { key: 'features.use_links', label: 'Enable Links', type: 'switch', description: "Show external links (e.g., IMDb, TMDB) buttons." },
+                        { key: 'features.use_filter', label: 'Enable Filters', type: 'switch', description: "Show filter button." },
+                        { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch', description: "Display a 'Watch Now' button to directly play movies (if supported by the client)." },
+                        { key: 'features.use_next_button', label: 'Enable Next Button', type: 'switch', description: "Show a 'Next Movie' button to quickly get another random movie." },
+			{ key: 'features.mobile_truncation', label: 'Enable Mobile Description Truncation', type: 'switch', description: "Shorten long movie descriptions on mobile devices for better readability." },
 			{
             		    key: 'features.homepage_mode',
             		    label: 'Homepage Mode',
             		    type: 'switch',
             		    description: 'Provides a simplified, non-interactive display format ideal for <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a> iframe integration. Removes buttons, links, and keeps movie descriptions fully expanded.'
         		},
-   { key: 'features.enable_movie_logos', label: 'Enable Movie Title Logos', type: 'switch' }, 
+   { key: 'features.enable_movie_logos', label: 'Enable Movie Title Logos', type: 'switch', description: "Display movie title logos." },
    { 
        key: 'features.load_movie_on_start',
        label: 'Load Movie on Page Start',
        type: 'switch', 
        description: 'If enabled, a random movie is loaded automatically when the page opens. If disabled, you need to click the "Get Random Movie" button first.'
+   },
+   {
+       key: 'features.login_backdrop.enabled',
+       label: 'Enable Login Page Backdrops',
+       type: 'switch',
+       description: 'Display fullscreen random movie backdrops on the login page.'
    }
         		          ]
                 },
@@ -1133,11 +1155,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             label: 'Session Lifetime',
                             type: 'select',
                             options: [
-                                { value: '86400', label: '1 Day' },    // 1 day
-                                { value: '604800', label: '7 Days' },   // 7 days
-                                { value: '2592000', label: '30 Days' },  // 30 days
-                                { value: '7776000', label: '90 Days' },  // 90 days
-                                { value: '31536000', label: '1 Year' } // 1 year (approx)
+                                { value: '86400', label: '1 Day' },
+                                { value: '604800', label: '7 Days' },
+                                { value: '2592000', label: '30 Days' },
+                                { value: '7776000', label: '90 Days' },
+                                { value: '31536000', label: '1 Year' }
                             ],
                             description: 'Duration a standard username/password login session remains valid. Does not affect Plex/Jellyfin/Emby logins.'
                         },
@@ -1147,6 +1169,33 @@ document.addEventListener('DOMContentLoaded', function() {
                     	       type: 'custom',
                     	       render: renderUserManagement
                     	},
+                        { key: 'auth.passkey_enabled', label: 'Enable Passkey Authentication', type: 'switch', description: 'Allow users to log in with device-bound passkeys (e.g., fingerprint, security key) instead of passwords. Requires HTTPS unless RP ID is localhost.' },
+                        { key: 'auth.relying_party_id', label: 'Passkey Relying Party ID', type: 'text', placeholder: 'e.g., yourdomain.com or localhost', description: 'The domain identifier for passkey operations. Must match your site\'s domain. For local testing, often "localhost".' },
+                        { key: 'auth.relying_party_origin', label: 'Passkey Relying Party Origin', type: 'text', placeholder: 'e.g., https://roulette.yourdomain.com', description: 'The full base URL (including https://) where users access Movie Roulette. This must exactly match the browser\'s address bar for passkeys to work.' },
+                        {
+                            key: 'passkey_management',
+                            label: 'Manage Your Passkeys',
+                            type: 'custom',
+                            render: function(container, settings, getNestedValue) {
+                                const authEnabled = getNestedValue(settings, 'auth.enabled');
+                                if (!authEnabled) {
+                                    const notice = document.createElement('div');
+                                    notice.className = 'setting-description';
+                                    notice.innerHTML = '<i class="fa-solid fa-info-circle"></i> Please enable Authentication to manage passkeys.';
+                                    container.appendChild(notice);
+                                } else {
+                                    if (typeof renderPasskeyManagementSection === 'function') {
+                                        renderPasskeyManagementSection(container, settings, getNestedValue);
+                                    } else {
+                                        console.error("renderPasskeyManagementSection is not defined or accessible.");
+                                        const errorNotice = document.createElement('div');
+                                        errorNotice.className = 'error-message';
+                                        errorNotice.textContent = 'Error: Passkey management UI could not be loaded.';
+                                        container.appendChild(errorNotice);
+                                    }
+                                }
+                            }
+                        },
                     	{ 
                     	    key: 'auth.user_cache_admin', 
                     	    label: 'User Cache Management',
@@ -1154,13 +1203,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     	    render: function(container) {
                     	        const link = document.createElement('a');
                     	        link.href = '/user_cache_admin';
-                    	        link.className = 'back-button admin-only'; 
+                    	        link.className = 'discover-button admin-only'; 
                     	        link.innerHTML = `
                     	            <i class="fa-solid fa-database"></i>
-                    	            <span>Open User Cache Admin</span>
+                    	            <span>User Cache Admin</span>
                     	        `;
                     	        link.style.width = 'auto'; 
-                    	        link.style.display = 'inline-flex'; 
+                    	        link.style.display = 'inline-flex';
+                    	        link.style.textDecoration = 'none'; 
                     	        container.appendChild(link);
                     	    }
                     	}
@@ -2240,13 +2290,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const authData = await authResponse.json();
             const isAuthenticated = authData.authenticated;
             const isAdmin = isAuthenticated && authData.is_admin;
-            const serviceType = isAuthenticated ? authData.service_type : null; 
+            const serviceType = isAuthenticated ? authData.service_type : null;
             const isServiceUser = serviceType && ['plex', 'jellyfin', 'emby'].includes(serviceType);
+            const isPlexManagedUser = serviceType === 'plex_managed';
 
             window.isAuthenticated = isAuthenticated;
             window.isAdminUser = isAdmin;
             window.serviceType = serviceType;
             window.isServiceUser = isServiceUser;
+            window.isPlexManagedUser = isPlexManagedUser;
         
             const response = await fetch('/api/settings');
             if (!response.ok) throw new Error('Failed to load settings');
@@ -2265,7 +2317,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const statusData = await traktStatusResponse.json();
                     traktStatus.connected = statusData.connected;
                     traktStatus.env_controlled = statusData.env_controlled;
-                    console.log('Fetched Trakt Status:', traktStatus);
+                    traktStatus.enabled = statusData.enabled; 
                 } else {
                     console.error('Failed to fetch Trakt status:', traktStatusResponse.statusText);
                 }
@@ -2274,7 +2326,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const tabsContainer = document.querySelector('.settings-tabs');
-            if (!isAdmin && isServiceUser) {
+            if (isAdmin) {
+                const mediaTab = tabsContainer.querySelector('[data-tab="media"]');
+                if (mediaTab) mediaTab.click();
+                else {
+                    const firstTab = tabsContainer.querySelector('.tab');
+                    if (firstTab) firstTab.click();
+                }
+            } else if (isPlexManagedUser) {
                 tabsContainer.querySelectorAll('.tab').forEach(tab => {
                     if (tab.dataset.tab !== 'integrations') {
                         tab.style.display = 'none';
@@ -2282,8 +2341,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const integrationsTab = tabsContainer.querySelector('[data-tab="integrations"]');
                 if (integrationsTab) integrationsTab.click();
-                else console.error("Integrations tab not found"); 
-            } else if (!isAdmin) {
+                else console.error("Integrations tab not found for plex_managed user");
+            } else if (isServiceUser) {
+                tabsContainer.querySelectorAll('.tab').forEach(tab => {
+                    if (tab.dataset.tab !== 'integrations') {
+                        tab.style.display = 'none';
+                    }
+                });
+                const integrationsTab = tabsContainer.querySelector('[data-tab="integrations"]');
+                if (integrationsTab) integrationsTab.click();
+                else console.error("Integrations tab not found for service user");
+            } else {
                 tabsContainer.querySelectorAll('.tab').forEach(tab => {
                     if (!['features', 'clients', 'integrations'].includes(tab.dataset.tab)) {
                         tab.style.display = 'none';
@@ -2291,15 +2359,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const featuresTab = tabsContainer.querySelector('[data-tab="features"]');
                  if (featuresTab) featuresTab.click();
-                 else console.error("Features tab not found"); 
-            } else {
-                const mediaTab = tabsContainer.querySelector('[data-tab="media"]');
-                if (mediaTab) mediaTab.click();
-                else { 
-                    const firstTab = tabsContainer.querySelector('.tab');
-                    if (firstTab) firstTab.click();
-                }
+                 else console.error("Features tab not found for non-admin local user");
             }
+
+            const traktToggleElement = document.getElementById('trakt-enabled-toggle');
+            if (traktToggleElement) {
+                 console.log('Synchronizing Trakt toggle state after load. Current traktStatus:', traktStatus);
+                 if (traktStatus.enabled) {
+                     traktToggleElement.classList.add('active');
+                 } else {
+                     traktToggleElement.classList.remove('active');
+                 }
+                 traktToggleElement.classList.toggle('disabled', traktStatus.env_controlled);
+                 if (traktStatus.env_controlled) {
+                     traktToggleElement.style.pointerEvents = 'none';
+                     traktToggleElement.title = 'This setting is controlled by environment variables';
+                 } else {
+                     traktToggleElement.style.pointerEvents = '';
+                     traktToggleElement.removeAttribute('title');
+                 }
+            }
+
 
             if (isAdmin) {
             	const plexEnabled = currentSettings.plex?.enabled;
@@ -2462,8 +2542,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (window.isAdminUser) {
             allSections.forEach(section => {
-                section.style.display = ''; 
+                section.style.display = '';
             });
+        } else if (window.isPlexManagedUser) {
+            if (currentTab === 'integrations') {
+                allSections.forEach(section => {
+                    const title = section.querySelector('h2')?.textContent.trim();
+                    section.style.display = (title === 'Trakt') ? '' : 'none';
+                });
+            } else {
+                allSections.forEach(section => section.style.display = 'none');
+            }
         } else if (window.isServiceUser) {
             if (currentTab === 'integrations') {
                 allSections.forEach(section => {
@@ -2471,9 +2560,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     section.style.display = (title === 'Trakt') ? '' : 'none';
                 });
             } else {
-                 allSections.forEach(section => {
-                    section.style.display = 'none';
-                });
+                 allSections.forEach(section => section.style.display = 'none');
             }
         } else {
             if (currentTab === 'features') {
@@ -2824,9 +2911,6 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
         } else {
-            const manualGroup = document.createElement('div');
-            manualGroup.className = 'input-group';
-
             const apiKeyInput = createInput(
                 'password',
                 getNestedValue(currentSettings, 'jellyfin.api_key'),
@@ -2842,15 +2926,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 (value) => handleSettingChange('jellyfin.user_id', value),
                 'User ID'
             );
-
-            manualGroup.appendChild(createLabel('API Key (manual entry)'));
-            manualGroup.appendChild(apiKeyInput);
-            manualGroup.appendChild(createLabel('User ID (manual entry)'));
-            manualGroup.appendChild(userIdInput);
-
-            const separator = document.createElement('div');
-            separator.className = 'dialog-separator';
-            separator.innerHTML = '<span>or get automatically</span>';
 
             const autoGroup = document.createElement('div');
             autoGroup.className = 'input-group';
@@ -2873,7 +2948,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const loginButton = document.createElement('button');
             loginButton.className = 'discover-button';
             loginButton.innerHTML = '<i class="fa-solid fa-key"></i> Get API Key & User ID';
-
+            
             loginButton.addEventListener('click', async () => {
                 try {
                     const jellyfinUrl = getNestedValue(currentSettings, 'jellyfin.url');
@@ -2935,10 +3010,22 @@ document.addEventListener('DOMContentLoaded', function() {
             autoGroup.appendChild(createLabel('Password (for automatic setup)'));
             autoGroup.appendChild(passwordInput);
             autoGroup.appendChild(loginButton);
+            
+            const separator = document.createElement('div');
+            separator.className = 'dialog-separator';
+            separator.innerHTML = '<span>or enter manually</span>';
 
-            wrapper.appendChild(manualGroup);
-            wrapper.appendChild(separator);
+            const manualGroup = document.createElement('div'); 
+            manualGroup.className = 'input-group';
+
+            manualGroup.appendChild(createLabel('API Key (manual entry)'));
+            manualGroup.appendChild(apiKeyInput); 
+            manualGroup.appendChild(createLabel('User ID (manual entry)'));
+            manualGroup.appendChild(userIdInput); 
+
             wrapper.appendChild(autoGroup);
+            wrapper.appendChild(separator);
+            wrapper.appendChild(manualGroup);
         }
 
         container.appendChild(wrapper);
@@ -2959,6 +3046,26 @@ document.addEventListener('DOMContentLoaded', function() {
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
     	} else {
+            const authGroup = document.createElement('div');
+            authGroup.className = 'auth-buttons-group';
+
+            const connectButton = document.createElement('button');
+            connectButton.className = 'discover-button';
+            connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Emby Connect';
+            connectButton.addEventListener('click', () => showEmbyConnectDialog()); 
+
+            const localButton = document.createElement('button');
+            localButton.className = 'discover-button';
+            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login'; 
+            localButton.addEventListener('click', () => showEmbyLocalLoginDialog()); 
+
+            authGroup.appendChild(connectButton); 
+            authGroup.appendChild(localButton);
+
+            const separator = document.createElement('div');
+            separator.className = 'dialog-separator';
+            separator.innerHTML = '<span>or enter manually</span>';
+            
             const manualGroup = document.createElement('div');
             manualGroup.className = 'input-group';
 
@@ -2982,30 +3089,10 @@ document.addEventListener('DOMContentLoaded', function() {
             manualGroup.appendChild(apiKeyInput);
             manualGroup.appendChild(createLabel('User ID (manual entry)'));
             manualGroup.appendChild(userIdInput);
-
-            const separator = document.createElement('div');
-            separator.className = 'dialog-separator';
-            separator.innerHTML = '<span>or login with</span>';
-
-            const authGroup = document.createElement('div');
-            authGroup.className = 'auth-buttons-group';
-
-            const connectButton = document.createElement('button');
-            connectButton.className = 'discover-button';
-            connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Emby Connect';
-            connectButton.addEventListener('click', () => showEmbyConnectDialog()); 
-
-            const localButton = document.createElement('button');
-            localButton.className = 'discover-button';
-            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login'; 
-            localButton.addEventListener('click', () => showEmbyLocalLoginDialog()); 
-
-            authGroup.appendChild(connectButton); 
-            authGroup.appendChild(localButton);
-
-            wrapper.appendChild(manualGroup);
-            wrapper.appendChild(separator);
+            
             wrapper.appendChild(authGroup);
+            wrapper.appendChild(separator);
+            wrapper.appendChild(manualGroup);
    	}
 
     	container.appendChild(wrapper);
@@ -3038,7 +3125,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             	</button>
                             	<button class="server-option" data-server='${JSON.stringify({
                                	    ...server,
-                                    url: server.remote_url, // Use remote_url here
+                                    url: server.remote_url,
                                     access_key: server.access_key,
                                     name: server.name,
                                     id: server.id
@@ -3570,12 +3657,24 @@ document.addEventListener('DOMContentLoaded', function() {
             	<h3><i class="fa-solid fa-users"></i> Select ${service.charAt(0).toUpperCase() + service.slice(1)} Users</h3>
             	<div class="user-select">
                     ${users.map(user => {
-                        const username = user && user.username ? user.username : 'Invalid User';
-                        const isChecked = currentUsers.includes(username);
+                        let displayName;
+                        if (typeof user === 'string' && user.trim() !== '') {
+                            displayName = user;
+                        } else if (user && typeof user.username === 'string' && user.username.trim() !== '') {
+                            displayName = user.username;
+                        } else if (user && typeof user.Name === 'string' && user.Name.trim() !== '') {
+                            displayName = user.Name;
+                        } else if (user && user.Id) {
+                            displayName = `${service.charAt(0).toUpperCase() + service.slice(1)} User (ID: ${user.Id})`;
+                        } else {
+                            displayName = 'Invalid User';
+                        }
+
+                        const isChecked = currentUsers.includes(displayName);
                         return `
                             <label class="user-option">
-                                <input type="checkbox" value="${username}" ${isChecked ? 'checked' : ''}>
-                                <span>${username}</span>
+                                <input type="checkbox" value="${displayName}" ${isChecked ? 'checked' : ''}>
+                                <span>${displayName}</span>
                             </label>
                         `;
                     }).join('')}
@@ -3796,34 +3895,87 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderUserManagement(container) {
     	const wrapper = document.createElement('div');
     	wrapper.className = 'user-management-wrapper';
-    
-    	const usersUI = document.createElement('div');
-    	usersUI.className = 'users-container';
-    
-    	const userList = document.createElement('div');
-    	userList.className = 'user-list';
-    	userList.innerHTML = '<div class="loading-users">Loading users...</div>';
-    
-    	fetchUsers(userList);
-    
-    	usersUI.appendChild(userList);
-    	wrapper.appendChild(usersUI);
+
+        const authEnabled = getNestedValue(currentSettings, 'auth.enabled');
+
+        if (!authEnabled) {
+            const notice = document.createElement('div');
+            notice.className = 'setting-description';
+            notice.innerHTML = '<i class="fa-solid fa-info-circle"></i> Please enable Authentication to manage users.';
+            wrapper.appendChild(notice);
+        } else {
+            const usersUI = document.createElement('div');
+            usersUI.className = 'users-container';
+
+            const userList = document.createElement('div');
+            userList.className = 'user-list';
+            userList.innerHTML = '<div class="loading-users">Loading users...</div>';
+
+            fetchUsers(userList);
+
+            usersUI.appendChild(userList);
+
+            const addManagedUserButton = document.createElement('button');
+            addManagedUserButton.id = 'add-managed-user-btn';
+            addManagedUserButton.className = 'discover-button';
+            addManagedUserButton.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add Managed User';
+            addManagedUserButton.addEventListener('click', () => {
+                if (typeof window.openAddManagedUserModal === 'function') {
+                    window.openAddManagedUserModal();
+                } else {
+                    console.error('Function window.openAddManagedUserModal not found. Ensure settings_managed_users.js is loaded correctly before settings.js tries to use it.');
+                    if(typeof showError === 'function') {
+                        showError('Could not open the Add Managed User dialog. Please ensure all scripts loaded correctly or try refreshing the page.');
+                    } else {
+                        alert('Could not open the Add Managed User dialog. Please ensure all scripts loaded correctly or try refreshing the page.');
+                    }
+                }
+            });
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.marginTop = '20px';
+            buttonContainer.appendChild(addManagedUserButton);
+            usersUI.appendChild(buttonContainer);
+            wrapper.appendChild(usersUI);
+        }
     	container.appendChild(wrapper);
     }
 
     function fetchUsers(container) {
-    	fetch('/api/auth/users')
-            .then(response => {
-            	if (!response.ok) {
-                    throw new Error('Failed to fetch users');
-            	}
-            	return response.json();
+        Promise.all([
+            fetch('/api/auth/users').then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch regular users: ${res.statusText}`);
+                return res.json();
+            }),
+            fetch('/api/settings/managed_users').then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch managed users: ${res.statusText}`);
+                return res.json();
             })
-            .then(users => {
-            	renderUserList(container, users);
-            })
-            .catch(error => {
-            	console.error('Error fetching users:', error);
+        ])
+        .then(([regularUsers, managedUsersData]) => {
+            const formattedRegularUsers = regularUsers.map(user => ({
+                ...user,
+                userType: 'regular'
+            }));
+
+            const formattedManagedUsers = Object.entries(managedUsersData).map(([username, data]) => ({
+                internal_username: username,
+                display_username: username,
+                plex_user_id: data.plex_user_id,
+                created_at: data.created_at,
+                last_login: data.last_login,
+                userType: 'managed',
+                is_admin: false,
+                service_type: 'plex',
+                display_role: 'Managed User'
+            }));
+
+            const combinedUsers = [...formattedRegularUsers, ...formattedManagedUsers];
+
+            renderUserList(container, combinedUsers);
+        })
+        .catch(error => {
+            console.error('Error fetching users:', error);
             	container.innerHTML = `
                     <div class="error-message">
                     	<i class="fa-solid fa-exclamation-circle"></i>
@@ -3842,70 +3994,82 @@ document.addEventListener('DOMContentLoaded', function() {
     	const usersList = document.createElement('div');
     	usersList.className = 'users-list';
     
-    	userList.forEach(user => { 
-    	       const internalUsername = user.internal_username; 
-    	       const displayUsername = user.display_username; 
-    	       const userData = user; 
-    	       const username = displayUsername; 
+    	userList.forEach(user => {
+            const internalUsername = user.internal_username;
+            const displayUsername = user.display_username;
+            const userData = user;
+            const userType = user.userType;
+
             const userItem = document.createElement('div');
             userItem.className = 'user-item';
-        
+
             const userInfo = document.createElement('div');
             userInfo.className = 'user-info';
-        
+
             const userName = document.createElement('div');
             userName.className = 'user-name';
-            
-            const serviceType = userData.service_type || 'local'; 
-            const serviceTypeDisplay = serviceType.charAt(0).toUpperCase() + serviceType.slice(1); 
-            const displayRole = userData.display_role || 'User'; 
-            const isAdminFlag = userData.is_admin || false; 
 
-            let roleClass = displayRole.toLowerCase(); 
+            const serviceType = userData.service_type || (userType === 'managed' ? 'plex' : 'local');
+            const serviceTypeDisplay = serviceType.charAt(0).toUpperCase() + serviceType.slice(1);
+            const displayRole = userData.display_role || (userType === 'managed' ? 'Managed User' : 'User');
+            const isAdminFlag = userData.is_admin || false;
+
+            let roleClass = displayRole.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
             userName.innerHTML = `
-            	<span>${username}</span>
-            	<span class="role-badge ${roleClass}">${displayRole}</span> <!-- Use display_role -->
-            	<span class="service-type-badge ${serviceType}">${serviceTypeDisplay}</span>
+                <span>${displayUsername}</span>
+                <span class="role-badge ${roleClass}">${displayRole}</span>
+                <span class="service-type-badge ${serviceType}">${serviceTypeDisplay}</span>
             `;
-        
+
             const userMeta = document.createElement('div');
             userMeta.className = 'user-meta';
-            userMeta.innerHTML = `
-            	<span>Created: ${formatDate(userData.created_at)}</span>
-            	${userData.last_login ? `<span>Last login: ${formatDate(userData.last_login)}</span>` : ''}
-            `;
-        
+            let metaHTML = `<span>Created: ${formatDate(userData.created_at)}</span>`;
+            if (userData.last_login) {
+                metaHTML += `<span>Last login: ${formatDate(userData.last_login)}</span>`;
+            }
+            if (userType === 'managed' && userData.plex_user_id) {
+                metaHTML += `<span>Plex User ID: ${userData.plex_user_id}</span>`;
+            }
+            userMeta.innerHTML = metaHTML;
+
+
             userInfo.appendChild(userName);
             userInfo.appendChild(userMeta);
-        
+
             const userActions = document.createElement('div');
             userActions.className = 'user-actions';
-        
-            if (userData.service_type === 'local') {
+
+            if (userType === 'regular' && serviceType === 'local') {
                 const resetPasswordButton = document.createElement('button');
                 resetPasswordButton.className = 'user-action';
                 resetPasswordButton.innerHTML = '<i class="fa-solid fa-key"></i>';
                 resetPasswordButton.title = 'Reset Password';
-                resetPasswordButton.addEventListener('click', () => showResetPasswordModal(internalUsername)); 
+                resetPasswordButton.addEventListener('click', () => showResetPasswordModal(internalUsername));
                 userActions.appendChild(resetPasswordButton);
             }
-        
-            if (!(userData.service_type === 'local' && isAdminFlag)) {
+
+            const isLastAdmin = userType === 'regular' && serviceType === 'local' && isAdminFlag && userList.filter(u => u.userType === 'regular' && u.is_admin).length === 1;
+
+            if (!isLastAdmin) {
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'user-action delete';
                 deleteButton.innerHTML = '<i class="fa-solid fa-trash"></i>';
                 deleteButton.title = 'Delete User';
-                deleteButton.addEventListener('click', () => showDeleteUserModal(internalUsername, isAdminFlag)); 
+                if (userType === 'managed') {
+                    deleteButton.addEventListener('click', () => showDeleteManagedUserModal(internalUsername));
+                } else {
+                    deleteButton.addEventListener('click', () => showDeleteUserModal(internalUsername, isAdminFlag));
+                }
                 userActions.appendChild(deleteButton);
             }
-        
+
             userItem.appendChild(userInfo);
             userItem.appendChild(userActions);
-        
+
             usersList.appendChild(userItem);
     	});
-    
+
     	container.innerHTML = '';
     	container.appendChild(usersList);
     }
@@ -4094,5 +4258,87 @@ document.addEventListener('DOMContentLoaded', function() {
     	});
     }
 
+    function showDeleteManagedUserModal(username) {
+        const modal = document.createElement('div');
+        modal.className = 'trakt-confirm-dialog';
+
+        modal.innerHTML = `
+            <div class="dialog-content">
+                <h3><i class="fa-solid fa-trash"></i> Delete Managed User</h3>
+                <p>Are you sure you want to delete the managed user: <strong>${username}</strong>?</p>
+                <p>This will remove their PIN login access.</p>
+                <div class="dialog-buttons">
+                    <button type="button" class="cancel-button">Cancel</button>
+                    <button type="button" class="delete-button">Delete User</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        modal.querySelector('.delete-button').addEventListener('click', () => {
+            fetch(`/api/settings/managed_users/${username}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => {
+                 if (!response.ok) {
+                     return response.json().catch(() => {
+                         throw new Error(response.statusText || `HTTP error! status: ${response.status}`);
+                     }).then(errData => {
+                         throw new Error(errData.message || errData.error || `HTTP error! status: ${response.status}`);
+                     });
+                 }
+                 return response.text().then(text => text ? JSON.parse(text) : { success: true, message: 'User deleted successfully' });
+            })
+            .then(data => {
+                if (data.success !== false) {
+                    modal.remove();
+                    showMessage(`Managed user ${username} deleted successfully`);
+                    const userListContainer = document.querySelector('.user-list');
+                    if (userListContainer) {
+                        fetchUsers(userListContainer);
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to delete managed user');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting managed user:', error);
+                modal.innerHTML = `
+                    <div class="dialog-content">
+                        <h3><i class="fa-solid fa-exclamation-circle"></i> Error</h3>
+                        <p>${error.message || 'An error occurred. Please try again.'}</p>
+                        <div class="dialog-buttons">
+                            <button type="button" class="ok-button">OK</button>
+                        </div>
+                    </div>
+                `;
+                modal.querySelector('.ok-button').addEventListener('click', () => modal.remove());
+            });
+        });
+
+        modal.querySelector('.cancel-button').addEventListener('click', () => {
+            modal.remove();
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    document.addEventListener('managedUserAdded', () => {
+        console.log('Caught managedUserAdded event, refreshing user list...');
+        const userListContainer = document.querySelector('.user-management-wrapper .users-container .user-list');
+        if (userListContainer) {
+            fetchUsers(userListContainer);
+        } else {
+            console.log('User list container not found when managedUserAdded event was caught (Auth tab likely not active).');
+        }
+    });
     initialize();
 });

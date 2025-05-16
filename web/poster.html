@@ -10,6 +10,9 @@
         const defaultPosterUrl = "{{ url_for('static', filename='images/default_poster.png') }}";
         let movieId = {{ (movie.id | tojson) if movie else 'null' }};
         let movieDuration = {{ (movie.duration_hours * 3600 + movie.duration_minutes * 60) if movie else 0 }};
+        let movieContentRating = {{ movie.contentRating | tojson if movie and movie.contentRating else 'null' }};
+        let movieVideoFormat = {{ movie.videoFormat | tojson if movie and movie.videoFormat else 'null' }};
+        let movieAudioFormat = {{ movie.audioFormat | tojson if movie and movie.audioFormat else 'null' }};
         let isDefaultPoster = {{ 'true' if current_poster == url_for('static', filename='images/default_poster.png') else 'false' }};
         const startTimeFromServer = {{ start_time | tojson if start_time else 'null' }};
         window.settings = {
@@ -44,18 +47,9 @@
             <div class="custom-text" id="custom-text">{{ custom_text | safe }}</div>
         </div>
         
-        <div class="bottom-info movie-info">
-            <div class="info-item">
-                <span class="info-label">Rating</span>
-                <span class="info-value" id="content-rating">{{ movie.contentRating if movie else '' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Video</span>
-                <span class="info-value" id="video-format">{{ movie.videoFormat if movie else '' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Audio</span>
-                <span class="info-value" id="audio-format">{{ movie.audioFormat if movie else '' }}</span>
+        <div class="bottom-info movie-info" id="bottomInfoContainer">
+            <div class="info-item-rotating" id="rotatingInfoItem">
+                <!-- Content will be injected by JavaScript -->
             </div>
         </div>
     </div>

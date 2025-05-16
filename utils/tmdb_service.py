@@ -199,6 +199,42 @@ class TMDBService:
         logger.debug("Fetching TMDB API configuration")
         return self._make_request("configuration")
 
+    def get_image_url(self, image_path, size='original'):
+        """Construct the full URL for an image given its path and size."""
+        if not image_path:
+            return None
+        config = self.get_configuration()
+        if not config or 'images' not in config:
+            logger.error("Failed to get TMDB configuration for image URLs")
+            return None
+
+        base_url = config['images'].get('secure_base_url', 'https://image.tmdb.org/t/p/')
+        
+        possible_size_keys = ['backdrop_sizes', 'poster_sizes', 'profile_sizes', 'logo_sizes']
+        image_size = size
+        
+        found_specific_size = False
+        for size_key in possible_size_keys:
+            if size in config['images'].get(size_key, []):
+                image_size = size
+                found_specific_size = True
+                break
+        
+        if not found_specific_size and size != 'original':
+            pass
+
+
+        return f"{base_url}{image_size}{image_path}"
+
+    @lru_cache(maxsize=10)
+    def get_popular_movies(self, page=1):
+        """Get a list of popular movies from TMDB."""
+        logger.debug(f"Fetching popular movies, page {page}")
+        data = self._make_request("movie/popular", {"page": page})
+        if data and 'results' in data:
+            return data['results']
+        return []
+
     @lru_cache(maxsize=100)
     def get_movie_logo_url(self, movie_id):
         """Get the best available movie logo URL (preferring English or no language)"""

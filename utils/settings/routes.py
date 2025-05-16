@@ -246,6 +246,13 @@ def update_settings(category):
                         }), 500
                     logger.info("Services reinitialization successful")
 
+                    update_poster_manager_func = current_app.config.get('update_default_poster_manager_service')
+                    if update_poster_manager_func and callable(update_poster_manager_func):
+                        logger.info("Updating default_poster_manager service after settings change.")
+                        update_poster_manager_func()
+                    else:
+                        logger.warning("update_default_poster_manager_service function not found in app config.")
+
                     playback_monitor = current_app.config.get('PLAYBACK_MONITOR')
                     if playback_monitor and hasattr(playback_monitor, 'update_service_status'):
                         logger.info("Updating PlaybackMonitor service status")

@@ -5,7 +5,7 @@ import json
 import time
 import requests
 import threading
-from flask import current_app
+from flask import current_app, g
 from plexapi.server import PlexServer
 from datetime import datetime, timedelta
 from utils.poster_view import set_current_movie
@@ -331,13 +331,11 @@ class PlexService:
 
             if hasattr(self, 'username') and self.username:
                 is_user_specific = True
-                user_data_dir = f'/app/data/user_data/plex_{self.username}'
-                os.makedirs(user_data_dir, exist_ok=True)
-                movies_cache_path = os.path.join(user_data_dir, 'plex_unwatched_movies.json')
-                metadata_cache_path = os.path.join(user_data_dir, 'plex_metadata_cache.json')
-                logger.info(f"Attempting to load user-specific cache for {self.username} from {user_data_dir}")
+                if movies_cache_path and os.path.dirname(movies_cache_path) != '/app/data':
+                    os.makedirs(os.path.dirname(movies_cache_path), exist_ok=True)
+                logger.info(f"Attempting to load user-specific cache for {self.username} using pre-defined paths.")
             else:
-                logger.info(f"Attempting to load global cache from /app/data")
+                logger.info(f"Attempting to load global cache using pre-defined paths.")
 
             logger.info(f"Cache Path Check: Using movies_cache_path = {movies_cache_path}")
             logger.info(f"Cache Path Check: Using metadata_cache_path = {metadata_cache_path}")
@@ -378,10 +376,9 @@ class PlexService:
                         logger.info(f"Successfully loaded and verified {len(self._movies_cache)} movies from disk cache ({'user-specific' if is_user_specific else 'global'})")
                         return True
                     else:
-                        logger.warning(f"Cache verification failed for {'user ' + self.username if is_user_specific else 'global cache'}, will rebuild cache")
-                        self._movies_cache = []
-                        self._metadata_cache = {}
-                        return False 
+                        logger.warning(f"Cache verification failed for {'user ' + self.username if is_user_specific else 'global cache'}. Proceeding with disk data; a rebuild might be triggered later if issues persist.")
+                        self._cache_loaded = True
+                        return True
 
                 except json.JSONDecodeError as e:
                     logger.error(f"Error decoding JSON from cache file: {e}. Rebuilding cache.")
@@ -429,11 +426,11 @@ class PlexService:
         """Save current cache state to disk"""
         movies_cache_path = self.MOVIES_CACHE_FILE
         metadata_cache_path = self.METADATA_CACHE_FILE
-        if hasattr(self, 'username') and self.username:
-            user_data_dir = f'/app/data/user_data/plex_{self.username}'
-            os.makedirs(user_data_dir, exist_ok=True) 
-            movies_cache_path = os.path.join(user_data_dir, 'plex_unwatched_movies.json')
-            metadata_cache_path = os.path.join(user_data_dir, 'plex_metadata_cache.json')
+
+        if movies_cache_path and os.path.dirname(movies_cache_path) != '/app/data':
+            os.makedirs(os.path.dirname(movies_cache_path), exist_ok=True)
+        elif metadata_cache_path and os.path.dirname(metadata_cache_path) != '/app/data':
+            os.makedirs(os.path.dirname(metadata_cache_path), exist_ok=True)
 
         logger.info(f"Attempting to save cache for instance ({self.username or 'global'})")
         logger.info(f"Saving unwatched cache to: {movies_cache_path}")
@@ -825,68 +822,96 @@ class PlexService:
             if not watch_status:
                 watch_status = 'unwatched'
 
-            plex_instance = self._get_user_plex_instance()
+            movies_to_filter = []
+            source_description = "No source attempted"
 
-            filtered_movies = []
-            if watch_status == 'unwatched':
-                filtered_movies = self._movies_cache.copy()
-                logger.info(f"Using unwatched cache: {len(filtered_movies)} movies")
-            else:
+            if hasattr(g, 'cache_manager') and g.cache_manager:
                 try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        cache_manager = current_app.config.get('CACHE_MANAGER')
-                        if not cache_manager:
-                            logger.error("Cache manager not available")
-                            return None
+                    if watch_status == 'unwatched':
+                        movies_to_filter = g.cache_manager.get_cached_movies()
+                        source_description = f"g.cache_manager_memory (unwatched - {len(movies_to_filter)} movies)"
+                        
+                        if not movies_to_filter and hasattr(g.cache_manager, 'cache_file_path') and \
+                           g.cache_manager.cache_file_path and \
+                           os.path.exists(g.cache_manager.cache_file_path) and \
+                           os.path.getsize(g.cache_manager.cache_file_path) > 0:
+                            logger.warning(f"g.cache_manager memory was empty for unwatched. Attempting direct read from disk: {g.cache_manager.cache_file_path}")
+                            try:
+                                with open(g.cache_manager.cache_file_path, 'r') as f:
+                                    movies_from_disk = json.load(f)
+                                if movies_from_disk:
+                                    movies_to_filter = movies_from_disk
+                                    source_description = f"g.cache_manager_disk (unwatched - {len(movies_to_filter)} movies)"
+                                else:
+                                    source_description = f"g.cache_manager_disk (unwatched - empty file or no data - {g.cache_manager.cache_file_path})"
+                            except Exception as disk_read_err:
+                                logger.error(f"Failed to read from disk cache {g.cache_manager.cache_file_path}: {disk_read_err}")
+                                source_description = f"g.cache_manager_disk (unwatched - read error - {g.cache_manager.cache_file_path})"
+                        elif not movies_to_filter:
+                             logger.info(f"g.cache_manager memory empty, and disk cache ({getattr(g.cache_manager, 'cache_file_path', 'N/A')}) not viable for direct read.")
 
-                        cache_path = cache_manager.all_movies_cache_path
-
-                        if not os.path.exists(cache_path):
-                            logger.info("All movies cache not ready, falling back to unwatched")
-                            filtered_movies = self._movies_cache.copy()
-                        else:
-                            with open(cache_path, 'r') as f:
-                                all_movies = json.load(f)
-
-                            logger.info(f"Got {len(all_movies)} movies from metadata cache")
-
+                    else:
+                        all_movies_path = g.cache_manager.all_movies_cache_path
+                        if all_movies_path and os.path.exists(all_movies_path) and os.path.getsize(all_movies_path) > 0:
+                            with open(all_movies_path, 'r') as f:
+                                all_movies_data = json.load(f)
                             if watch_status == 'watched':
-                                filtered_movies = [m for m in all_movies if m.get('watched', False)]
-                                logger.info(f"Found {len(filtered_movies)} watched movies using 'watched' flag")
+                                movies_to_filter = [m for m in all_movies_data if m.get('watched', False)]
+                                source_description = f"g.cache_manager (all_movies_file - watched - {len(movies_to_filter)} movies)"
+                            else:
+                                movies_to_filter = all_movies_data
+                                source_description = f"g.cache_manager (all_movies_file - {len(movies_to_filter)} movies)"
+                        else:
+                            logger.warning(f"CacheManager's all_movies_file not found or empty at {all_movies_path} for status '{watch_status}'.")
+                            source_description = f"g.cache_manager (all_movies_file missing/empty for {watch_status} - 0 movies)"
+                            movies_to_filter = []
+                    
+                    logger.info(f"Movie source after g.cache_manager attempt: {source_description}")
 
-                                if not filtered_movies:
-                                    unwatched_ids = {str(m['id']) for m in self._movies_cache}
-                                    filtered_movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
-                                    logger.info(f"Found {len(filtered_movies)} watched movies using ID exclusion")
-                            else:  
-                                filtered_movies = all_movies
-                                logger.info(f"Using all movies: {len(filtered_movies)}")
+                except Exception as e_g_cache:
+                    logger.error(f"Error getting movies from g.cache_manager: {e_g_cache}. Movies_to_filter remains empty.")
+                    movies_to_filter = []
+                    source_description = f"g.cache_manager (exception: {e_g_cache})"
+            else:
+                logger.warning("g.cache_manager not found. Cannot fetch movies for filtering.")
+                source_description = "g.cache_manager not found"
+                movies_to_filter = []
+            
+            logger.info(f"Movies available for filtering: {len(movies_to_filter)} from source: {source_description}")
 
-                except Exception as e:
-                    logger.error(f"Error accessing cache manager: {e}")
-                    filtered_movies = self._movies_cache.copy()  
+            if not movies_to_filter:
+                cache_manager_initializing = False
+                if hasattr(g, 'cache_manager') and g.cache_manager:
+                    cache_manager_initializing = getattr(g.cache_manager, '_initializing', False)
 
-            if not filtered_movies:
-                logger.error(f"No valid movies found for status: {watch_status}")
-                return None
+                plex_service_initializing = self._initializing
 
-            logger.info(f"Initial movies count: {len(filtered_movies)}")
+                if cache_manager_initializing:
+                    logger.warning(f"No movies available for filtering: Cache build in progress (via g.cache_manager). Status: {watch_status}")
+                    return None
+                elif plex_service_initializing:
+                    logger.warning(f"No movies available for filtering: Cache build in progress (PlexService internal). Status: {watch_status}")
+                    return None
+                else:
+                    logger.error(f"No movies found to filter for status: {watch_status}. Caches are empty and no build is currently in progress.")
+                    return None
+
+            logger.info(f"Initial movies count for filtering: {len(movies_to_filter)}")
 
             if genres:
-                filtered_movies = [movie for movie in filtered_movies if any(genre in movie.get('genres',[]) for genre in genres)]
-                logger.info(f"After genre filter: {len(filtered_movies)} movies")
+                movies_to_filter = [movie for movie in movies_to_filter if any(genre in movie.get('genres',[]) for genre in genres)]
+                logger.info(f"After genre filter: {len(movies_to_filter)} movies")
 
             if years:
-                filtered_movies = [movie for movie in filtered_movies if str(movie.get('year')) in years]
-                logger.info(f"After year filter: {len(filtered_movies)} movies")
+                movies_to_filter = [movie for movie in movies_to_filter if str(movie.get('year')) in years]
+                logger.info(f"After year filter: {len(movies_to_filter)} movies")
 
             if pg_ratings:
-                filtered_movies = [movie for movie in filtered_movies if movie.get('contentRating') in pg_ratings]
-                logger.info(f"After rating filter: {len(filtered_movies)} movies")
+                movies_to_filter = [movie for movie in movies_to_filter if movie.get('contentRating') in pg_ratings]
+                logger.info(f"After rating filter: {len(movies_to_filter)} movies")
 
-            if filtered_movies:
-                movie = random.choice(filtered_movies)
+            if movies_to_filter:
+                movie = random.choice(movies_to_filter)
                 duration = (time.time() - start_time) * 1000
                 logger.info(f"Movie selection took {duration:.2f}ms")
                 return movie
@@ -905,38 +930,52 @@ class PlexService:
         """Get genres based on watch status using user perspective"""
         try:
             genres = set()
+            movies = []
+            source_description = "unknown source"
 
-            plex_instance = self._get_user_plex_instance()
-
-            if watch_status == 'unwatched':
-                movies = self._movies_cache
-            else:
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        cache_manager = current_app.config.get('CACHE_MANAGER')
-                        if not cache_manager:
-                            return sorted(list(set([g for m in self._movies_cache for g in m.get('genres', [])])))
-
-                        cache_path = cache_manager.all_movies_cache_path
-                        if not os.path.exists(cache_path):
-                            return sorted(list(set([g for m in self._movies_cache for g in m.get('genres', [])])))
-
-                        with open(cache_path, 'r') as f:
-                            all_movies = json.load(f)
-
+            if hasattr(g, 'cache_manager') and g.cache_manager:
+                if watch_status == 'unwatched':
+                    movies = g.cache_manager.get_cached_movies()
+                    source_description = f"g.cache_manager_memory (unwatched - {len(movies)} movies)"
+                    if not movies and hasattr(g.cache_manager, 'cache_file_path') and \
+                       g.cache_manager.cache_file_path and \
+                       os.path.exists(g.cache_manager.cache_file_path) and \
+                       os.path.getsize(g.cache_manager.cache_file_path) > 0:
+                        logger.warning(f"get_genres: g.cache_manager memory was empty for unwatched. Attempting direct read from disk: {g.cache_manager.cache_file_path}")
+                        try:
+                            with open(g.cache_manager.cache_file_path, 'r') as f:
+                                movies_from_disk = json.load(f)
+                            if movies_from_disk:
+                                movies = movies_from_disk
+                                source_description = f"g.cache_manager_disk (unwatched - {len(movies)} movies)"
+                            else:
+                                source_description = f"g.cache_manager_disk (unwatched - empty or invalid data from {g.cache_manager.cache_file_path})"
+                        except Exception as disk_read_err:
+                            logger.error(f"get_genres: Failed to read from disk cache {g.cache_manager.cache_file_path}: {disk_read_err}")
+                            source_description = f"g.cache_manager_disk (unwatched - read error from {g.cache_manager.cache_file_path})"
+                    elif not movies:
+                         logger.info(f"get_genres: g.cache_manager memory empty, and disk cache ({getattr(g.cache_manager, 'cache_file_path', 'N/A')}) not viable for direct read.")
+                else:
+                    all_movies_path = g.cache_manager.all_movies_cache_path
+                    if all_movies_path and os.path.exists(all_movies_path) and os.path.getsize(all_movies_path) > 0:
+                        with open(all_movies_path, 'r') as f:
+                            all_movies_data = json.load(f)
                         if watch_status == 'watched':
-                            watched_movies = [m for m in all_movies if m.get('watched', False)]
-                            if not watched_movies:
-                                unwatched_ids = {str(m['id']) for m in self._movies_cache}
-                                watched_movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
-                            movies = watched_movies
-                        else:  
-                            movies = all_movies
-                except Exception as e:
-                    logger.error(f"Error accessing cache for genres: {e}")
-                    movies = self._movies_cache
+                            movies = [m for m in all_movies_data if m.get('watched', False)]
+                            source_description = f"g.cache_manager (all_movies - watched - {len(movies)} movies)"
+                        else:
+                            movies = all_movies_data
+                            source_description = f"g.cache_manager (all_movies - {len(movies)} movies)"
+                    else:
+                        movies = g.cache_manager.get_cached_movies()
+                        source_description = f"g.cache_manager (unwatched fallback - {len(movies)} movies)"
+                        logger.warning(f"User's all_movies cache not found for get_genres, falling back to unwatched.")
+            else:
+                movies = self._movies_cache
+                source_description = f"self._movies_cache (unwatched fallback - {len(movies)} movies)"
+                logger.warning("g.cache_manager not found for get_genres, falling back to internal unwatched cache.")
 
+            logger.debug(f"Extracting genres from: {source_description}")
             for movie in movies:
                 if movie.get('genres'):
                     genres.update(movie['genres'])
@@ -949,38 +988,52 @@ class PlexService:
         """Get years based on watch status using user perspective"""
         try:
             years = set()
+            movies = []
+            source_description = "unknown source"
 
-            plex_instance = self._get_user_plex_instance()
-
-            if watch_status == 'unwatched':
-                movies = self._movies_cache
-            else:
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        cache_manager = current_app.config.get('CACHE_MANAGER')
-                        if not cache_manager:
-                            return sorted([m.get('year') for m in self._movies_cache if m.get('year')], reverse=True)
-
-                        cache_path = cache_manager.all_movies_cache_path
-                        if not os.path.exists(cache_path):
-                            return sorted([m.get('year') for m in self._movies_cache if m.get('year')], reverse=True)
-
-                        with open(cache_path, 'r') as f:
-                            all_movies = json.load(f)
-
+            if hasattr(g, 'cache_manager') and g.cache_manager:
+                if watch_status == 'unwatched':
+                    movies = g.cache_manager.get_cached_movies()
+                    source_description = f"g.cache_manager_memory (unwatched - {len(movies)} movies)"
+                    if not movies and hasattr(g.cache_manager, 'cache_file_path') and \
+                       g.cache_manager.cache_file_path and \
+                       os.path.exists(g.cache_manager.cache_file_path) and \
+                       os.path.getsize(g.cache_manager.cache_file_path) > 0:
+                        logger.warning(f"get_years: g.cache_manager memory was empty for unwatched. Attempting direct read from disk: {g.cache_manager.cache_file_path}")
+                        try:
+                            with open(g.cache_manager.cache_file_path, 'r') as f:
+                                movies_from_disk = json.load(f)
+                            if movies_from_disk:
+                                movies = movies_from_disk
+                                source_description = f"g.cache_manager_disk (unwatched - {len(movies)} movies)"
+                            else:
+                                source_description = f"g.cache_manager_disk (unwatched - empty or invalid data from {g.cache_manager.cache_file_path})"
+                        except Exception as disk_read_err:
+                            logger.error(f"get_years: Failed to read from disk cache {g.cache_manager.cache_file_path}: {disk_read_err}")
+                            source_description = f"g.cache_manager_disk (unwatched - read error from {g.cache_manager.cache_file_path})"
+                    elif not movies:
+                         logger.info(f"get_years: g.cache_manager memory empty, and disk cache ({getattr(g.cache_manager, 'cache_file_path', 'N/A')}) not viable for direct read.")
+                else:
+                    all_movies_path = g.cache_manager.all_movies_cache_path
+                    if all_movies_path and os.path.exists(all_movies_path) and os.path.getsize(all_movies_path) > 0:
+                        with open(all_movies_path, 'r') as f:
+                            all_movies_data = json.load(f)
                         if watch_status == 'watched':
-                            watched_movies = [m for m in all_movies if m.get('watched', False)]
-                            if not watched_movies:
-                                unwatched_ids = {str(m['id']) for m in self._movies_cache}
-                                watched_movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
-                            movies = watched_movies
-                        else:  
-                            movies = all_movies
-                except Exception as e:
-                    logger.error(f"Error accessing cache for years: {e}")
-                    movies = self._movies_cache
+                            movies = [m for m in all_movies_data if m.get('watched', False)]
+                            source_description = f"g.cache_manager (all_movies - watched - {len(movies)} movies)"
+                        else:
+                            movies = all_movies_data
+                            source_description = f"g.cache_manager (all_movies - {len(movies)} movies)"
+                    else:
+                        movies = g.cache_manager.get_cached_movies()
+                        source_description = f"g.cache_manager (unwatched fallback - {len(movies)} movies)"
+                        logger.warning(f"User's all_movies cache not found for get_years, falling back to unwatched.")
+            else:
+                movies = self._movies_cache
+                source_description = f"self._movies_cache (unwatched fallback - {len(movies)} movies)"
+                logger.warning("g.cache_manager not found for get_years, falling back to internal unwatched cache.")
 
+            logger.debug(f"Extracting years from: {source_description}")
             for movie in movies:
                 if movie.get('year'):
                     years.add(movie['year'])
@@ -993,38 +1046,52 @@ class PlexService:
         """Get PG ratings based on watch status using user perspective"""
         try:
             ratings = set()
+            movies = []
+            source_description = "unknown source"
 
-            plex_instance = self._get_user_plex_instance()
-
-            if watch_status == 'unwatched':
-                movies = self._movies_cache
-            else:
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        cache_manager = current_app.config.get('CACHE_MANAGER')
-                        if not cache_manager:
-                            return sorted([m.get('contentRating') for m in self._movies_cache if m.get('contentRating')])
-
-                        cache_path = cache_manager.all_movies_cache_path
-                        if not os.path.exists(cache_path):
-                            return sorted([m.get('contentRating') for m in self._movies_cache if m.get('contentRating')])
-
-                        with open(cache_path, 'r') as f:
-                            all_movies = json.load(f)
-
+            if hasattr(g, 'cache_manager') and g.cache_manager:
+                if watch_status == 'unwatched':
+                    movies = g.cache_manager.get_cached_movies()
+                    source_description = f"g.cache_manager_memory (unwatched - {len(movies)} movies)"
+                    if not movies and hasattr(g.cache_manager, 'cache_file_path') and \
+                       g.cache_manager.cache_file_path and \
+                       os.path.exists(g.cache_manager.cache_file_path) and \
+                       os.path.getsize(g.cache_manager.cache_file_path) > 0:
+                        logger.warning(f"get_pg_ratings: g.cache_manager memory was empty for unwatched. Attempting direct read from disk: {g.cache_manager.cache_file_path}")
+                        try:
+                            with open(g.cache_manager.cache_file_path, 'r') as f:
+                                movies_from_disk = json.load(f)
+                            if movies_from_disk:
+                                movies = movies_from_disk
+                                source_description = f"g.cache_manager_disk (unwatched - {len(movies)} movies)"
+                            else:
+                                source_description = f"g.cache_manager_disk (unwatched - empty or invalid data from {g.cache_manager.cache_file_path})"
+                        except Exception as disk_read_err:
+                            logger.error(f"get_pg_ratings: Failed to read from disk cache {g.cache_manager.cache_file_path}: {disk_read_err}")
+                            source_description = f"g.cache_manager_disk (unwatched - read error from {g.cache_manager.cache_file_path})"
+                    elif not movies:
+                         logger.info(f"get_pg_ratings: g.cache_manager memory empty, and disk cache ({getattr(g.cache_manager, 'cache_file_path', 'N/A')}) not viable for direct read.")
+                else:
+                    all_movies_path = g.cache_manager.all_movies_cache_path
+                    if all_movies_path and os.path.exists(all_movies_path) and os.path.getsize(all_movies_path) > 0:
+                        with open(all_movies_path, 'r') as f:
+                            all_movies_data = json.load(f)
                         if watch_status == 'watched':
-                            watched_movies = [m for m in all_movies if m.get('watched', False)]
-                            if not watched_movies:
-                                unwatched_ids = {str(m['id']) for m in self._movies_cache}
-                                watched_movies = [m for m in all_movies if str(m['id']) not in unwatched_ids]
-                            movies = watched_movies
-                        else:  
-                            movies = all_movies
-                except Exception as e:
-                    logger.error(f"Error accessing cache for ratings: {e}")
-                    movies = self._movies_cache
+                            movies = [m for m in all_movies_data if m.get('watched', False)]
+                            source_description = f"g.cache_manager (all_movies - watched - {len(movies)} movies)"
+                        else:
+                            movies = all_movies_data
+                            source_description = f"g.cache_manager (all_movies - {len(movies)} movies)"
+                    else:
+                        movies = g.cache_manager.get_cached_movies()
+                        source_description = f"g.cache_manager (unwatched fallback - {len(movies)} movies)"
+                        logger.warning(f"User's all_movies cache not found for get_pg_ratings, falling back to unwatched.")
+            else:
+                movies = self._movies_cache
+                source_description = f"self._movies_cache (unwatched fallback - {len(movies)} movies)"
+                logger.warning("g.cache_manager not found for get_pg_ratings, falling back to internal unwatched cache.")
 
+            logger.debug(f"Extracting ratings from: {source_description}")
             for movie in movies:
                 if movie.get('contentRating'):
                     ratings.add(movie['contentRating'])
@@ -1082,6 +1149,12 @@ class PlexService:
                             if str(m['id']) == str(movie_id)), None)
             if not movie_data:
                 movie_data = self.get_movie_data(movie)
+            
+            if movie_data:
+                set_current_movie(movie_data, 'plex', username=username)
+                # from flask import session # Keep session for current_service if other parts rely on it
+                # session['current_service'] = 'plex'
+
 
             return {"status": "playing", "username": username}  
         except Exception as e:

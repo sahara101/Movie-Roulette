@@ -1,246 +1,27 @@
-function getClientId() {
-    let clientId = localStorage.getItem('plex-client-id');
-    if (!clientId) {
-        clientId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-        localStorage.setItem('plex-client-id', clientId);
-    }
-    return clientId;
-}
-
 function getCsrfToken() {
     const token = document.querySelector('meta[name="csrf-token"]');
     return token ? token.getAttribute('content') : null;
 }
 
-class PlexAuth {
-    constructor() {
-        this.pinCheckInterval = null;
-        this.pinId = null;
-        this.authToken = null; 
-        this.plexWindow = null;
-        this.modalElement = document.getElementById('plex-auth-modal');
-        this.maxPinCheckAttempts = 30; 
-        this.pinCheckAttempts = 0;
-
-        document.addEventListener('DOMContentLoaded', () => this.initEventListeners());
+if (typeof bufferDecode === 'undefined' || typeof bufferEncode === 'undefined') {
+    window.bufferDecode = function(value) {
+        return Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
     }
-
-    initEventListeners() {
-        const plexLoginBtn = document.getElementById('plex-login-btn');
-        const cancelPlexAuth = document.getElementById('cancel-plex-auth');
-
-        if (plexLoginBtn) {
-            plexLoginBtn.addEventListener('click', () => this.startAuth());
-        }
-
-        if (cancelPlexAuth) {
-            cancelPlexAuth.addEventListener('click', () => this.cancelAuth());
-        }
-    }
-
-    startAuth() {
-        this.preparePopup();
-
-        setTimeout(() => this.requestPlexAuth(), 500);
-    }
-
-    preparePopup() {
-        const width = 600;
-        const height = 700;
-        const left = (window.screen.width / 2) - (width / 2);
-        const top = (window.screen.height / 2) - (height / 2);
-
-        this.plexWindow = window.open(
-            'about:blank',
-            'PlexAuth',
-            `width=${width},height=${height},top=${top},left=${left}`
-        );
-
-        if (this.modalElement) {
-            this.modalElement.style.display = 'flex';
-        }
-    }
-
-    async requestPlexAuth() {
-        try {
-            const clientId = getClientId();
-
-            const response = await fetch('/plex/auth', {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Plex-Client-Identifier': clientId
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (!data.auth_url) {
-                throw new Error('Invalid response from server');
-            }
-
-            this.pinId = data.pin_id;
-            console.log(`Starting authentication with PIN ID: ${this.pinId}`);
-            
-            sessionStorage.setItem('plex-pin-id', this.pinId);
-
-            if (this.plexWindow && !this.plexWindow.closed) {
-                this.plexWindow.location.href = data.auth_url;
-
-                this.pinCheckAttempts = 0;
-
-                this.pinCheckInterval = setInterval(() => this.checkPlexPin(), 2000);
-
-                const windowCheckInterval = setInterval(() => {
-                    if (this.plexWindow.closed) {
-                        clearInterval(windowCheckInterval);
-                        this.cancelAuth();
-                    }
-                }, 1000);
-            } else {
-                throw new Error('Authentication window was closed');
-            }
-        } catch (error) {
-            console.error('Error starting Plex auth:', error);
-            this.showAuthError(error.message || 'An error occurred during authentication');
-        }
-    }
-
-    async checkPlexPin() {
-        const pinId = this.pinId || sessionStorage.getItem('plex-pin-id');
-        if (!pinId) return;
-
-        try {
-            this.pinCheckAttempts++;
-
-            if (this.pinCheckAttempts > this.maxPinCheckAttempts) {
-                clearInterval(this.pinCheckInterval);
-                throw new Error('Authentication timed out. Please try again.');
-            }
-
-            console.log(`Checking PIN ${pinId} - attempt ${this.pinCheckAttempts}`);
-
-            const response = await fetch(`/api/auth/plex/check_pin/${pinId}`);
-
-            if (!response.ok) {
-                throw new Error(`HTTP error ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                clearInterval(this.pinCheckInterval);
-
-                if (data.token) {
-                    this.authToken = data.token;
-                    localStorage.setItem('plex-auth-token', data.token);
-                    localStorage.setItem('is-plex-user', 'true');
-                    console.log('Stored authentication token for fallback');
-                }
-
-                this.showAuthSuccess();
-
-                console.log('Authentication successful, redirecting...');
-
-                if (this.plexWindow && !this.plexWindow.closed) {
-                    this.plexWindow.close();
-                }
-
-                setTimeout(() => {
-                    let redirectUrl = `/plex/callback?pinID=${pinId}`;
-                    if (this.authToken) {
-                        redirectUrl += `&token=${encodeURIComponent(this.authToken)}`;
-                    }
-
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const nextUrl = urlParams.get('next');
-                    if (nextUrl) {
-                        redirectUrl += `&next=${encodeURIComponent(nextUrl)}`;
-                    }
-
-                    console.log(`Redirecting to: ${redirectUrl}`);
-                    window.location.href = redirectUrl;
-                }, 1500);
-            } else {
-                console.log(`PIN check result: ${data.status} - ${data.message}`);
-            }
-        } catch (error) {
-            console.error('Error checking PIN:', error);
-
-            if (this.pinCheckAttempts >= this.maxPinCheckAttempts) {
-                this.showAuthError(`Authentication error: ${error.message}`);
-                this.cancelAuth();
-            }
-        }
-    }
-
-    cancelAuth() {
-        if (this.pinCheckInterval) {
-            clearInterval(this.pinCheckInterval);
-            this.pinCheckInterval = null;
-        }
-
-        if (this.modalElement) {
-            this.modalElement.style.display = 'none';
-        }
-
-        if (this.plexWindow && !this.plexWindow.closed) {
-            this.plexWindow.close();
-            this.plexWindow = null;
-        }
-    }
-
-    showAuthError(message) {
-        if (this.modalElement) {
-            const modalContent = this.modalElement.querySelector('.modal-content');
-            if (modalContent) {
-                modalContent.innerHTML = `
-                    <h2>Authentication Error</h2>
-                    <p>${message}</p>
-                    <button id="close-error" class="cancel-button">Close</button>
-                `;
-
-                const closeButton = document.getElementById('close-error');
-                if (closeButton) {
-                    closeButton.addEventListener('click', () => this.cancelAuth());
-                }
-            }
-        }
-    }
-
-    showAuthSuccess() {
-        if (this.modalElement) {
-            const modalContent = this.modalElement.querySelector('.modal-content');
-            if (modalContent) {
-                modalContent.innerHTML = `
-                    <h2>Authentication Successful</h2>
-                    <p>You've successfully logged in with Plex!</p>
-                    <div class="modal-loader">
-                        <i class="fas fa-check-circle" style="color: #4CAF50;"></i>
-                        <span>Redirecting...</span>
-                    </div>
-                `;
-            }
-        }
+    window.bufferEncode = function(value) {
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(value)))
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=/g, "");
     }
 }
 
-const plexAuth = new PlexAuth();
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM Content Loaded - Setting up authentication JS");
-    initUserMenu();
-    checkAuthStatus();
+    initUserMenu(); 
+    checkAuthStatus(); 
     attachLogoutHandler();
     handlePlexCallback();
+    initPasskeyLoginButton();
 });
 
 function handlePlexCallback() {
@@ -249,7 +30,7 @@ function handlePlexCallback() {
         const pinId = urlParams.get('pinID') || sessionStorage.getItem('plex-pin-id');
         
         if (!urlParams.get('pinID') && pinId) {
-            const newUrl = `${window.location.pathname}?pinID=${pinId}`;
+            let newUrl = `${window.location.pathname}?pinID=${pinId}`; 
             
             const token = urlParams.get('token');
             const next = urlParams.get('next');
@@ -258,7 +39,6 @@ function handlePlexCallback() {
             if (next) newUrl += `&next=${next}`;
             
             window.history.replaceState({}, document.title, newUrl);
-            console.log("Added PIN ID to URL:", newUrl);
         }
     }
 }
@@ -268,27 +48,21 @@ function initUserMenu() {
     const userMenuTrigger = document.querySelector('.user-menu-trigger');
     
     if (userMenu && userMenuTrigger) {
-        console.log("Found user menu elements");
-        
         userMenuTrigger.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            
             userMenu.classList.toggle('active');
-            console.log("Toggled user menu active state:", userMenu.classList.contains('active'));
         });
         
         document.addEventListener('click', function(e) {
             if (userMenu.classList.contains('active') && !userMenu.contains(e.target)) {
                 userMenu.classList.remove('active');
-                console.log("Closing dropdown due to outside click");
             }
         });
         
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && userMenu.classList.contains('active')) {
                 userMenu.classList.remove('active');
-                console.log("Closing dropdown due to escape key");
             }
         });
         
@@ -297,121 +71,128 @@ function initUserMenu() {
             item.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    this.click();
+                    this.click(); 
                 }
             });
         });
 
-        if (localStorage.getItem('is-plex-user') === 'true') {
-            const changePasswordLink = document.querySelector('.dropdown-item[onclick*="openChangePasswordModal"]');
-            if (changePasswordLink) {
-                changePasswordLink.style.display = 'none';
-                console.log("Hidden change password button for Plex user");
-            }
-        }
-    } else {
-        console.warn("User menu elements not found");
     }
 }
 
 function checkAuthStatus() {
     fetch('/api/auth/check')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (!data.authenticated) {
                 localStorage.removeItem('is-plex-user');
             }
-            updateAuthUI(data);
+            requestAnimationFrame(() => {
+                updateAuthUI(data);
+            });
         })
         .catch(error => {
             localStorage.removeItem('is-plex-user');
-            console.error('Error checking authentication status:', error);
+            console.error('[Auth] checkAuthStatus: Error checking authentication status:', error);
+            requestAnimationFrame(() => {
+                updateAuthUI({ authenticated: false });
+            });
         });
 }
 
 function attachLogoutHandler() {
-    const logoutLink = document.querySelector('a[href="/logout"]');
-    if (logoutLink) {
-        logoutLink.addEventListener('click', function() {
-            localStorage.removeItem('is-plex-user');
-            console.log("Clearing Plex user flag on logout");
-        });
-    }
+    document.body.addEventListener('click', function(event) {
+        if (event.target.matches('a[href="/logout"]')) {
+             localStorage.removeItem('is-plex-user');
+        }
+    });
 }
 
 function updateAuthUI(authData) {
     const userMenu = document.querySelector('.user-menu');
     const userName = document.querySelector('.user-name');
 
-    if (userMenu && userName) {
-        if (authData.authenticated) {
-            userMenu.style.display = 'flex';
-            userName.textContent = authData.username;
+    if (!userMenu || !userName) {
+        return;
+   }
 
-            const isPlexUser = authData.is_plex_user || localStorage.getItem('is-plex-user') === 'true';
-            console.log("Is Plex user:", isPlexUser);
+    if (authData.authenticated) {
+        userMenu.style.display = 'flex';
+        userName.textContent = authData.username;
 
-            if (isPlexUser) {
-                const changePasswordLink = document.querySelector('a[onclick*="openChangePasswordModal"]');
-                if (changePasswordLink) {
-                    changePasswordLink.style.display = 'none';
-                    console.log("Hidden change password button for Plex user");
-                } else {
-                    console.warn("Could not find change password link");
+        const serviceType = authData.service_type;
+        const dropdownContent = userMenu.querySelector('.user-dropdown');
+        const logoutLink = dropdownContent ? dropdownContent.querySelector('a[href="/logout"]') : null;
 
-                    const allLinks = document.querySelectorAll('.dropdown-item');
-                    allLinks.forEach(link => {
-                        if (link.textContent.includes('Change Password')) {
-                            link.style.display = 'none';
-                            console.log("Hidden change password button using text content");
-                        }
-                    });
-                }
-
-                localStorage.setItem('is-plex-user', 'true');
-            } else {
-                localStorage.removeItem('is-plex-user');
-                
-                const changePasswordLink = document.querySelector('a[onclick*="openChangePasswordModal"]');
-                if (changePasswordLink) {
-                    changePasswordLink.style.display = '';
-                    console.log("Showing change password button for local user");
-                } else {
-                    const allLinks = document.querySelectorAll('.dropdown-item');
-                    allLinks.forEach(link => {
-                        if (link.textContent.includes('Change Password')) {
-                            link.style.display = '';
-                            console.log("Showing change password button using text content");
-                        }
-                    });
-                }
+        if (dropdownContent && logoutLink) {
+            let localUserChangePasswordLink = dropdownContent.querySelector('#local-user-change-password-link');
+            if (!localUserChangePasswordLink) {
+                localUserChangePasswordLink = document.createElement('a');
+                localUserChangePasswordLink.href = '#';
+                localUserChangePasswordLink.id = 'local-user-change-password-link';
+                localUserChangePasswordLink.className = 'dropdown-item';
+                localUserChangePasswordLink.innerHTML = '<i class="fas fa-key"></i> Change Password';
+                localUserChangePasswordLink.onclick = (e) => { e.preventDefault(); openChangePasswordModal(); };
+                dropdownContent.insertBefore(localUserChangePasswordLink, logoutLink);
             }
 
-            const adminElements = document.querySelectorAll('.admin-only');
-            adminElements.forEach(element => {
-                element.style.display = authData.is_admin ? '' : 'none';
-            });
+            let managedUserChangePasswordLink = dropdownContent.querySelector('#managed-user-change-password-link');
+            if (!managedUserChangePasswordLink) {
+                managedUserChangePasswordLink = document.createElement('a');
+                managedUserChangePasswordLink.href = '#';
+                managedUserChangePasswordLink.id = 'managed-user-change-password-link';
+                managedUserChangePasswordLink.className = 'dropdown-item';
+                managedUserChangePasswordLink.innerHTML = '<i class="fas fa-key"></i> Change Password';
+                managedUserChangePasswordLink.onclick = (e) => { e.preventDefault(); openManagedUserChangePasswordModal(); };
+                dropdownContent.insertBefore(managedUserChangePasswordLink, logoutLink);
+            }
+
+            localUserChangePasswordLink.style.display = 'none';
+            managedUserChangePasswordLink.style.display = 'none';
+
+            if (serviceType === 'local') {
+                localUserChangePasswordLink.style.display = '';
+                localStorage.removeItem('is-plex-user');
+            } else if (serviceType === 'plex_managed') {
+                managedUserChangePasswordLink.style.display = '';
+                localStorage.setItem('is-plex-user', 'true');
+            } else { 
+                if (serviceType === 'plex') localStorage.setItem('is-plex-user', 'true');
+                else localStorage.removeItem('is-plex-user');
+            }
         } else {
-            userMenu.style.display = 'none';
-            localStorage.removeItem('is-plex-user');
+             console.warn("[Auth] updateAuthUI: Could not find user dropdown content (.user-dropdown) or logout link. Cannot manage Change Password links.");
         }
+
+        const adminElements = document.querySelectorAll('.admin-only');
+        adminElements.forEach(element => {
+            element.style.display = authData.is_admin ? '' : 'none';
+        });
+    } else {
+        userMenu.style.display = 'none';
+        localStorage.removeItem('is-plex-user');
     }
 }
 
+
 function openChangePasswordModal() {
-    if (localStorage.getItem('is-plex-user') === 'true') {
-        showNotification('Plex users cannot change password, please use Plex to manage your account', 'info');
-        return;
-    }
-    
-    const modal = document.getElementById('change-password-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        // Focus first input
-        setTimeout(() => {
-            document.getElementById('current-password').focus();
-        }, 100);
-    }
+    fetch('/api/auth/check').then(r => r.json()).then(authData => {
+        if (authData.authenticated && authData.service_type !== 'local') {
+             showNotification('Password can only be changed for local accounts.', 'info');
+             return;
+        }
+        const modal = document.getElementById('change-password-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('current-password').focus();
+            }, 100);
+        }
+    }).catch(err => console.error("Error re-checking auth before opening password modal:", err));
 }
 
 function closeChangePasswordModal() {
@@ -429,56 +210,194 @@ function closeChangePasswordModal() {
 }
 
 function submitChangePassword() {
-    if (localStorage.getItem('is-plex-user') === 'true') {
-        showNotification('Plex users cannot change password', 'error');
-        closeChangePasswordModal();
-        return;
+     fetch('/api/auth/check').then(r => r.json()).then(authData => {
+        if (!authData.authenticated || authData.service_type !== 'local') {
+            showNotification('Password can only be changed for local accounts.', 'error');
+            closeChangePasswordModal();
+            return;
+        }
+
+        const currentPassword = document.getElementById('current-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const errorElement = document.getElementById('password-error');
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            errorElement.textContent = 'All fields are required';
+            errorElement.style.display = 'block';
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            errorElement.textContent = 'New passwords do not match';
+            errorElement.style.display = 'block';
+            return;
+        }
+
+        fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken() 
+            },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Password changed successfully', 'success');
+                closeChangePasswordModal();
+            } else {
+                errorElement.textContent = data.message || 'Password change failed';
+                errorElement.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error changing password:', error);
+            errorElement.textContent = 'An error occurred. Please try again.';
+            errorElement.style.display = 'block';
+        });
+
+    }).catch(err => {
+         console.error("Error re-checking auth before submitting password change:", err);
+         const errorElement = document.getElementById('password-error');
+         if(errorElement) {
+             errorElement.textContent = 'Could not verify user type. Please try again.';
+             errorElement.style.display = 'block';
+         }
+    });
+}
+
+function openManagedUserChangePasswordModal() {
+    let modal = document.getElementById('managed-user-change-password-modal-dynamic');
+    if (modal) {
+        modal.remove();
     }
+
+    const modalHTML = `
+        <div id="managed-user-change-password-modal-dynamic" class="hidden" style="display: flex;"> 
+            <div class="change-password-content"> 
+                <button id="managed-change-password-close" class="close-button" onclick="closeManagedUserChangePasswordModal()" aria-label="Close change password modal"> 
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                    </svg>
+                </button>
+                <div class="change-password-form"> 
+                    <h3>Change Password</h3>
+                    <div id="managed-password-error" class="error-message" style="display: none;"></div>
+                    <form id="managed-change-password-form-inner"> 
+                        <div class="form-group">
+                            <label for="managed-current-password">Current Password</label>
+                            <input type="password" id="managed-current-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="managed-new-password">New Password</label> 
+                            <input type="password" id="managed-new-password" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="managed-confirm-password">Confirm New Password</label>
+                            <input type="password" id="managed-confirm-password" required minlength="6">
+                        </div>
+                        <div class="password-actions"> 
+                            <button type="button" onclick="closeManagedUserChangePasswordModal()">Cancel</button> 
+                            <button type="button" onclick="submitManagedUserChangePassword()">Update Password</button> 
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    const currentPassword = document.getElementById('current-password').value;
-    const newPassword = document.getElementById('new-password').value;
-    const confirmPassword = document.getElementById('confirm-password').value;
-    const errorElement = document.getElementById('password-error');
+    const newModal = document.getElementById('managed-user-change-password-modal-dynamic');
+    if (newModal) {
+         newModal.classList.remove('hidden');
+         setTimeout(() => {
+             const firstInput = document.getElementById('managed-current-password');
+             if (firstInput) firstInput.focus();
+         }, 100); 
+    } else {
+        console.error("Failed to find newly created managed password modal with ID #managed-user-change-password-modal-dynamic");
+    }
+}
+
+function closeManagedUserChangePasswordModal() {
+    const modal = document.getElementById('managed-user-change-password-modal-dynamic'); 
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function submitManagedUserChangePassword() {
+    const currentPassword = document.getElementById('managed-current-password').value;
+    const newPassword = document.getElementById('managed-new-password').value;
+    const confirmPassword = document.getElementById('managed-confirm-password').value;
+    const errorElement = document.getElementById('managed-password-error');
+    const modalNode = document.getElementById('managed-user-change-password-modal-dynamic');
+    const submitButton = modalNode ? modalNode.querySelector('.password-actions button:last-child') : null; 
+
+    if (!errorElement) { console.error("Managed password error element not found"); return; }
+    
+    errorElement.style.display = 'none';
+    errorElement.textContent = '';
+    if(submitButton) submitButton.disabled = true;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-        errorElement.textContent = 'All fields are required';
+        errorElement.textContent = 'All fields are required.';
         errorElement.style.display = 'block';
+        if(submitButton) submitButton.disabled = false;
         return;
     }
-
+    if (newPassword.length < 6) {
+        errorElement.textContent = 'New password must be at least 6 characters long.';
+        errorElement.style.display = 'block';
+        if(submitButton) submitButton.disabled = false;
+        return;
+    }
     if (newPassword !== confirmPassword) {
-        errorElement.textContent = 'New passwords do not match';
+        errorElement.textContent = 'New passwords do not match.';
         errorElement.style.display = 'block';
+        if(submitButton) submitButton.disabled = false;
         return;
     }
 
-    fetch('/api/auth/change-password', {
+    fetch('/api/managed_user/change_password', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken() 
+            'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({
             current_password: currentPassword,
             new_password: newPassword
         })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Password changed successfully', 'success');
-            closeChangePasswordModal();
+    .then(response => response.json().then(data => ({ status: response.status, body: data })))
+    .then(({ status, body }) => {
+        if (status === 200 && body.message) {
+            showNotification(body.message, 'success');
+            closeManagedUserChangePasswordModal();
         } else {
-            errorElement.textContent = data.message || 'Password change failed';
+            errorElement.textContent = body.error || 'Password change failed.';
             errorElement.style.display = 'block';
         }
     })
     .catch(error => {
-        console.error('Error changing password:', error);
+        console.error('Error changing managed user password:', error);
         errorElement.textContent = 'An error occurred. Please try again.';
         errorElement.style.display = 'block';
+    })
+    .finally(() => {
+         const stillExistsButton = document.querySelector('#managed-user-change-password-modal-dynamic .password-actions button:last-child');
+         if (stillExistsButton) {
+             stillExistsButton.disabled = false;
+         }
     });
 }
+
 
 function showNotification(message, type = 'info') {
     let notification = document.getElementById('notification');
@@ -490,11 +409,151 @@ function showNotification(message, type = 'info') {
     }
 
     notification.textContent = message;
-    notification.className = `notification ${type}`;
-
-    notification.style.display = 'block';
+    notification.className = `notification ${type} show`; 
 
     setTimeout(() => {
-        notification.style.display = 'none';
+        if (notification) { 
+             notification.classList.remove('show');
+             notification.addEventListener('transitionend', () => {
+                 if (notification.parentNode) { 
+                     notification.remove();
+                 }
+             }, { once: true });
+             setTimeout(() => {
+                if (notification && notification.parentNode) notification.remove();
+             }, 500); 
+        }
     }, 3000);
+}
+
+function isWebAuthnSupported() {
+    return window.PublicKeyCredential !== undefined &&
+           typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function';
+}
+
+async function initPasskeyLoginButton() {
+    const passkeyLoginSection = document.getElementById('passkey-login-section');
+    const passkeyLoginBtn = document.getElementById('passkey-login-btn');
+
+    if (!passkeyLoginBtn || !passkeyLoginSection) {
+        return;
+    }
+
+    if (!isWebAuthnSupported()) {
+        console.log("WebAuthn not supported by this browser.");
+        passkeyLoginSection.style.display = 'none';
+        return;
+    }
+
+    try {
+        const configResponse = await fetch('/api/auth/passkey/status');
+        if (configResponse.ok) {
+            const configData = await configResponse.json();
+            if (configData.passkeys_enabled) {
+                passkeyLoginSection.style.display = 'block';
+                passkeyLoginBtn.addEventListener('click', handlePasskeyLogin);
+            } else {
+                console.log("Passkey login is disabled in server settings.");
+                passkeyLoginSection.style.display = 'none';
+            }
+        } else {
+             console.warn("Could not determine if passkeys are enabled; hiding passkey button.");
+             passkeyLoginSection.style.display = 'none';
+        }
+    } catch (error) {
+        console.error("Error checking passkey status:", error);
+        passkeyLoginSection.style.display = 'none';
+    }
+}
+
+async function handlePasskeyLogin() {
+    const passkeyLoginBtn = document.getElementById('passkey-login-btn');
+    const originalButtonText = passkeyLoginBtn.innerHTML;
+    passkeyLoginBtn.disabled = true;
+    passkeyLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+    
+    const errorContainer = document.getElementById('passkey-error-message'); 
+
+    function displayLoginError(message) {
+        if (errorContainer) {
+            errorContainer.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+            errorContainer.style.display = 'block';
+        } else {
+            const genericErrorContainer = document.querySelector('.login-form .error-message');
+            if (genericErrorContainer) {
+                genericErrorContainer.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+                genericErrorContainer.style.display = 'block';
+            } else {
+                alert(message);
+            }
+        }
+    }
+    
+    if (errorContainer) errorContainer.style.display = 'none';
+    const genericErrorContainer = document.querySelector('.login-form .error-message');
+    if (genericErrorContainer && genericErrorContainer.id !== 'passkey-error-message') {
+    }
+
+
+    try {
+        const usernameInput = document.getElementById('username');
+        const username = usernameInput ? usernameInput.value : null;
+
+        const optionsResponse = await fetch('/api/auth/passkey/login-options', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ username: username })
+        });
+
+        const options = await optionsResponse.json();
+
+        if (!optionsResponse.ok) {
+            throw new Error(options.error || 'Failed to get passkey login options');
+        }
+
+        options.challenge = bufferDecode(options.challenge);
+        if (options.allowCredentials) {
+            for (let cred of options.allowCredentials) {
+                cred.id = bufferDecode(cred.id);
+            }
+        }
+
+        const assertion = await navigator.credentials.get({ publicKey: options });
+
+        const assertionForServer = {
+            id: assertion.id,
+            rawId: bufferEncode(assertion.rawId),
+            type: assertion.type,
+            response: {
+                authenticatorData: bufferEncode(assertion.response.authenticatorData),
+                clientDataJSON: bufferEncode(assertion.response.clientDataJSON),
+                signature: bufferEncode(assertion.response.signature),
+                userHandle: assertion.response.userHandle ? bufferEncode(assertion.response.userHandle) : null,
+            },
+        };
+
+        const verifyResponse = await fetch('/api/auth/passkey/login-verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify(assertionForServer)
+        });
+
+        const verifyResult = await verifyResponse.json();
+
+        if (!verifyResponse.ok) {
+            throw new Error(verifyResult.error || 'Passkey login failed');
+        }
+
+        const nextUrl = new URLSearchParams(window.location.search).get('next') || '/';
+        window.location.href = nextUrl;
+
+    } catch (err) {
+        console.error('Passkey login error:', err);
+        displayLoginError(err.message || 'Could not sign in with passkey.');
+        passkeyLoginBtn.disabled = false;
+        passkeyLoginBtn.innerHTML = originalButtonText;
+    }
 }

@@ -16,7 +16,10 @@
     <link rel="icon" href="/static/icons/favicon.ico">
     <meta name="csrf-token" content="{{ csrf_token() }}"> 
 </head>
-<body>
+<body class="{{ 'has-backdrop' if login_backdrop_enabled else '' }}">
+    {% if login_backdrop_enabled %}
+    <div id="backdrop-container"></div>
+    {% endif %}
     <div class="login-container">
         <div class="login-card">
             <div class="logo-section">
@@ -56,38 +59,53 @@
                     </div>
                 </div>
                 <div class="separator">
-                    <span>or use local account</span>
+                    <span>or use local account / passkey</span>
                 </div>
             </div>
             {% endif %}
 
-            <form action="/login" method="POST" class="login-form">
-                {% if error %}
-                <div class="error-message">
-                    <i class="fas fa-exclamation-circle"></i>
-                    {{ error }}
-                </div>
-                {% endif %}
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <div class="input-with-icon">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="username" name="username" required>
+            <!-- Unified Login Form -->
+            <div id="login-form-container">
+                <form action="/login" method="POST" class="login-form">
+                    {% if error %}
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        {{ error }}
                     </div>
+                    {% endif %}
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                    </div>
+                    <p class="form-hint">Plex Managed Users: use this form.</p>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="next" value="{{ next }}">
+                    <button type="submit" class="login-button">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </button>
+                </form>
+                <div class="passkey-login-section" id="passkey-login-section" style="display: none;">
+                    <div class="error-message" id="passkey-error-message" style="display: none; margin-bottom: 10px;">
+                        <!-- Passkey errors will be inserted here by JavaScript -->
+                    </div>
+                    <!-- Removed separator from here to make passkey button a direct alternative to password login -->
+                    <button type="button" class="login-button passkey-button" id="passkey-login-btn">
+                        <i class="fas fa-fingerprint"></i>
+                        Sign In with Passkey
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <div class="input-with-icon">
-                        <i class="fas fa-lock"></i>
-            <input type="password" id="password" name="password" required>
-        </div>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> 
-        <input type="hidden" name="next" value="{{ next }}">
-                <button type="submit" class="login-button">
-                    <i class="fas fa-sign-in-alt"></i>
-                    Sign In
-                </button>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -173,8 +191,128 @@
     <script src="/static/js/emby-auth.js"></script>
     {% endif %}
 
+    <script src="/static/js/auth.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const loginBackdropEnabled = {{ login_backdrop_enabled|tojson }};
+            const backdropContainer = document.getElementById('backdrop-container');
+
+            if (loginBackdropEnabled && backdropContainer) {
+                let backdrops = [];
+                let currentBackdropIndex = 0;
+                let backdropIntervalId = null;
+
+                function revertToDefaultLogin() {
+                    console.warn('Reverting to default login appearance due to backdrop issue.');
+                    document.body.classList.remove('has-backdrop');
+                    if (backdropContainer) {
+                        backdropContainer.style.display = 'none';
+                    }
+                    if (backdropIntervalId) {
+                        clearInterval(backdropIntervalId);
+                        backdropIntervalId = null;
+                    }
+                }
+
+                async function fetchAndSetNewBackdrops() {
+                    console.log("Fetching new batch of backdrops...");
+                    try {
+                        const response = await fetch('/api/random_backdrops');
+                        if (!response.ok) {
+                            console.error('Failed to fetch new backdrop batch, status:', response.status);
+                            return false; 
+                        }
+                        const newBackdrops = await response.json();
+                        if (newBackdrops && newBackdrops.length > 0) {
+                            backdrops = newBackdrops; 
+                            currentBackdropIndex = 0;   
+                            console.log(`Fetched ${backdrops.length} new backdrops.`);
+                            return true; 
+                        } else {
+                            console.warn('New backdrop batch fetch returned no images or non-array.');
+                            return false; 
+                        }
+                    } catch (error) {
+                        console.error('Error fetching new backdrop batch:', error);
+                        return false; 
+                    }
+                }
+
+                function loadBackdrop() {
+                    if (!backdrops || backdrops.length === 0) {
+                        revertToDefaultLogin();
+                        return;
+                    }
+                    
+                    const imageUrl = backdrops[currentBackdropIndex];
+                    if (!imageUrl) { 
+                        console.warn('Skipping invalid backdrop URL in current batch:', imageUrl);
+                        currentBackdropIndex = (currentBackdropIndex + 1);
+                        if (currentBackdropIndex >= backdrops.length) {
+                            fetchAndSetNewBackdrops().then(success => {
+                                if (success && backdrops.length > 0) {
+                                    loadBackdrop();
+                                } else if (!success && backdrops.length === 0) {
+                                    revertToDefaultLogin();
+                                }
+                            });
+                        } else {
+                           if (backdrops.length > 0) setTimeout(loadBackdrop, 0);
+                        }
+                        return;
+                    }
+
+                    const img = new Image();
+                    img.onload = () => {
+                        if (document.body.classList.contains('has-backdrop')) { 
+                           backdropContainer.style.backgroundImage = `url(${imageUrl})`;
+                        }
+                        currentBackdropIndex++; 
+                        if (currentBackdropIndex >= backdrops.length) {
+                            fetchAndSetNewBackdrops().then(success => {
+                                if (!success && backdrops.length > 0) {
+                                    console.warn("Failed to fetch new batch, will cycle existing backdrops if any.");
+                                    currentBackdropIndex = 0; 
+                                } else if (!success && backdrops.length === 0) {
+                                    revertToDefaultLogin();
+                                }
+                            });
+                        }
+                    };
+                    img.onerror = () => {
+                        console.error('Failed to load backdrop image:', imageUrl);
+                        backdrops.splice(currentBackdropIndex, 1);
+                        if (backdrops.length === 0) {
+                            revertToDefaultLogin();
+                        } else {
+                            if (currentBackdropIndex >= backdrops.length) {
+                                currentBackdropIndex = 0;
+                            }
+                            if (document.body.classList.contains('has-backdrop')) { 
+                                setTimeout(loadBackdrop, 0); 
+                            }
+                        }
+                    };
+                    img.src = imageUrl;
+                }
+
+                async function initialFetch() {
+                    const success = await fetchAndSetNewBackdrops();
+                    if (success && backdrops.length > 0) {
+                        loadBackdrop();
+                        if (backdropIntervalId) clearInterval(backdropIntervalId);
+                        backdropIntervalId = setInterval(loadBackdrop, 10000);
+                    } else {
+                        revertToDefaultLogin(); 
+                    }
+                }
+                initialFetch();
+
+            } else if (loginBackdropEnabled && !backdropContainer) {
+                console.warn("Login backdrop enabled, but container not found. Ensuring default appearance.");
+                document.body.classList.remove('has-backdrop'); 
+            }
+
             const toggleBtn = document.getElementById('media-server-toggle');
             const dropdownMenu = document.getElementById('media-server-menu');
 
@@ -189,6 +327,7 @@
                     }
                 });
             }
+
         });
     </script>
 </body>

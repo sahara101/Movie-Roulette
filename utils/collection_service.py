@@ -176,6 +176,7 @@ class CollectionService:
         """
         logger.info(f"Checking collection status for movie {tmdb_id} on {current_service}")
 
+        found_future_unowned_unrequested = False
         movie_details = tmdb_service.get_movie_details(tmdb_id)
         if not movie_details or not movie_details.get('belongs_to_collection'):
             return {
@@ -206,14 +207,6 @@ class CollectionService:
             (i for i, part in enumerate(parts) if part['id'] == int(tmdb_id)),
             -1
         )
-
-        if current_movie_index <= 0:
-            return {
-                'is_in_collection': True,
-                'collection_name': collection_name,
-                'collection_id': collection_id,
-                'previous_movies': []
-            }
 
         previous_movies = [
             part for part in parts[:current_movie_index]
@@ -280,15 +273,28 @@ class CollectionService:
                 'is_requested': is_requested
             })
 
-        return {
+            if not found_future_unowned_unrequested:
+                movie_release_date_str = movie.get('release_date')
+                if movie_release_date_str:
+                    try:
+                        movie_release_date = datetime.strptime(movie_release_date_str, '%Y-%m-%d').date()
+                        if movie_release_date > datetime.now().date() and not in_library and not is_requested:
+                            found_future_unowned_unrequested = True
+                            logger.info(f"Found future unowned/unrequested movie: {movie['title']} (ID: {movie['id']})")
+                    except ValueError:
+                        logger.warning(f"Could not parse release_date '{movie_release_date_str}' for movie {movie['id']}")
+
+
+        final_result = {
             'is_in_collection': True,
             'collection_name': collection_name,
             'collection_id': collection_id,
             'collection_poster': movie_details['belongs_to_collection'].get('poster_path', ''),
             'previous_movies': result_previous,
-            'other_movies': result_other
+            'other_movies': result_other,
+            'has_future_unowned_unrequested_movie': found_future_unowned_unrequested
         }
-        logger.info(f"Final collection status for {tmdb_id}: {json.dumps(final_result, indent=2)}") 
+        logger.info(f"Final collection status for {tmdb_id}: {json.dumps(final_result, indent=2)}")
         return final_result
 
     def _is_movie_in_plex(self, tmdb_id):

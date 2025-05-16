@@ -28,7 +28,7 @@ let socket = io({
 });
 
 let cacheInitialized = false;
-let initialMovieLoaded = false; 
+let initialMovieLoaded = false;
 
 function getCsrfToken() {
     const token = document.querySelector('meta[name="csrf-token"]');
@@ -48,12 +48,12 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     if (shouldLoadOnStart) {
         console.log("Condition met: Loading movie automatically (button hidden by default CSS).");
-        initialMovieLoaded = true; 
+        initialMovieLoaded = true;
         document.getElementById('movieContent')?.classList.add('hidden');
         document.querySelector('.button_container')?.classList.add('hidden');
 
         try {
-            await loadRandomMovie(); 
+            await loadRandomMovie();
             console.log("Movie loaded successfully. Showing movie content and buttons.");
             document.getElementById('movieContent')?.classList.remove('hidden');
             document.querySelector('.button_container')?.classList.remove('hidden');
@@ -69,11 +69,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (!window.HOMEPAGE_MODE) {
         if (window.USE_FILTER) {
             await loadFilterOptions();
-            await updateFilteredMovieCount(); 
+            await updateFilteredMovieCount();
             setupFilterEventListeners();
         }
     }
-    // setupEventListeners(); 
+    // setupEventListeners();
     checkAndLoadCache();
     try {
         const response = await fetch('/devices');
@@ -188,45 +188,73 @@ socket.on('loading_complete', async function() {
     if (overlay) {
         overlay.classList.add('hidden');
         window.cacheBuilding = false;
-
         cacheInitialized = true;
 
-        if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
-            console.log('Reinitializing filters and updating count after cache build');
-            await loadFilterOptions();
-            await updateFilteredMovieCount(); 
-            const filterButton = document.getElementById("filterButton");
-            const filterDropdown = document.getElementById("filterDropdown");
-
-            const newFilterButton = filterButton.cloneNode(true);
-            filterButton.parentNode.replaceChild(newFilterButton, filterButton);
-
-            newFilterButton.addEventListener('click', function(event) {
-                event.stopPropagation();
-                filterDropdown.classList.toggle("show");
-            });
-
-            document.addEventListener('click', function(event) {
-                if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
-                    filterDropdown.classList.remove("show");
+        try {
+            console.log('Triggering backend service reinitialization...');
+            const csrfToken = getCsrfToken();
+            const response = await fetch('/api/trigger_service_reinitialization', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 }
             });
-
-            filterDropdown.addEventListener('click', function(event) {
-                event.stopPropagation();
-            });
-
+            const data = await response.json();
+            if (response.ok && data.status === 'success') {
+                console.log('Backend service reinitialization trigger sent successfully. Waiting for services_ready signal.');
+            } else {
+                console.error('Failed to trigger backend service reinitialization:', data.error || response.statusText);
+                if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
+                    console.warn('Reinit trigger failed, attempting direct filter load as fallback after loading_complete.');
+                    await loadFilterOptions();
+                    await updateFilteredMovieCount();
+                    // setupFilterEventListeners();
+                }
+            }
+        } catch (error) {
+            console.error('Error calling service reinitialization endpoint:', error);
+             if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
+                 console.warn('Reinit API call failed, attempting direct filter load as fallback after loading_complete.');
+                 await loadFilterOptions();
+                 await updateFilteredMovieCount();
+                 // setupFilterEventListeners();
+             }
+        }
+        
+        if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
+            console.log('Directly reloading filters and UI after loading_complete signal.');
+            await loadFilterOptions();
+            await updateFilteredMovieCount();
             setupFilterEventListeners();
-            updateFilters();
+            console.log('Filter options reloaded and listeners re-attached after loading_complete.');
         }
-
-        if (window.LOAD_MOVIE_ON_START || initialMovieLoaded) {
-             await loadRandomMovie();
-        }
-
-        console.log('Re-attaching main event listeners after cache build');
-        setupEventListeners();
+        setupEventListeners(); 
     }
+});
+
+socket.on('services_ready', async () => {
+    console.log("Received 'services_ready' signal from backend.");
+
+    await getCurrentService();
+    await getAvailableServices();
+
+    if (!window.HOMEPAGE_MODE && window.USE_FILTER) {
+        console.log('Reloading filters and UI after services_ready signal (secondary check).');
+        await loadFilterOptions(); 
+        await updateFilteredMovieCount(); 
+        setupFilterEventListeners(); 
+        console.log('Filter options reloaded and listeners re-attached after services_ready.');
+    }
+    updateServiceButton();
+    console.log('Service button updated.');
+
+    if (window.LOAD_MOVIE_ON_START || initialMovieLoaded) {
+         console.log('Loading movie after services_ready signal...');
+         await loadRandomMovie();
+    }
+
+    console.log('UI updated after services_ready signal.');
 });
 
 async function getAvailableServices() {
@@ -251,7 +279,7 @@ async function getCurrentService() {
 	    console.log("Current and available services:", {
                 current: currentService,
                 available: availableServices
-            }); 
+            });
         }
         updateServiceButton();
     } catch (error) {
@@ -292,8 +320,8 @@ async function loadRandomMovie() {
             cacheInitialized = true;
         }
 
-        currentMovie = data.movie; 
-        updateMovieDisplay(currentMovie); 
+        currentMovie = data.movie;
+        updateMovieDisplay(currentMovie);
 
         if (currentMovie && currentMovie.tmdb_id) {
             fetchMovieDetailsAsync(currentMovie.tmdb_id);
@@ -310,12 +338,15 @@ async function loadFilterOptions() {
         console.log("Loading filter options for service:", currentService);
         const watchStatusSelect = document.getElementById("watchStatusSelect");
         const watchStatus = watchStatusSelect ? watchStatusSelect.value : 'unwatched';
-        const genresResponse = await fetch(`/get_genres?watch_status=${watchStatus}`);
-        const yearsResponse = await fetch(`/get_years?watch_status=${watchStatus}`);
-        const pgRatingsResponse = await fetch(`/get_pg_ratings`);
+        const genresResponse = await fetch(`/get_genres?watch_status=${watchStatus}`, { cache: 'no-cache' });
+        const yearsResponse = await fetch(`/get_years?watch_status=${watchStatus}`, { cache: 'no-cache' });
+        const pgRatingsResponse = await fetch(`/get_pg_ratings`, { cache: 'no-cache' }); 
 
         if (!genresResponse.ok || !yearsResponse.ok || !pgRatingsResponse.ok) {
-            throw new Error('Failed to fetch filter options');
+            if (!genresResponse.ok) console.error(`Failed to fetch genres: ${genresResponse.status}`);
+            if (!yearsResponse.ok) console.error(`Failed to fetch years: ${yearsResponse.status}`);
+            if (!pgRatingsResponse.ok) console.error(`Failed to fetch ratings: ${pgRatingsResponse.status}`);
+            throw new Error('Failed to fetch one or more filter options');
         }
 
         const genres = await genresResponse.json();
@@ -326,12 +357,11 @@ async function loadFilterOptions() {
         console.log("Fetched years:", years);
         console.log("Fetched PG ratings:", pgRatings);
 
-        // Populate dropdowns first
         populateDropdown('genreSelect', genres);
         populateDropdown('yearSelect', years);
         populateDropdown('pgRatingSelect', pgRatings);
 
-        restoreFilterSelections(); 
+        restoreFilterSelections();
 
     } catch (error) {
         console.error("Error loading filter options:", error);
@@ -345,9 +375,14 @@ function populateDropdown(elementId, options) {
         return;
     }
     console.log(`Populating ${elementId} with options:`, options);
-    select.innerHTML = '<option value="">Any</option>';
+    select.innerHTML = '';
+    const defaultOption = document.createElement('option');
+    defaultOption.value = "";
+    defaultOption.textContent = "Any";
+    select.appendChild(defaultOption);
+
     options.forEach(option => {
-        if (option) {
+        if (option !== null && option !== undefined) { 
             const optionElement = document.createElement('option');
             optionElement.value = option;
             optionElement.textContent = option;
@@ -371,16 +406,16 @@ function setupEventListeners() {
             getMovieButton.parentNode.replaceChild(newGetMovieButton, getMovieButton);
             newGetMovieButton.addEventListener('click', async () => {
                 console.log("Get Random Movie button clicked");
-                initialMovieLoaded = true; 
-                await loadRandomMovie(); 
-                newGetMovieButton.classList.add('hidden'); 
-                document.getElementById('movieContent').classList.remove('hidden'); 
+                initialMovieLoaded = true;
+                await loadRandomMovie();
+                newGetMovieButton.classList.add('hidden');
+                document.getElementById('movieContent').classList.remove('hidden');
                 const buttonContainer = document.querySelector('.button_container');
                 if (buttonContainer) {
-                    buttonContainer.classList.remove('hidden'); 
+                    buttonContainer.classList.remove('hidden');
                 }
             });
-            getMovieButton = newGetMovieButton; 
+            getMovieButton = newGetMovieButton;
         }
     }
 
@@ -391,7 +426,7 @@ function setupEventListeners() {
                 const newWatchButton = watchButton.cloneNode(true);
                 watchButton.parentNode.replaceChild(newWatchButton, watchButton);
                 newWatchButton.addEventListener('click', showClients);
-                watchButton = newWatchButton; 
+                watchButton = newWatchButton;
             }
         }
 
@@ -401,7 +436,7 @@ function setupEventListeners() {
                 const newNextButton = nextButton.cloneNode(true);
                 nextButton.parentNode.replaceChild(newNextButton, nextButton);
                 newNextButton.addEventListener('click', loadNextMovie);
-                nextButton = newNextButton; 
+                nextButton = newNextButton;
             }
         }
 
@@ -410,7 +445,7 @@ function setupEventListeners() {
             const newPowerButton = powerButton.cloneNode(true);
             powerButton.parentNode.replaceChild(newPowerButton, powerButton);
             newPowerButton.addEventListener('click', showDevices);
-            powerButton = newPowerButton; 
+            powerButton = newPowerButton;
         }
 
         let trailerClose = document.getElementById("trailer_popup_close");
@@ -418,7 +453,7 @@ function setupEventListeners() {
             const newTrailerClose = trailerClose.cloneNode(true);
             trailerClose.parentNode.replaceChild(newTrailerClose, trailerClose);
             newTrailerClose.addEventListener('click', closeTrailerPopup);
-            trailerClose = newTrailerClose; 
+            trailerClose = newTrailerClose;
         }
 
         let switchServiceButton = document.getElementById("switch_service");
@@ -426,7 +461,7 @@ function setupEventListeners() {
             const newSwitchServiceButton = switchServiceButton.cloneNode(true);
             switchServiceButton.parentNode.replaceChild(newSwitchServiceButton, switchServiceButton);
             newSwitchServiceButton.addEventListener('click', switchService);
-            switchServiceButton = newSwitchServiceButton; 
+            switchServiceButton = newSwitchServiceButton;
         }
 
 	let clientPromptClose = document.getElementById('client_prompt_close');
@@ -434,7 +469,7 @@ function setupEventListeners() {
 	           const newClientPromptClose = clientPromptClose.cloneNode(true);
 	           clientPromptClose.parentNode.replaceChild(newClientPromptClose, clientPromptClose);
 	           newClientPromptClose.addEventListener('click', closeClientPrompt);
-	           clientPromptClose = newClientPromptClose; 
+	           clientPromptClose = newClientPromptClose;
 	   	}
 
     	let devicePromptClose = document.getElementById('device_prompt_close');
@@ -442,7 +477,7 @@ function setupEventListeners() {
     	       const newDevicePromptClose = devicePromptClose.cloneNode(true);
     	       devicePromptClose.parentNode.replaceChild(newDevicePromptClose, devicePromptClose);
     	       newDevicePromptClose.addEventListener('click', closeDevicePrompt);
-    	       devicePromptClose = newDevicePromptClose; 
+    	       devicePromptClose = newDevicePromptClose;
     	}
     }
 
@@ -483,12 +518,12 @@ function setupEventListeners() {
         const newMoviesOverlayClose = moviesOverlayClose.cloneNode(true);
         moviesOverlayClose.parentNode.replaceChild(newMoviesOverlayClose, moviesOverlayClose);
         newMoviesOverlayClose.addEventListener('click', closeMoviesOverlay);
-        moviesOverlayClose = newMoviesOverlayClose; 
+        moviesOverlayClose = newMoviesOverlayClose;
     }
 
     let searchButton = document.getElementById('searchButton');
-    const searchModal = document.getElementById('search_modal'); 
-    const searchInput = document.getElementById('movie_search'); 
+    const searchModal = document.getElementById('search_modal');
+    const searchInput = document.getElementById('movie_search');
     let closeSearchBtn = document.getElementById('search_modal_close');
 
     if (searchButton && searchModal && searchInput && closeSearchBtn) {
@@ -498,24 +533,24 @@ function setupEventListeners() {
             searchModal.classList.remove('hidden');
             searchInput.focus();
         });
-        searchButton = newSearchButton; 
+        searchButton = newSearchButton;
 
         const newCloseSearchBtn = closeSearchBtn.cloneNode(true);
         closeSearchBtn.parentNode.replaceChild(newCloseSearchBtn, closeSearchBtn);
         newCloseSearchBtn.addEventListener('click', closeSearchModal);
-        closeSearchBtn = newCloseSearchBtn; 
+        closeSearchBtn = newCloseSearchBtn;
 
     	let searchTimeout;
     	searchInput.addEventListener('input', () => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
             	const query = searchInput.value.trim();
-            	if (query.length >= 2) { 
+            	if (query.length >= 2) {
                     performSearch(query);
             	} else {
                     document.getElementById('search_results').innerHTML = '';
             	}
-            }, 300); 
+            }, 300);
         });
 
         document.addEventListener('keydown', (e) => {
@@ -528,7 +563,7 @@ function setupEventListeners() {
 
 async function performSearch(query) {
     const searchResults = document.getElementById('search_results');
-    searchResults.className = '';  
+    searchResults.className = '';
     searchResults.innerHTML = '<div class="loading-indicator">Searching...</div>';
 
     try {
@@ -637,7 +672,7 @@ async function showClientsForSelected(selectedMovie) {
                 clientDiv.classList.add("client");
                 clientDiv.textContent = client.title;
                 clientDiv.onclick = function() {
-                    playSelectedMovie(client.id, selectedMovie.id);  
+                    playSelectedMovie(client.id, selectedMovie.id);
                     closeClientPrompt();
                 };
                 listContainer.appendChild(clientDiv);
@@ -695,12 +730,12 @@ function setupFilterEventListeners() {
         if (pgRatingSelect) pgRatingSelect.addEventListener('change', updateFilteredMovieCount);
 
         if (watchStatusSelect) {
-            watchStatusSelect.addEventListener('change', async function(event) { 
-                const newValue = event.target.value; 
+            watchStatusSelect.addEventListener('change', async function(event) {
+                const newValue = event.target.value;
                 console.log(`Watch status changed to: ${newValue}. Updating currentFilters and reloading options...`);
                 currentFilters.watchStatus = newValue;
-                await loadFilterOptions(); 
-                await updateFilteredMovieCount(); 
+                await loadFilterOptions();
+                await updateFilteredMovieCount();
             });
         }
 
@@ -758,9 +793,9 @@ async function applyFilter() {
     if (pgRatingSelect) currentFilters.pgRatings = Array.from(pgRatingSelect.selectedOptions).map(option => option.value).filter(Boolean);
     if (watchStatusSelect) currentFilters.watchStatus = watchStatusSelect.value || 'unwatched';
 
-    console.log("Applying filters:", currentFilters); 
+    console.log("Applying filters:", currentFilters);
 
-    await fetchFilteredMovies(); 
+    await fetchFilteredMovies();
     const filterDropdown = document.getElementById("filterDropdown");
     if (filterDropdown) filterDropdown.classList.remove("show");
 }
@@ -786,8 +821,8 @@ async function fetchFilteredMovies() {
 
         const data = await response.json();
         console.log("Filtered movie from service:", data.service);
-        currentMovie = data.movie; 
-        updateMovieDisplay(currentMovie); 
+        currentMovie = data.movie;
+        updateMovieDisplay(currentMovie);
         document.getElementById("filterDropdown").classList.remove("show");
 
         if (currentMovie && currentMovie.tmdb_id) {
@@ -819,18 +854,15 @@ function clearFilter() {
     if (pgRatingSelect) Array.from(pgRatingSelect.options).forEach(option => option.selected = option.value === "");
     if (watchStatusSelect) watchStatusSelect.value = "unwatched";
 
-    updateFilteredMovieCount(); 
+    updateFilteredMovieCount();
     if (applyFilterButton) {
-        applyFilterButton.textContent = 'Apply Filter'; 
+        applyFilterButton.textContent = 'Apply Filter';
     }
 
 
     const filterDropdown = document.getElementById("filterDropdown");
     if (filterDropdown) filterDropdown.classList.remove("show");
 
-    // Optionally, re-apply the default (unfiltered) view immediately
-    // applyFilter();
-    // loadRandomMovie();
 }
 
 async function updateFilteredMovieCount() {
@@ -838,11 +870,11 @@ async function updateFilteredMovieCount() {
     const yearSelect = document.getElementById('yearSelect');
     const pgRatingSelect = document.getElementById('pgRatingSelect');
     const watchStatusSelect = document.getElementById('watchStatusSelect');
-    const applyFilterButton = document.getElementById('applyFilter'); 
+    const applyFilterButton = document.getElementById('applyFilter');
 
     if (!genreSelect || !yearSelect || !pgRatingSelect || !watchStatusSelect || !applyFilterButton) {
         console.warn("Required filter elements not found, skipping count update.");
-        if (applyFilterButton) applyFilterButton.textContent = 'Apply Filter'; 
+        if (applyFilterButton) applyFilterButton.textContent = 'Apply Filter';
         return;
     }
 
@@ -859,18 +891,19 @@ async function updateFilteredMovieCount() {
     filters.pgRatings.forEach(r => queryParams.append('pgRatings', r));
     queryParams.append('watch_status', filters.watch_status);
 
-    const originalButtonText = applyFilterButton.textContent.replace(/\s*\((?:\d+|\.\.\.|Error)\)$/, ''); 
+    const originalButtonText = applyFilterButton.textContent.replace(/\s*\((?:\d+|\.\.\.|Error)\)$/, '');
 
     try {
-        applyFilterButton.textContent = `${originalButtonText} (...)`; 
+        applyFilterButton.textContent = `${originalButtonText} (...)`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); 
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         const response = await fetch(`/filtered_movie_count?${queryParams.toString()}`, {
-            signal: controller.signal 
+            signal: controller.signal,
+            cache: 'no-cache'
         });
 
-        clearTimeout(timeoutId); 
+        clearTimeout(timeoutId);
         if (!response.ok) {
             let errorMsg = `HTTP error! status: ${response.status}`;
             try {
@@ -883,7 +916,7 @@ async function updateFilteredMovieCount() {
         applyFilterButton.textContent = `${originalButtonText} (${data.count})`;
     } catch (error) {
         console.error("Error fetching filtered movie count:", error);
-        applyFilterButton.textContent = `${originalButtonText} (Error)`; 
+        applyFilterButton.textContent = `${originalButtonText} (Error)`;
     }
 }
 function restoreFilterSelections() {
@@ -938,8 +971,8 @@ async function loadNextMovie() {
         }
         const data = await response.json();
         console.log("Loaded next movie from service:", data.service);
-        currentMovie = data.movie; 
-        updateMovieDisplay(currentMovie); 
+        currentMovie = data.movie;
+        updateMovieDisplay(currentMovie);
 
         if (currentMovie && currentMovie.tmdb_id) {
             fetchMovieDetailsAsync(currentMovie.tmdb_id);
@@ -1006,8 +1039,8 @@ function updateMovieDisplay(movieData) {
         "description": document.getElementById("description"),
         "poster_img": document.getElementById("poster_img"),
         "img_background": document.getElementById("img_background"),
-        "movie_logo_img": document.getElementById("movie-logo-img"), 
-        "collectionButton": document.getElementById("collectionButton") 
+        "movie_logo_img": document.getElementById("movie-logo-img"),
+        "collectionButton": document.getElementById("collectionButton")
     };
 
     if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
@@ -1080,7 +1113,7 @@ function updateMovieDisplay(movieData) {
                 	    });
             		}
        		    }
-                } else if (movieData.tmdb_id) { 
+                } else if (movieData.tmdb_id) {
                     setPlaceholder(element, 'Directing: Loading...');
                 } else {
                     element.textContent = 'Directing: Not available';
@@ -1117,7 +1150,7 @@ function updateMovieDisplay(movieData) {
                 	    });
             		}
         	    }
-                } else if (movieData.tmdb_id) { 
+                } else if (movieData.tmdb_id) {
                      setPlaceholder(element, 'Writing: Loading...');
                 } else {
                     element.textContent = 'Writing: Not available';
@@ -1159,7 +1192,7 @@ function updateMovieDisplay(movieData) {
                             });
                         }
                     }
-                } else if (movieData.tmdb_id) { 
+                } else if (movieData.tmdb_id) {
                     setPlaceholder(element, 'Cast: Loading...');
                 } else {
                     element.textContent = 'Cast: Not available';
@@ -1182,7 +1215,7 @@ function updateMovieDisplay(movieData) {
                 break;
 
             case "poster_img":
-                element.src = movieData.poster || 'static/images/default_poster.png'; 
+                element.src = movieData.poster || 'static/images/default_poster.png';
                 break;
 
             case "img_background":
@@ -1205,7 +1238,7 @@ function updateMovieDisplay(movieData) {
     }
 
     document.getElementById("section").classList.remove("hidden");
-    setupDescriptionExpander(); 
+    setupDescriptionExpander();
     window.dispatchEvent(new Event('resize'));
 }
 
@@ -1221,7 +1254,7 @@ async function fetchMovieDetailsAsync(tmdbId) {
         handleAsyncMovieDetails(details);
     } catch (error) {
         console.error(`Async fetch: Error fetching movie details for ${tmdbId}:`, error);
-        handleAsyncMovieDetails(null, error); 
+        handleAsyncMovieDetails(null, error);
     }
 }
 
@@ -1237,7 +1270,7 @@ async function fetchTrailerAsync(title, year) {
         handleAsyncTrailer(trailerUrl);
     } catch (error) {
         console.error(`Async fetch: Error fetching trailer for ${title}:`, error);
-        handleAsyncTrailer(null, error); 
+        handleAsyncTrailer(null, error);
     }
 }
 
@@ -1255,7 +1288,7 @@ function handleAsyncMovieDetails(details, error = null) {
         return;
     }
 
-    if (!details) return; 
+    if (!details) return;
 
     currentMovie = { ...currentMovie, ...details };
 
@@ -1342,7 +1375,7 @@ function handleAsyncMovieDetails(details, error = null) {
                         moreWriters.style.cursor = 'pointer';
                         moreWriters.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            showAllWriters(writers_enriched); 
+                            showAllWriters(writers_enriched);
                         });
                     }
                 }
@@ -1383,7 +1416,7 @@ function handleAsyncMovieDetails(details, error = null) {
                         moreActors.style.cursor = 'pointer';
                         moreActors.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            showAllActors(actors_enriched); 
+                            showAllActors(actors_enriched);
                         });
                     }
                 }
@@ -1414,7 +1447,7 @@ function handleAsyncMovieDetails(details, error = null) {
     }
 
     if (details.collection_info) {
-        handleCollectionWarning(details); 
+        handleCollectionWarning(details);
     } else if (collectionButton) {
          collectionButton.classList.add('hidden');
     }
@@ -1429,7 +1462,7 @@ function handleAsyncTrailer(trailerUrl, error = null) {
          trailerLink.style.display = "none";
          trailerLink.onclick = null;
      } else {
-         trailerLink.style.display = "block"; 
+         trailerLink.style.display = "block";
          trailerLink.onclick = function() {
              document.getElementById("trailer_iframe").src = trailerUrl;
              document.getElementById("trailer_popup").classList.remove("hidden");
@@ -1437,9 +1470,9 @@ function handleAsyncTrailer(trailerUrl, error = null) {
      }
 }
 
-function handleCollectionWarning(movieData) { 
+function handleCollectionWarning(movieData) {
     const collectionButton = document.getElementById('collectionButton');
-    if (!collectionButton) return; 
+    if (!collectionButton) return;
 
     console.log("handleCollectionWarning called. Movie Data:", movieData);
     console.log("Collection Info received:", movieData.collection_info);
@@ -1453,6 +1486,10 @@ function handleCollectionWarning(movieData) {
 	console.log("Hiding button: No collection info or not in collection.");
         collectionButton.classList.add('hidden');
         return;
+    }
+
+    if (movieData.collection_info.has_future_unowned_unrequested_movie) {
+        console.log("Flag set: Collection has future unowned/unrequested movie.");
     }
 
     const previousMovies = movieData.collection_info.previous_movies || [];
@@ -1517,6 +1554,19 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         ...(otherMovies ? otherMovies.filter(movie => !movie.in_library && !movie.is_requested) : [])
     ];
 
+    const createRequestIcon = (movie) => {
+        if (isRequestServiceAvailable && !movie.in_library && !movie.is_requested) {
+            return `
+                <span class="request-icon-span" data-movie-id="${movie.id}" title="Request ${movie.title} using ${requestServiceName}">
+                    <svg class="request-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px">
+                        <path d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                </span>`;
+        }
+        return '';
+    };
+
     infoContainer.innerHTML = `
         <div class="collection-info-header">
             <h3>Part of ${collectionInfo.collection_name}</h3>
@@ -1526,18 +1576,15 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
             <ul class="movie-list">
                 ${unwatchedMovies.map(movie => {
                     const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
-
-                    // Properly formatted ternary operator for status class
                     const statusClass = movie.in_library ? 'status-in-library' :
                                       (movie.is_requested ? 'status-requested' : 'status-not-in-library');
-
-                    // Properly formatted ternary operator for status text
                     const statusText = movie.in_library ? 'In library' :
                                      (movie.is_requested ? 'Requested' : 'Not in library');
-
+                    const requestIconHTML = createRequestIcon(movie);
                     return `
                         <li class="movie-item">
                             <span class="movie-title">${movie.title}${year}</span>
+                            ${requestIconHTML}
                             <span class="movie-status ${statusClass}">${statusText}</span>
                         </li>
                     `;
@@ -1550,16 +1597,15 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                 <ul class="movie-list">
                     ${otherMovies.map(movie => {
                         const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
-
-                        // Same corrected format for other movies section
                         const statusClass = movie.in_library ? 'status-in-library' :
                                           (movie.is_requested ? 'status-requested' : 'status-not-in-library');
                         const statusText = movie.in_library ? 'In library' :
                                          (movie.is_requested ? 'Requested' : 'Not in library');
-
+                        const requestIconHTML = createRequestIcon(movie);
                         return `
                             <li class="movie-item">
                                 <span class="movie-title">${movie.title}${year}</span>
+                                ${requestIconHTML}
                                 <span class="movie-status ${statusClass}">${statusText}</span>
                             </li>
                         `;
@@ -1575,11 +1621,11 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                      id="request_collection_movies"
                      ${!isRequestServiceAvailable ? 'disabled' : ''}
                      title="${isRequestServiceAvailable ?
-                        `Request using ${requestServiceName}` :
+                        `Request ALL ${moviesToRequest.length} missing movie(s) using ${requestServiceName}` :
                         currentService === 'plex' ?
                             'No request service available' :
                             'Appropriate request service not configured'}">
-                    Request Missing Movies
+                    Request Missing Movies (${moviesToRequest.length})
                  </button>` : ''}
             <button class="action-button dismiss-button" id="dismiss_collection">Dismiss</button>
         </div>
@@ -1605,15 +1651,43 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         });
     }
 
-    const requestButton = document.getElementById('request_collection_movies');
-    if (requestButton && isRequestServiceAvailable) {
-        requestButton.addEventListener('click', () => {
+    const requestAllButton = document.getElementById('request_collection_movies');
+    if (requestAllButton && isRequestServiceAvailable) {
+        requestAllButton.addEventListener('click', () => {
             if (moviesToRequest.length > 0 && typeof requestPreviousMovies === 'function') {
-                requestPreviousMovies(moviesToRequest);
-                modalContainer.classList.add('hidden');
+                requestPreviousMovies(moviesToRequest); 
             }
         });
     }
+
+    const individualRequestIcons = infoContainer.querySelectorAll('.request-icon-span');
+    individualRequestIcons.forEach(iconSpan => {
+        iconSpan.addEventListener('click', async (event) => {
+            event.stopPropagation(); 
+            const movieId = iconSpan.dataset.movieId;
+            if (movieId && typeof requestMovie === 'function') {
+                try {
+                    iconSpan.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="color: #fff;"></i>`;
+                    await requestMovie(movieId, true);
+                    iconSpan.innerHTML = `<svg class="request-icon requested" viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px"><path d="M0 0h24v24H0z" fill="none"/><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
+                    iconSpan.classList.add('requested');
+                    iconSpan.title = "Requested";
+                    const listItem = iconSpan.closest('.movie-item');
+                    if (listItem) {
+                        const statusElement = listItem.querySelector('.movie-status');
+                        if (statusElement) {
+                            statusElement.textContent = 'Requested';
+                            statusElement.className = 'movie-status status-requested';
+                        }
+                    }
+
+                } catch (error) {
+                    console.error("Error from individual request icon:", error);
+                    iconSpan.innerHTML = `<svg class="request-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+                }
+            }
+        });
+    });
 
     document.getElementById('collection_modal_close').addEventListener('click', () => {
         modalContainer.classList.add('hidden');
@@ -1626,7 +1700,7 @@ async function requestPreviousMovies(movies) {
     try {
         if (movies.length > 1) {
             const confirmDialog = document.createElement('div');
-            confirmDialog.className = 'trakt-confirm-dialog'; 
+            confirmDialog.className = 'trakt-confirm-dialog';
             confirmDialog.innerHTML = `
                 <div class="dialog-content">
                     <h3>Request Multiple Movies</h3>
@@ -1653,7 +1727,7 @@ async function requestPreviousMovies(movies) {
                     let successCount = 0;
                     for (const movie of movies) {
                         try {
-                            await requestMovie(movie.id, false); 
+                            await requestMovie(movie.id, false);
                             successCount++;
                         } catch (error) {
                             console.error(`Error requesting movie ${movie.title}:`, error);
@@ -1683,7 +1757,7 @@ async function requestPreviousMovies(movies) {
             });
         } else {
             try {
-                await requestMovie(movies[0].id, true); 
+                await requestMovie(movies[0].id, true);
 
                 const existingWarning = document.querySelector('.collection-warning');
                 if (existingWarning) {
@@ -1709,7 +1783,7 @@ async function checkRequestServiceAvailability() {
 
         return {
             available: data.available,
-            service: data.service  
+            service: data.service
         };
     } catch (error) {
         console.error('Error checking request service status:', error);
@@ -2114,7 +2188,7 @@ class ExpandableText {
             	this.element.style.display = 'block';
             }
     	} else {
-    	       this.element.style.webkitLineClamp = '2'; 
+    	       this.element.style.webkitLineClamp = '2';
     	       this.element.style.display = '-webkit-box';
     	}
 
@@ -2193,7 +2267,7 @@ class ExpandableText {
             this.element.style.maxHeight = 'none';
         } else {
             this.element.classList.remove('expanded');
-            this.element.style.webkitLineClamp = '2'; 
+            this.element.style.webkitLineClamp = '2';
             this.element.style.maxHeight = '';
         }
     }
@@ -2264,11 +2338,9 @@ function closePersonDetailsOverlay() {
 
 async function openPersonDetailsOverlay(personId, personName) {
     try {
-        // Store current state of movies overlay
         const moviesOverlay = document.getElementById('movies_overlay');
         const wasMoviesOverlayVisible = !moviesOverlay.classList.contains('hidden');
 
-        // Get full person details and external IDs
         const response = await fetch(`/api/person_details_with_external_ids/${personId}`);
         if (!response.ok) {
             throw new Error(`Failed to fetch person details: ${response.status}`);
@@ -2328,7 +2400,6 @@ async function createMovieCard(movie) {
     movieCard.dataset.year = movie.release_date?.substring(0, 4) || '0';
     movieCard.dataset.rating = movie.vote_average || '0';
 
-    // Create poster container
     const posterLink = document.createElement('a');
     posterLink.href = '#';
     posterLink.classList.add('movie-poster-link');
@@ -2401,8 +2472,8 @@ async function createMovieCard(movie) {
     	jobText = jobText.replace(/\n/g, ' ').trim();
     	characterInfo.textContent = jobText;
     } else {
-    	characterInfo.innerHTML = '&nbsp;'; 
-    	characterInfo.style.visibility = 'hidden'; 
+    	characterInfo.innerHTML = '&nbsp;';
+    	characterInfo.style.visibility = 'hidden';
     }
 
     infoContainer.appendChild(characterInfo);
@@ -2609,7 +2680,7 @@ async function openMovieDataOverlay(movieId) {
                 requestButton.classList.add('requested');
 	    } else {
                 requestButton.id = 'request_movie_button';
-                requestButton.dataset.movieId = movieId;  
+                requestButton.dataset.movieId = movieId;
 		let serviceName;
                 switch(requestServiceStatus.service) {
                     case 'overseerr':
@@ -2708,10 +2779,10 @@ async function requestMovie(movieId, showNotification = true) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken() 
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({ movie_id: movieId }),
-            credentials: 'include' 
+            credentials: 'include'
         });
 
         if (!requestResponse.ok) {
@@ -2760,10 +2831,10 @@ async function showClients() {
         if (clients.length === 0) {
 	        listContainer.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
         } else {
-            clients.forEach((client, index) => { 
+            clients.forEach((client, index) => {
                 const clientDiv = document.createElement("div");
                 clientDiv.classList.add("client");
-                clientDiv.textContent = client.title; 
+                clientDiv.textContent = client.title;
                 clientDiv.onclick = function() {
                     playMovie(client.id);
                     closeClientPrompt();
@@ -2847,7 +2918,7 @@ async function playMovieFromPoster(clientId, tmdbId) {
                 throw new Error(`Failed to get ${currentService} ID`);
             }
             const data = await response.json();
-            serviceId = data[`${currentService}Id`] || data.mediaId; 
+            serviceId = data[`${currentService}Id`] || data.mediaId;
 
             if (movieCard && serviceId) {
                 movieCard.dataset[`${currentService}Id`] = serviceId;
@@ -2956,11 +3027,11 @@ function updateServiceButton() {
     if (window.HOMEPAGE_MODE) return;
 
     const switchButton = document.getElementById("switch_service");
-    if (switchButton) { 
+    if (switchButton) {
         if (availableServices.length <= 1) {
             switchButton.style.display = 'none';
         } else {
-            switchButton.style.display = 'flex'; 
+            switchButton.style.display = 'flex';
 
             const currentIndex = availableServices.indexOf(currentService);
             const nextServiceIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % availableServices.length;
@@ -3004,7 +3075,7 @@ async function switchService() {
             }
         } catch (error) {
             console.error("Error switching service:", error);
-            showError("Failed to switch service"); 
+            showError("Failed to switch service");
             updateServiceButton();
         }
     }
@@ -3404,7 +3475,7 @@ async function isMovieInService(tmdbId) {
             return false;
         }
         const data = await response.json();
-        return data.available;  
+        return data.available;
 
     } catch (error) {
         console.error(`Error checking ${currentService} availability:`, error);
@@ -3507,7 +3578,7 @@ function setupMovieSearch() {
                     }
                 }
             });
-        }, 300); 
+        }, 300);
     });
 }
 
@@ -3715,7 +3786,7 @@ function showToast(message, type = 'success') {
             if (!container.children.length) {
                 container.remove();
             }
-        }, 300); 
+        }, 300);
     }, 3000);
 }
 
@@ -3735,7 +3806,7 @@ async function syncTraktWatched(showLoading = false) {
         if (response.ok) {
             console.log("Trakt watched status synced at", new Date().toLocaleTimeString());
             lastTraktSync = now;
-            watchedMovies = []; 
+            watchedMovies = [];
 
             const moviesOverlay = document.getElementById('movies_overlay');
             if (moviesOverlay && !moviesOverlay.classList.contains('hidden')) {

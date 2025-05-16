@@ -2,15 +2,15 @@ import time
 import json
 import os
 import logging
-from threading import Thread, Lock, RLock 
+from threading import Thread, Lock, RLock
 from functools import lru_cache
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class CacheManager:
-    _instances = {} 
-    def __init__(self, plex_service, cache_file_path, socketio, app, update_interval=600, username=None, service_type=None):
+    _instances = {}
+    def __init__(self, plex_service, socketio, app, update_interval=600, username=None, service_type=None, plex_user_id=None, user_type='plex'):
         self.plex_service = plex_service
         self.socketio = socketio
         self.app = app
@@ -18,57 +18,35 @@ class CacheManager:
         self.running = False
         self.is_updating = False
         self.last_update = 0
-        self._cache_lock = RLock() 
+        self._cache_lock = RLock()
         self._movies_memory_cache = []
         self._initializing = False
         self.username = username
-        self.service_type = service_type 
-        
-        if username and username != "admin":
-            if not self.service_type:
-                logger.warning(f"Service type not provided for user {username}, defaulting to 'plex' for cache path.")
-                self.service_type = 'plex' 
+        self.service_type = service_type
+        self.plex_user_id = plex_user_id
+        self.user_type = user_type
 
-            self.user_data_dir = f'/app/data/user_data/{self.service_type}_{username}'
-            os.makedirs(self.user_data_dir, exist_ok=True)
-            logger.info(f"Using user-specific data directory for {username} ({self.service_type}): {self.user_data_dir}")
+        self.user_data_dir, self.cache_file_path, self.all_movies_cache_path, self.metadata_cache_path = self._get_cache_paths()
 
-            if self.service_type == 'plex':
-                self.cache_file_path = f'{self.user_data_dir}/plex_unwatched_movies.json'
-                self.all_movies_cache_path = f'{self.user_data_dir}/plex_all_movies.json'
-                self.metadata_cache_path = f'{self.user_data_dir}/plex_metadata_cache.json'
-                logger.info(f"Using Plex-specific cache files for {username}")
-            else:
-                self.cache_file_path = None
-                self.all_movies_cache_path = None
-                self.metadata_cache_path = None
-                logger.info(f"Not using Plex-specific cache files for non-Plex user {username} ({self.service_type})")
-        else:
-            self.user_data_dir = '/app/data' 
-            self.cache_file_path = cache_file_path 
-            self.all_movies_cache_path = '/app/data/plex_all_movies.json' 
-            self.metadata_cache_path = '/app/data/plex_metadata_cache.json' 
-            logger.info(f"Using global cache paths for {'admin' if username == 'admin' else 'unauthenticated session'}")
-            
         if plex_service and hasattr(plex_service, 'set_cache_manager'):
             plex_service.set_cache_manager(self)
 
         if self.cache_file_path and os.path.exists(self.cache_file_path):
             logger.info(f"Loading existing cache into memory from {self.cache_file_path}")
             self._init_memory_cache()
-        elif self.cache_file_path: 
+        elif self.cache_file_path:
             logger.info(f"Cache file doesn't exist at {self.cache_file_path}, memory cache will stay empty until built")
             self._movies_memory_cache = []
-        else: 
+        else:
             logger.info(f"Cache file doesn't exist at {self.cache_file_path}, memory cache will stay empty until built")
             self._movies_memory_cache = []
-        
+
         self.last_update = time.time()
 
         if self.all_movies_cache_path and not os.path.exists(self.all_movies_cache_path):
-             logger.info(f"All movies cache missing at {self.all_movies_cache_path}. Build should be triggered externally.")
+             logger.info(f"All movies cache missing at {self.all_movies_cache_path}. Build should be triggered externally for {self.username or 'global'} ({self.user_type}).")
         elif not self.all_movies_cache_path:
-             logger.info(f"All movies cache path not applicable for this user ({self.username}, {self.service_type}).")
+             logger.info(f"All movies cache path not applicable for this user ({self.username}, {self.user_type}).")
 
     def _verify_cache_validity(self):
         """Verify cache is still valid by checking unwatched status using switchUser"""
@@ -101,9 +79,9 @@ class CacheManager:
                 movie_title = movie.get('title', 'Unknown')
                 movie_id = movie.get('id', 'N/A')
                 logger.info(f"Cache Validation: Checking movie '{movie_title}' (ID: {movie_id})")
-                
+
                 movie_found_and_unwatched = False
-                failure_reason = "Not found in any library or is watched" 
+                failure_reason = "Not found in any library or is watched"
 
                 for library in self.plex_service.libraries:
                     try:
@@ -117,11 +95,11 @@ class CacheManager:
                             if not plex_movie.isWatched:
                                 movie_found_and_unwatched = True
                                 logger.info(f"Cache Validation: Movie '{movie_title}' (ID: {movie_id}) PASSED (found and unwatched in library '{check_library.title}')")
-                                break 
+                                break
                             else:
                                 failure_reason = f"Found in library '{check_library.title}' but isWatched=True"
                                 logger.warning(f"Cache Validation: Movie '{movie_title}' (ID: {movie_id}) FAILED ({failure_reason})")
-                                break 
+                                break
 
                     except Exception as e:
                         logger.error(f"Cache Validation: Error checking movie '{movie_title}' (ID: {movie_id}) in library '{library.title}': {e}")
@@ -130,7 +108,7 @@ class CacheManager:
                 if not movie_found_and_unwatched:
                     logger.warning(f"Cache Validation: FINAL RESULT for movie '{movie_title}' (ID: {movie_id}): FAILED. Reason: {failure_reason}")
                     logger.warning(f"Cache validation failed due to movie '{movie_title}' (ID: {movie_id}). Rebuilding cache.")
-                    return False 
+                    return False
 
             logger.info("Cache Validation: All sampled movies PASSED.")
             return True
@@ -139,15 +117,71 @@ class CacheManager:
             logger.error(f"Error verifying cache: {e}")
             return False
 
+    def _get_cache_paths(self):
+        """Determines the appropriate cache paths based on user type and ID."""
+        user_data_dir = '/app/data'
+        cache_file_path = None
+        all_movies_cache_path = None
+        metadata_cache_path = None
+
+        if self.user_type == 'plex_managed' and self.plex_user_id:
+            user_data_dir = f'/app/data/user_data/plex_managed_{self.plex_user_id}'
+            try:
+                os.makedirs(user_data_dir, exist_ok=True)
+            except OSError as e:
+                logger.error(f"CacheManager: Failed to create directory {user_data_dir}: {e}. Falling back to base data directory for this user.")
+                user_data_dir = '/app/data'
+            cache_file_path = f'{user_data_dir}/plex_unwatched_movies.json'
+            all_movies_cache_path = f'{user_data_dir}/plex_all_movies.json'
+            metadata_cache_path = f'{user_data_dir}/plex_metadata_cache.json'
+            logger.info(f"Using managed Plex user cache paths for ID {self.plex_user_id}: {user_data_dir}")
+        elif self.user_type == 'plex' and self.username and self.username != "admin":
+            display_username = self.username[len('plex_'):] if self.username.startswith('plex_') else self.username
+            user_data_dir = f'/app/data/user_data/plex_{display_username}'
+            try:
+                os.makedirs(user_data_dir, exist_ok=True)
+            except OSError as e:
+                logger.error(f"CacheManager: Failed to create directory {user_data_dir}: {e}. Falling back to base data directory for this user.")
+                user_data_dir = '/app/data'
+            cache_file_path = f'{user_data_dir}/plex_unwatched_movies.json'
+            all_movies_cache_path = f'{user_data_dir}/plex_all_movies.json'
+            metadata_cache_path = f'{user_data_dir}/plex_metadata_cache.json'
+            logger.info(f"Using regular Plex user cache paths for {display_username} (internal: {self.username}): {user_data_dir}")
+        elif self.username and self.username != "admin":
+            display_username = self.username
+            service_prefix_for_path = self.user_type
+            if self.username.startswith(f'{self.user_type}_'):
+                 display_username = self.username[len(f'{self.user_type}_'):]
+
+            user_data_dir = f'/app/data/user_data/{service_prefix_for_path}_{display_username}'
+            try:
+                os.makedirs(user_data_dir, exist_ok=True)
+            except OSError as e:
+                logger.error(f"CacheManager: Failed to create directory {user_data_dir} for user {self.username} (type {self.user_type}): {e}. Falling back to base data directory.")
+                user_data_dir = '/app/data'
+
+            cache_file_path = None
+            all_movies_cache_path = None
+            metadata_cache_path = None
+            logger.info(f"Using user-specific data directory for {self.username} (type {self.user_type}): {user_data_dir}. Plex-specific cache paths are {cache_file_path}, {all_movies_cache_path}.")
+        else:
+            user_data_dir = '/app/data'
+            cache_file_path = '/app/data/plex_unwatched_movies.json'
+            all_movies_cache_path = '/app/data/plex_all_movies.json'
+            metadata_cache_path = '/app/data/plex_metadata_cache.json'
+            logger.info(f"Using global cache paths for {'admin' if self.username == 'admin' else 'unauthenticated session'}")
+        
+        return user_data_dir, cache_file_path, all_movies_cache_path, metadata_cache_path
+
     def start_cache_build(self):
         """Start the cache building process with progress updates"""
         with self._cache_lock:
             if self._initializing:
-                logger.info(f"Cache build already in progress for {self.username or 'global'}, skipping.")
+                logger.info(f"Cache build already in progress for {self.username or self.plex_user_id or 'global'} ({self.user_type}), skipping.")
                 return
-            
+
             self._initializing = True
-        
+
         try:
             self.socketio.emit('loading_progress', {
                 'progress': 0.05,
@@ -185,7 +219,7 @@ class CacheManager:
 
                 with self._cache_lock:
                     self._movies_memory_cache = unwatched_movies
-                self._save_cache_to_disk() 
+                self._save_cache_to_disk()
 
                 self.socketio.emit('loading_progress', {
                     'progress': 1.0,
@@ -200,11 +234,10 @@ class CacheManager:
 
             if self.username:
                 logger.info(f"Building cache with user-specific perspective: {self.username}")
-                self.plex_service.username = self.username
 
                 if not hasattr(self.plex_service, 'cache_manager'):
                     self.plex_service.cache_manager = self
-                    
+
                 self.plex_service._is_coordinated_build = True
 
             original_cache_manager = getattr(self, '_original_cache_manager', None)
@@ -218,7 +251,7 @@ class CacheManager:
                 self._movies_memory_cache = new_cache_data
 
             self._save_cache_to_disk()
-            
+
             self.plex_service.save_cache_to_disk()
 
             total_movies = len(self._movies_memory_cache)
@@ -244,6 +277,24 @@ class CacheManager:
             self._initializing = False
             if hasattr(self.plex_service, '_is_coordinated_build'):
                 self.plex_service._is_coordinated_build = False
+
+            if (not self.username or self.username == "admin") and self.user_type == 'plex':
+                logger.info(f"Global cache build for '{self.username or 'global'}' completed for unwatched. Now ensuring all_movies_cache is built.")
+                try:
+                    self.cache_all_plex_movies(synchronous=True)
+                except Exception as e_all_cache:
+                    logger.error(f"Error during synchronous cache_all_plex_movies for global: {e_all_cache}")
+
+            if self.plex_service:
+                try:
+                    logger.info(f"Directly updating PlexService internal cache after build/rebuild for {self.username or 'global'}")
+                    with self._cache_lock:
+                         plex_cache_update = self._movies_memory_cache.copy()
+                    self.plex_service._movies_cache = plex_cache_update
+                    self.plex_service._cache_loaded = True
+                    logger.info(f"PlexService internal cache updated with {len(plex_cache_update)} movies.")
+                except Exception as update_err:
+                    logger.error(f"Error directly updating PlexService cache: {update_err}")
 
     def rebuild_user_cache(self, username):
         """Rebuild Plex cache specifically for a user with their Plex watch status"""
@@ -352,7 +403,7 @@ class CacheManager:
 
             with self._cache_lock:
                 self._movies_memory_cache = unwatched_movies
-            self._save_cache_to_disk() 
+            self._save_cache_to_disk()
             self._save_cache_to_disk()
 
             if original_username:
@@ -368,10 +419,28 @@ class CacheManager:
             logger.info(f"Completed user cache build for {username}: {len(unwatched_movies)} unwatched of {len(processed_movies)} total")
 
             self.socketio.emit('loading_complete', namespace='/')
+
         except Exception as e:
-            logger.error(f"Error rebuilding user cache: {e}")
+            logger.error(f"Error rebuilding user cache for {username}: {e}")
         finally:
             self._initializing = False
+            if self.username and self.user_type == 'plex':
+                logger.info(f"User cache rebuild for '{username}' completed for unwatched. Now ensuring user's all_movies_cache is built.")
+                try:
+                    self.cache_all_plex_movies(synchronous=True)
+                except Exception as e_user_all_cache:
+                    logger.error(f"Error during synchronous cache_all_plex_movies for user {username}: {e_user_all_cache}")
+
+            if self.plex_service:
+                try:
+                    logger.info(f"Directly updating PlexService internal cache after build/rebuild for {self.username or username or 'global'}")
+                    with self._cache_lock:
+                         plex_cache_update = self._movies_memory_cache.copy()
+                    self.plex_service._movies_cache = plex_cache_update
+                    self.plex_service._cache_loaded = True
+                    logger.info(f"PlexService internal cache updated with {len(plex_cache_update)} movies.")
+                except Exception as update_err:
+                    logger.error(f"Error directly updating PlexService cache: {update_err}")
 
     def _init_memory_cache(self):
         """Initialize in-memory cache from the unwatched movies disk cache, if applicable."""
@@ -412,43 +481,44 @@ class CacheManager:
         """Background thread that periodically checks for changes"""
         logger.info(f"Update loop started for {self.username or 'global'}")
         from datetime import datetime, timedelta
-        
+
         while self.running:
             try:
                 current_time = time.time()
                 time_since_last_update = current_time - self.last_update
-                
+
                 logger.debug(f"Update check: Time since last update: {time_since_last_update:.1f}s, Interval: {self.update_interval}s")
 
                 if self.cache_file_path and os.path.exists(self.cache_file_path) and (time_since_last_update >= self.update_interval):
                     logger.info(f"Update interval reached, checking for changes for {self.username or 'global'}")
                     with self._cache_lock:
                         self.check_for_changes()
-                        
+
                 self.last_update = time.time()
 
-                time_to_next_update = max(1, self.update_interval - (time.time() - self.last_update)) 
-                next_check_time = datetime.now() + timedelta(seconds=self.update_interval) 
+                time_to_next_update = max(1, self.update_interval - (time.time() - self.last_update))
+                next_check_time = datetime.now() + timedelta(seconds=self.update_interval)
                 logger.debug(f"Next update check for {self.username or 'global'} scheduled around: {next_check_time.strftime('%H:%M:%S')}")
-                
-                sleep_interval = min(60, time_to_next_update)  
+
+                sleep_interval = min(60, time_to_next_update)
                 for _ in range(int(time_to_next_update / sleep_interval)):
                     if not self.running:
                         break
                     time.sleep(sleep_interval)
-                    
+
                 remaining_time = time_to_next_update % sleep_interval
                 if remaining_time > 0 and self.running:
                     time.sleep(remaining_time)
-                    
+
             except Exception as e:
                 logger.error(f"Error in update loop: {e}", exc_info=True)
                 time.sleep(5)
 
     def check_for_changes(self):
         """Check for changes in the Plex library and update Plex caches if needed."""
-        if self.service_type and self.service_type != 'plex':
-            logger.debug(f"Skipping check_for_changes for non-Plex user {self.username} ({self.service_type})")
+        is_plex_related = self.user_type in ['plex', 'plex_managed']
+        if not is_plex_related:
+            logger.debug(f"Skipping check_for_changes for non-Plex related user {self.username} (user_type: {self.user_type})")
             return
 
         if not self.cache_file_path:
@@ -471,28 +541,37 @@ class CacheManager:
             logger.info(f"Starting to check for library changes for {self.username or 'global'}...")
             self.is_updating = True
 
-            self.cache_all_plex_movies() 
+            self.cache_all_plex_movies()
 
             current_unwatched = set()
-            
-            plex_instance = self.plex_service.plex 
+
+            plex_instance = self.plex_service.plex
             owner_username = None
             try:
-                 owner_username = plex_instance.myPlexAccount().username
+                 owner_username = self.plex_service.plex.myPlexAccount().username
             except Exception as owner_err:
-                 logger.warning(f"Could not determine Plex owner username: {owner_err}. Will attempt switchUser if needed.")
+                 logger.warning(f"Could not determine Plex owner username: {owner_err}.")
 
-            if self.username and owner_username and self.username.lower() != owner_username.lower():
+            plex_user_to_switch_to = None
+            if self.user_type == 'plex' and self.username and self.username.startswith('plex_'):
+                plex_user_to_switch_to = self.username[len('plex_'):]
+            elif self.user_type == 'plex_managed' and self.username:
+                plex_user_to_switch_to = self.username
+
+            if plex_user_to_switch_to and owner_username and plex_user_to_switch_to.lower() != owner_username.lower():
                 try:
-                    logger.info(f"Attempting to switch to user perspective for cache update: {self.username} (owner: {owner_username})")
-                    plex_instance = self.plex_service.plex.switchUser(self.username)
-                    logger.info(f"Successfully switched to user perspective for cache update: {self.username}")
+                    logger.info(f"Attempting to switch to user perspective for cache update: {plex_user_to_switch_to} (CM User DisplayName: {self.username}, Plex User ID: {self.plex_user_id}, Type: {self.user_type}, Plex Owner: {owner_username})")
+                    plex_instance = self.plex_service.plex.switchUser(plex_user_to_switch_to)
+                    logger.info(f"Successfully switched to user perspective for cache update: {plex_user_to_switch_to}")
                 except Exception as e:
-                    logger.error(f"Error switching to user {self.username} for cache update: {e}")
+                    logger.error(f"Error switching to user {plex_user_to_switch_to} (Plex User ID: {self.plex_user_id}) for cache update: {e}")
                     logger.warning(f"Using admin perspective for cache update - results may not be accurate")
-            
-            for library_name in self.plex_service.library_names: 
-                logger.info(f"Checking library '{library_name}' for unwatched movies...")
+                    plex_instance = self.plex_service.plex
+            elif self.user_type == 'plex' or self.user_type == 'plex_managed':
+                logger.info(f"Using current Plex instance perspective for {self.username or self.plex_user_id} (Type: {self.user_type}, Plex Owner: {owner_username}).")
+
+            for library_name in self.plex_service.library_names:
+                logger.info(f"Checking library '{library_name}' for unwatched movies (Perspective: {plex_user_to_switch_to or owner_username or 'default'})...")
                 try:
                     fresh_library = plex_instance.library.section(library_name)
                     for movie in fresh_library.search(unwatched=True):
@@ -514,9 +593,9 @@ class CacheManager:
                 movies_added = False
                 if newly_watched:
                     logger.info(f"Removing {len(newly_watched)} newly watched movies for {self.username or 'global'}...")
-                    self.remove_watched_movies(newly_watched) 
+                    self.remove_watched_movies(newly_watched)
 
-                    if not self.username and owner_username: 
+                    if not self.username and owner_username:
                         logger.info(f"Global manager detected owner change ({owner_username}). Attempting to sync removal to user-specific cache...")
                         owner_manager = CacheManager.get_user_cache_manager(
                             self.plex_service, self.socketio, self.app, owner_username, 'plex'
@@ -535,7 +614,7 @@ class CacheManager:
                     for movie_id in newly_unwatched:
                         try:
                             movie_data = self.plex_service.get_movie_by_id(movie_id)
-                            
+
                             if movie_data:
                                 movies_to_add.append(movie_data)
                             else:
@@ -543,20 +622,20 @@ class CacheManager:
                         except Exception as fetch_err:
                             logger.error(f"[{self.username or 'global'}] Loop: Error fetching data for newly unwatched movie ID {movie_id}: {fetch_err}", exc_info=True)
                     if movies_to_add:
-                        with self._cache_lock: 
+                        with self._cache_lock:
                             existing_ids = {str(m.get('id')) for m in self._movies_memory_cache}
                             added_count = 0
-                            
+
                             for movie in movies_to_add:
                                 movie_id_str = str(movie.get('id'))
                                 if movie_id_str not in existing_ids:
                                     self._movies_memory_cache.append(movie)
                                     added_count += 1
-                            
+
                             if added_count > 0:
                                 logger.info(f"[{self.username or 'global'}] Added {added_count} unique newly unwatched movies to memory cache.")
-                                movies_added = True 
-                        
+                                movies_added = True
+
                         if movies_added:
                             logger.info(f"[{self.username or 'global'}] Calling _save_cache_to_disk (after lock release)...")
                             self._save_cache_to_disk()
@@ -569,7 +648,7 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Error checking for changes: {e}", exc_info=True)
         finally:
-            self.is_updating = False 
+            self.is_updating = False
             self.last_update = time.time()
 
     def _load_from_disk_cache(self):
@@ -596,8 +675,8 @@ class CacheManager:
 
             if is_user_specific and (not movies_cache_exists or not metadata_cache_exists):
                 logger.info(f"User-specific cache missing for {self.username}. Will build a new user cache.")
-                return False  
-                
+                return False
+
             if movies_cache_exists and metadata_cache_exists:
                 logger.info(f"Loading cached data from disk: {movies_cache_path} and {metadata_cache_path}")
                 try:
@@ -610,7 +689,7 @@ class CacheManager:
                          logger.warning(f"Cache file(s) are empty. Unwatched: {movies_cache_size} bytes, Metadata: {metadata_cache_size} bytes. Rebuilding cache.")
                          self._movies_cache = []
                          self._metadata_cache = {}
-                         return False 
+                         return False
 
                     with open(movies_cache_path, 'r') as f:
                         self._movies_cache = json.load(f)
@@ -629,18 +708,18 @@ class CacheManager:
                         logger.warning(f"Cache verification failed for {'user ' + self.username if is_user_specific else 'global cache'}, will rebuild cache")
                         self._movies_cache = []
                         self._metadata_cache = {}
-                        return False 
+                        return False
 
                 except json.JSONDecodeError as e:
                     logger.error(f"Error decoding JSON from cache file: {e}. Rebuilding cache.")
                     self._movies_cache = []
                     self._metadata_cache = {}
-                    return False 
+                    return False
                 except Exception as e:
                     logger.error(f"Error reading cache files: {e}. Rebuilding cache.")
                     self._movies_cache = []
                     self._metadata_cache = {}
-                    return False 
+                    return False
             else:
                 missing_files = []
                 if not movies_cache_exists:
@@ -648,10 +727,10 @@ class CacheManager:
                 if not metadata_cache_exists:
                     missing_files.append(os.path.basename(metadata_cache_path))
                 logger.warning(f"Required cache file(s) not found: {', '.join(missing_files)}. Will build cache.")
-                return False 
+                return False
 
         except Exception as e:
-            if isinstance(e, OSError) and e.errno == 13: 
+            if isinstance(e, OSError) and e.errno == 13:
                  logger.error(f"Permission denied accessing cache directory/files: {e}. Check permissions for /app/data.")
             else:
                  logger.error(f"Unexpected error during cache loading: {e}")
@@ -666,7 +745,7 @@ class CacheManager:
             logger.debug(f"Unwatched cache path not defined for {self.username or 'global'} ({self.service_type}), skipping save cache to disk.")
             return
 
-        temp_path = None 
+        temp_path = None
         try:
             os.makedirs(self.user_data_dir, exist_ok=True)
             temp_path = self.cache_file_path + ".tmp"
@@ -686,76 +765,77 @@ class CacheManager:
                     os.remove(temp_path)
                 except Exception as remove_e:
                     logger.error(f"Error removing temporary cache file {temp_path}: {remove_e}")
-    
-    def cache_all_plex_movies(self):
+
+    def cache_all_plex_movies(self, synchronous=False):
         """Cache all movies (watched and unwatched) for Plex, if applicable."""
         if not self.all_movies_cache_path:
-            logger.debug(f"All movies cache path not defined for {self.username or 'global'} ({self.service_type}), skipping cache_all_plex_movies.")
+            logger.debug(f"All movies cache path not defined for {self.username or 'global'} ({self.user_type}), skipping cache_all_plex_movies.")
             return
 
-        try:
-            if getattr(self, '_building_all_cache', False):
-                logger.info(f"All movies cache build already in progress for {self.username or 'global'}, skipping")
-                return
+        if not synchronous and getattr(self, '_building_all_cache', False):
+            logger.info(f"All movies cache build already in progress for {self.username or 'global'}, skipping")
+            return
 
-            self._building_all_cache = True
+        if synchronous:
+            logger.info(f"Starting SYNCHRONOUS all Plex movies cache build for {self.username or 'global'}...")
+        else:
             logger.info(f"Starting to cache all Plex movies in background for {self.username or 'global'}...")
 
-            def build_cache():
-                try:
-                    if not self.plex_service:
-                         logger.error(f"plex_service is unexpectedly None in cache_all_plex_movies for {self.username or 'global'}. Aborting build.")
-                         self._building_all_cache = False
-                         return 
+        self._building_all_cache = True
 
-                    logger.info(f"plex_service is available for {self.username or 'global'}, proceeding with all movies cache build.")
+        def build_cache_logic():
+            try:
+                if not self.plex_service:
+                    logger.error(f"plex_service is unexpectedly None in cache_all_plex_movies for {self.username or 'global'}. Aborting build.")
+                    return
 
-                    processed_movies = []
-                    total_movies = 0
+                logger.info(f"plex_service is available for {self.username or 'global'}, proceeding with all movies cache build.")
+                processed_movies = []
+                total_movies = 0
 
-                    plex_instance = self.plex_service._get_user_plex_instance()
+                plex_instance = self.plex_service._get_user_plex_instance()
 
-                    for library_name in self.plex_service.library_names: 
-                        logger.info(f"Processing library: {library_name}") 
-                        try:
-                            library = plex_instance.library.section(library_name) 
-                            library_movies = list(library.all())
-                            total_movies += len(library_movies)
+                for library_name in self.plex_service.library_names:
+                    logger.info(f"Processing library: {library_name}")
+                    try:
+                        library = plex_instance.library.section(library_name)
+                        library_movies = list(library.all())
+                        total_movies += len(library_movies)
 
-                            for movie in library_movies:
-                                try:
-                                    movie_data = self.plex_service.get_movie_data(movie)
-                                    if movie_data:
-                                        try:
-                                            movie_data['watched'] = movie.isWatched
-                                        except Exception as watch_err:
-                                            logger.warning(f"Could not get watched status for {movie.title}: {watch_err}")
-                                            movie_data['watched'] = False 
-                                        processed_movies.append(movie_data)
-                                except Exception as e:
-                                    logger.error(f"Error processing movie {movie.title}: {e}")
-                        except Exception as lib_err:
-                             logger.error(f"Error accessing library {library_config.title} from perspective {self.username or 'global'}: {lib_err}")
+                        for movie in library_movies:
+                            try:
+                                movie_data = self.plex_service.get_movie_data(movie)
+                                if movie_data:
+                                    try:
+                                        movie_data['watched'] = movie.isWatched
+                                    except Exception as watch_err:
+                                        logger.warning(f"Could not get watched status for {movie.title}: {watch_err}")
+                                        movie_data['watched'] = False
+                                    processed_movies.append(movie_data)
+                            except Exception as e:
+                                logger.error(f"Error processing movie {movie.title}: {e}")
+                    except Exception as lib_err:
+                         logger.error(f"Error accessing library {library_name} from perspective {self.username or 'global'}: {lib_err}")
 
-                    if self.username:
-                        os.makedirs(os.path.dirname(self.all_movies_cache_path), exist_ok=True)
+                if self.username:
+                    os.makedirs(os.path.dirname(self.all_movies_cache_path), exist_ok=True)
 
-                    temp_path = f"{self.all_movies_cache_path}.tmp"
-                    with open(temp_path, 'w') as f:
-                        json.dump(processed_movies, f) 
-                    os.replace(temp_path, self.all_movies_cache_path)
+                temp_path = f"{self.all_movies_cache_path}.tmp"
+                with open(temp_path, 'w') as f:
+                    json.dump(processed_movies, f)
+                os.replace(temp_path, self.all_movies_cache_path)
 
-                    logger.info(f"Successfully cached {len(processed_movies)} total Plex movies for {self.username or 'global'}")
-                except Exception as e:
-                    logger.error(f"Error building all movies cache: {e}")
-                finally:
-                    self._building_all_cache = False
+                logger.info(f"Successfully cached {len(processed_movies)} total Plex movies for {self.username or 'global'}")
+            except Exception as e:
+                logger.error(f"Error building all movies cache: {e}")
+            finally:
+                self._building_all_cache = False
 
-            Thread(target=build_cache, daemon=True).start()
+        if synchronous:
+            build_cache_logic()
+        else:
+            Thread(target=build_cache_logic, daemon=True).start()
 
-        except Exception as e:
-            logger.error(f"Error initiating all movies cache: {e}")
-            self._building_all_cache = False
 
     @lru_cache(maxsize=1)
     def get_all_plex_movies(self):
@@ -780,7 +860,7 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Error reading all movies cache {self.all_movies_cache_path}: {e}")
 
-        return [] 
+        return []
 
     def force_refresh(self):
         """Force a complete cache refresh"""
@@ -789,7 +869,7 @@ class CacheManager:
             with self._cache_lock:
                 self.plex_service.refresh_cache(force=True)
                 self.cache_all_plex_movies()
-                self._init_memory_cache()  
+                self._init_memory_cache()
                 self.last_update = time.time()
             logger.info("Forced refresh completed successfully")
         except Exception as e:
@@ -844,22 +924,32 @@ class CacheManager:
 
             movies_to_filter = []
             try:
+                if not cache_path_to_load:
+                    logger.warning(f"Cache path is None for filtering '{watch_status}'. Cannot load cache. Returning 0.")
+                    return 0
                 if os.path.exists(cache_path_to_load):
                     with open(cache_path_to_load, 'r') as f:
-                        movies_to_filter = json.load(f)
-                    logger.debug(f"Successfully loaded {len(movies_to_filter)} movies from {source_cache_name}")
+                        if os.path.getsize(cache_path_to_load) > 0:
+                            movies_to_filter = json.load(f)
+                            logger.debug(f"Successfully loaded {len(movies_to_filter)} movies from {source_cache_name}")
+                        else:
+                            logger.warning(f"Cache file is empty at {cache_path_to_load}. Returning 0.")
+                            return 0
                 else:
                     logger.warning(f"Cache file not found at {cache_path_to_load} for filtering '{watch_status}'. Returning 0.")
                     return 0
+            except json.JSONDecodeError as json_err:
+                logger.error(f"Error decoding JSON from cache file {cache_path_to_load}: {json_err}", exc_info=True)
+                return 0
             except Exception as e:
                 logger.error(f"Error loading cache file {cache_path_to_load} for filtering: {e}", exc_info=True)
-                return 0 
+                return 0
 
             count = 0
             for movie in movies_to_filter:
                 if watch_status == 'watched':
                     if not movie.get('watched', False):
-                        continue 
+                        continue
 
                 movie_genres = set(movie.get('genres', []))
                 if selected_genres and selected_genres.isdisjoint(movie_genres):
@@ -872,12 +962,12 @@ class CacheManager:
                 if selected_years and movie_year_int not in selected_years:
                     continue
 
-                movie_rating = movie.get('contentRating') 
+                movie_rating = movie.get('contentRating')
                 if selected_pg_ratings and movie_rating not in selected_pg_ratings:
-                    continue 
+                    continue
 
                 count += 1
-        
+
             logger.debug(f"Filter count from {source_cache_name}: {count}")
             return count
 
@@ -892,46 +982,37 @@ class CacheManager:
             return []
 
     @classmethod
-    def get_user_cache_manager(cls, plex_service, socketio, app, username=None, service_type=None):
+    def get_user_cache_manager(cls, plex_service, socketio, app, username=None, service_type=None, plex_user_id=None, user_type='plex'):
         """
         Factory method to get or create a cache manager instance.
-        Uses a class-level registry (_instances) to manage instances.
+        Uses a class-level registry (_instances) to manage instances based on user type and ID.
         """
-        instance_key = '_global' 
-        effective_service_type = service_type
+        instance_key = '_global'
 
-        if username and username != "admin":
-            if not effective_service_type:
-                 logger.warning(f"Service type not provided for user {username} in get_user_cache_manager, defaulting to 'plex'.")
-                 effective_service_type = 'plex' 
+        if user_type == 'plex_managed' and plex_user_id:
+            instance_key = f"plex_managed_{plex_user_id}"
+        elif user_type == 'plex' and username and username != "admin":
+            instance_key = f"plex_{username}"
+        elif username and username != "admin":
+            effective_service_type = service_type or user_type
             instance_key = f"{effective_service_type}_{username}"
-        elif username == "admin":
-             effective_service_type = 'local' 
-             instance_key = '_global' 
-        else: 
-             effective_service_type = None 
-             instance_key = '_global'
 
         if instance_key in cls._instances:
             logger.debug(f"Returning existing CacheManager instance for key: {instance_key}")
             return cls._instances[instance_key]
 
-        initial_cache_file_path = None
-        if instance_key == '_global':
-            global_path = '/app/data/plex_unwatched_movies.json'
-            initial_cache_file_path = global_path if os.path.exists(global_path) else None
-
-        logger.info(f"Creating new CacheManager instance for key: {instance_key} (User: {username}, Service: {effective_service_type})")
+        logger.info(f"Creating new CacheManager instance for key: {instance_key} (User: {username}, PlexID: {plex_user_id}, Type: {user_type})")
 
         instance = cls(
             plex_service=plex_service,
-            cache_file_path=initial_cache_file_path, 
             socketio=socketio,
             app=app,
             username=username,
-            service_type=effective_service_type, 
+            service_type=service_type,
+            plex_user_id=plex_user_id,
+            user_type=user_type
         )
-        cls._instances[instance_key] = instance 
+        cls._instances[instance_key] = instance
         return instance
 
     def remove_watched_movies(self, movie_ids_to_remove):
@@ -952,6 +1033,6 @@ class CacheManager:
 
         if removed_count > 0:
             logger.info(f"[{self.username or 'global'}] Removed {removed_count} newly watched movies from memory cache.")
-            self._save_cache_to_disk() 
+            self._save_cache_to_disk()
         else:
             logger.info(f"[{self.username or 'global'}] No movies found in cache matching IDs to remove: {movie_ids_to_remove}")

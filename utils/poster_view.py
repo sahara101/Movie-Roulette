@@ -495,7 +495,7 @@ def proxy_poster(service, poster_id):
                 return Response(status=400)
 
             base_url = jellyfin_service.server_url
-            token = jellyfin_service.api_key
+            token = jellyfin_service.admin_api_key
             full_url = f"{base_url}/Items/{poster_id}/Images/Primary?api_key={token}"
 
         elif service == 'emby':

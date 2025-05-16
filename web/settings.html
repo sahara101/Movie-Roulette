@@ -65,7 +65,10 @@ EMBY_USER_ID=your-user-id</pre>
             {% endif %}
         {% endwith %}
         <div id="settings-root"></div>
+        <!-- Load settings.js first as it defines helper functions -->
         <script src="/static/js/settings.js"></script>
+        <script src="/static/js/settings_passkeys.js"></script> <!-- Include new passkey JS -->
+        <script src="/static/js/settings_managed_users.js"></script> 
         <script src="/static/js/auth.js"></script>
     {% endif %}
     <div class="bottom-links">
@@ -76,7 +79,6 @@ EMBY_USER_ID=your-user-id</pre>
     </div>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-	// Auto-dismiss flash messages
     	document.querySelectorAll('.flash-message').forEach(flash => {
             setTimeout(() => {
             	if (flash && flash.classList.contains('show')) {

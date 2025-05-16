@@ -2,7 +2,7 @@ import os
 import json
 import re
 from copy import deepcopy
-from .config import DEFAULT_SETTINGS, ENV_MAPPINGS, AUTH_ENV_MAPPINGS
+from .config import DEFAULT_SETTINGS, ENV_MAPPINGS, AUTH_ENV_MAPPINGS, AUTH_SETTINGS
 
 SETTINGS_FILE = '/app/data/settings.json'
 
@@ -21,31 +21,68 @@ class Settings:
 
     def load_settings(self):
         """Load settings with priority: ENV > file > defaults"""
-        settings = deepcopy(DEFAULT_SETTINGS)
+        current_settings = deepcopy(DEFAULT_SETTINGS)
+        self._deep_update(current_settings, deepcopy(AUTH_SETTINGS))
 
+        file_values_on_disk = {}
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE, 'r') as f:
-                    file_settings = json.load(f)
-                    self._deep_update(settings, file_settings)
+                    file_values_on_disk = json.load(f)
             except Exception as e:
-                print(f"Error loading settings file: {e}")
+                print(f"Error loading settings file {SETTINGS_FILE}: {e}. Using defaults.")
+        
+        self._deep_update(current_settings, file_values_on_disk)
 
-        settings = self._apply_env_variables(settings)
-        return settings
+        save_needed = False
+        if not os.path.exists(SETTINGS_FILE):
+            save_needed = True
+        else:
+            if self._is_structurally_different(current_settings, file_values_on_disk):
+                save_needed = True
+        
+        if save_needed:
+            try:
+                print(f"Updating {SETTINGS_FILE} to ensure all default keys are present.")
+                os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+                with open(SETTINGS_FILE, 'w') as f_write:
+                    json.dump(self._clean_settings(deepcopy(current_settings)), f_write, indent=2)
+                print(f"Settings file updated at {SETTINGS_FILE}")
+            except Exception as e:
+                print(f"Error saving updated settings to {SETTINGS_FILE}: {e}")
+
+        runtime_settings = self._apply_env_variables(deepcopy(current_settings)) 
+        
+        return runtime_settings
+
+    def _is_structurally_different(self, base_struct, comparison_struct):
+        """
+        Checks if base_struct contains keys or nested structures that comparison_struct is missing.
+        Returns True if base_struct has more/different structure, False otherwise.
+        """
+        for key, value in base_struct.items():
+            if key not in comparison_struct:
+                return True
+            if isinstance(value, dict):
+                if not isinstance(comparison_struct.get(key), dict):
+                    return True
+                if self._is_structurally_different(value, comparison_struct[key]):
+                    return True
+        return False
 
     def _deep_update(self, target, source):
-        """Recursively update nested dictionaries"""
+        """
+        Recursively update nested dictionaries. Values from source overwrite values in target.
+        Keys in target that are not in source remain untouched.
+        """
         for key, value in source.items():
             if isinstance(value, dict) and key in target and isinstance(target[key], dict):
                 self._deep_update(target[key], value)
+            elif isinstance(value, dict):
+                target[key] = deepcopy(value)
             else:
                 if isinstance(value, list):
-                    target[key] = value[:]  
-                elif isinstance(value, str) and any(key == k for k in ['plex', 'jellyfin']
-                                                for p in target.values()
-                                                if isinstance(p, dict) and 'poster_users' in p):
-                    target[key] = [v.strip() for v in value.split(',') if v.strip()]
+                    target[key] = value[:]
                 else:
                     target[key] = value
 

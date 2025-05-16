@@ -6,6 +6,7 @@ RUN apt-get update && \
     arp-scan \
     iputils-ping \
     netcat-openbsd \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 # Set the working directory in the container

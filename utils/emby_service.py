@@ -327,10 +327,19 @@ class EmbyService:
             users_url = f"{self.server_url}/Users"
             response = requests.get(users_url, headers=self.headers)
             response.raise_for_status()
-            users = response.json()
-            return [user.get('Name') for user in users]
+            users_data = response.json()
+            processed_users = []
+            for user in users_data:
+                user_name = user.get('Name')
+                if not user_name:
+                    user_id = user.get('Id', 'Unknown ID')
+                    logger.warning(f"Emby user found without a 'Name' field. User ID: {user_id}. Using ID as name.")
+                    processed_users.append(f"Emby User ({user_id})") 
+                else:
+                    processed_users.append(user_name)
+            return processed_users
         except Exception as e:
-            logger.error(f"Error fetching users: {e}")
+            logger.error(f"Error fetching Emby users: {e}")
             return []
 
     def _start_cache_updater(self):
@@ -693,7 +702,7 @@ class EmbyService:
                 if session.get('SupportsRemoteControl') and session.get('DeviceName') and 'Movie Roulette' not in session.get('DeviceName'):
                      clients.append({
                          'id': session['Id'],
-                         'name': session.get('DeviceName', 'Unknown Device'), 
+                         'title': session.get('DeviceName', 'Unknown Device'),
                          'user': session.get('UserName', 'Unknown User')
                      })
             return clients
@@ -716,16 +725,28 @@ class EmbyService:
             self.playback_start_times[movie_id] = datetime.now()
 
             movie_data = self.get_movie_by_id(movie_id)
-            if movie_data:
-                 start_time = self.playback_start_times[movie_id]
-                 end_time = start_time + timedelta(hours=movie_data['duration_hours'], minutes=movie_data['duration_minutes'])
-                 from flask import session
-                 session['current_movie'] = movie_data
-                 session['movie_start_time'] = start_time.isoformat()
-                 session['movie_end_time'] = end_time.isoformat()
-                 session['current_service'] = 'emby' 
+            username = None
+            try:
+                session_details_url = f"{self.server_url}/Sessions?api_key={self.api_key}"
+                sessions_response = requests.get(session_details_url, headers={'Accept': 'application/json'})
+                sessions_response.raise_for_status()
+                sessions_data = sessions_response.json()
+                for session_info in sessions_data:
+                    if session_info.get('Id') == session_id:
+                        username = session_info.get('UserName')
+                        if username:
+                            logger.info(f"Determined username '{username}' for session {session_id} during play_movie.")
+                        else:
+                            logger.warning(f"Could not determine username for session {session_id} from Emby API.")
+                        break
+            except Exception as e_user:
+                logger.warning(f"Could not determine username for Emby playback (session {session_id}) for poster context: {e_user}")
 
-            return {"status": "playing"} 
+            if movie_data:
+                from utils.poster_view import set_current_movie as set_global_current_movie
+                pass
+            
+            return {"status": "playing", "username": username}
         except Exception as e:
             logger.error(f"Error playing movie: {e}")
             return {"error": str(e)}
@@ -921,4 +942,4 @@ class EmbyService:
 
         except Exception as e:
             logger.error(f"Error getting filtered movie count from Emby (User: {self.user_id}): {str(e)}")
-            return 0 
+            return 0

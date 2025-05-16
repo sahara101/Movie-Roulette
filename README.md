@@ -2,7 +2,7 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Release](https://img.shields.io/badge/release-v4.0-blue)]()
+[![Release](https://img.shields.io/badge/release-v4.1-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
 [![GHCR Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fsahara101%2FMovie-Roulette%2Fmovie-roulette.json&query=%24.downloads&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
@@ -20,6 +20,7 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 - [Homepage Widget](.github/screenshots/homepage-mode-iframe.png)
 - [PWA on Mobile](.github/screenshots/pwa-interface-mobile.png)
 - [Login Page](.github/screenshots/login-page.png)
+- [Login Page with backdrop and Passkeys](.github/screenshots/login-page-new.png)
 - [Cache Admin](.github/screenshots/cache-admin.png)
 - [Test Theme](.github/screenshots/test-theme.png)
 
@@ -54,6 +55,7 @@ This project was extended with the assistance of AI tools. The core functionalit
   - Trakt for global watch status
   - Overseerr/Jellyseerr/Ombi for requests
   - YouTube for trailers
+- **Authentication System**: Login with Media Servers, local admin (pass/passkey), Plex Managed User.
  
 > **Note**: Ensure your client devices and Plex server are on the same network. On the first run, a Plex cache file will be created to enhance movie loading speeds.
  
@@ -210,6 +212,9 @@ Movie Roulette offers two ways to configure the application:
 |----------|-------------|---------|----------------|
 | `AUTH_ENABLED` | Authentication | FALSE | ✅ Settings |
 | `AUTH_SESSION_LIFETIME` | Auth session lifetime in s | 86400 | ✅ Settings |
+| `AUTH_PASSKEY_ENABLED` | Passkey | FALSE | ✅ Settings |
+| `AUTH_RELYING_PARTY_ID` | Domain Identifier for Passkeys | ✅ Settings |
+| `AUTH_RELYING_PARTY_ORIGIN` | Full Base URL for Passkeys | ✅ Settings |
 | `ENABLE_MOVIE_LOGOS` | Show TMDB title logos | FALSE | ✅ Settings |
 | `LOAD_MOVIE_ON_START` | Directly show a movie or show a button | TRUE | ✅ Settings |
 | `DISABLE_SETTINGS` | Lock Settings page | FALSE | - |

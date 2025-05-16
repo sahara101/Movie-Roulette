@@ -110,7 +110,8 @@ body, html {
 
 .bottom-info {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
+    align-items: center;
     padding: 10px;
     background-color: rgba(0, 0, 0, 0.7);
     width: 100%;
@@ -119,6 +120,11 @@ body, html {
 }
 
 .info-item {
+    text-align: center;
+    margin: 0 20px;
+}
+
+.info-item-rotating {
     text-align: center;
     margin: 0 20px;
 }

@@ -60,25 +60,34 @@ class UserCacheManager:
             }
         }
 
-        plex_unwatched_path = self.get_user_cache_path(username, 'plex', 'unwatched')
-        plex_all_path = self.get_user_cache_path(username, 'plex', 'all')
+        if username.startswith('plex_') or username.startswith('plex_managed_'):
+            plex_unwatched_user_path = self.get_user_cache_path(username, 'plex', 'unwatched')
+            
+            if os.path.exists(plex_unwatched_user_path):
+                stats['plex']['cache_exists'] = True
+                try:
+                    with open(plex_unwatched_user_path, 'r') as f:
+                        data = json.load(f)
+                        stats['plex']['unwatched_count'] = len(data)
+                except Exception as e:
+                    logger.error(f"Error reading Plex unwatched cache for {username}: {e}")
+                    stats['plex']['unwatched_count'] = 0 
+                    stats['plex']['cache_exists'] = False 
+            else:
+                stats['plex']['cache_exists'] = False
+                stats['plex']['unwatched_count'] = 0
 
-        if os.path.exists(plex_unwatched_path):
-            stats['plex']['cache_exists'] = True
-            try:
-                with open(plex_unwatched_path, 'r') as f:
-                    data = json.load(f)
-                    stats['plex']['unwatched_count'] = len(data)
-            except Exception as e:
-                logger.error(f"Error reading Plex unwatched cache for {username}: {e}")
-
-        if os.path.exists(plex_all_path):
-            try:
-                with open(plex_all_path, 'r') as f:
-                    data = json.load(f)
-                    stats['plex']['all_count'] = len(data)
-            except Exception as e:
-                logger.error(f"Error reading Plex all movies cache for {username}: {e}")
+            global_plex_all_path = self.get_user_cache_path(None, 'plex', 'all')
+            if os.path.exists(global_plex_all_path):
+                try:
+                    with open(global_plex_all_path, 'r') as f:
+                        data = json.load(f)
+                        stats['plex']['all_count'] = len(data)
+                except Exception as e:
+                    logger.error(f"Error reading global Plex all_movies cache for user-stat {username}: {e}")
+                    stats['plex']['all_count'] = 0 
+            else:
+                stats['plex']['all_count'] = 0
 
         jellyfin_path = self.get_user_cache_path(username, 'jellyfin')
         if os.path.exists(jellyfin_path):

@@ -22,7 +22,7 @@ RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
 FROM python:3.9-slim-bullseye
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      arp-scan iputils-ping netcat-openbsd \
+      arp-scan iputils-ping netcat-openbsd iproute2 \
       portaudio19-dev libasound2-dev \
       g++ libffi-dev && \
     rm -rf /var/lib/apt/lists/*

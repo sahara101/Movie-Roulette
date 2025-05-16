@@ -136,22 +136,32 @@
     margin-bottom: 24px;
     border-bottom: 1px solid #3A3C41;
     padding-bottom: 10px;
+    overflow-x: auto;
+    white-space: nowrap;
 }
 
 .tab {
+    flex-shrink: 0;
     background: none;
     border: none;
     color: #EAEAEC;
-    padding: 8px 16px;
+    padding: 10px 18px;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 6px 6px 0 0;
     font-weight: 600;
     transition: all 0.2s;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+}
+
+.tab:hover {
+    color: #F8D68B;
 }
 
 .tab.active {
-    background-color: #E5A00D;
-    color: #282A2D;
+    background-color: transparent;
+    color: #E5A00D;
+    border-bottom: 3px solid #E5A00D;
 }
 
 /* Settings Sections */
@@ -185,15 +195,29 @@
     font-weight: 500;
 }
 
+/* Enhance separation for standard setting fields (not in a grid) */
+.settings-section:not(.general-features-section) > .setting-field {
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #4A4C51;
+}
+
+.settings-section:not(.general-features-section) > .setting-field:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
 /* Inputs */
 .setting-input {
     width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #4A4C51;
-    background-color: #282A2D;
+    padding: 10px 14px;
+    border: 1px solid #5A5C61;
+    background-color: #212326;
     color: #EAEAEC;
-    border-radius: 4px;
-    transition: border-color 0.2s;
+    border-radius: 6px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-size: 0.95rem;
 }
 
 .setting-input,
@@ -209,6 +233,7 @@
 .setting-input:focus {
     border-color: #E5A00D;
     outline: none;
+    box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.25);
 }
 
 /* Toggle Switch */
@@ -220,6 +245,7 @@
     position: relative;
     cursor: pointer;
     transition: background-color 0.2s;
+    margin-top: 4px;
 }
 
 .toggle::after {
@@ -261,13 +287,16 @@
     border: none;
     cursor: pointer;
     font-weight: 600;
-    transition: all 0.2s;
+    transition: all 0.2s, transform 0.1s ease-out;
     margin-bottom: 16px;
     height: 35px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .discover-button:hover {
     background-color: #F8D68B;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
 .discover-button:disabled {
@@ -301,12 +330,19 @@
     box-sizing: border-box;
 }
 
-/* Messages */
+/* Messages - Fixed Position */
 .error-message, .success-message, .info-message {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     padding: 12px 16px;
     border-radius: 4px;
-    margin-bottom: 16px;
     color: white;
+    z-index: 1001;
+    min-width: 300px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .error-message {
@@ -318,7 +354,8 @@
 }
 
 .info-message {
-    background-color: #0369A1;
+    background-color: #0E7490;
+    color: #EAEAEC;
 }
 
 /* Trakt Integration Styles */
@@ -334,6 +371,44 @@
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
+}
+
+/* General Features Section Grid Layout */
+.general-features-section .fields-grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 24px;
+}
+
+.general-features-section .fields-grid-container > .setting-field {
+    margin-bottom: 0;
+    background-color: #282A2D;
+    padding: 20px;
+    border-radius: 6px;
+    border: 1px solid #4A4C51;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.general-features-section .fields-grid-container > .setting-field label {
+    margin-bottom: 12px;
+}
+
+.general-features-section .fields-grid-container > .setting-field .setting-description {
+    margin-bottom: 12px;
+    flex-grow: 1;
+}
+
+.general-features-section .fields-grid-container > .setting-field .toggle {
+    margin-top: auto;
+}
+
+@media (max-width: 768px) {
+    .general-features-section .fields-grid-container {
+        grid-template-columns: 1fr;
+    }
 }
 
 .trakt-connect-button:hover {
@@ -362,6 +437,23 @@
 }
 
 .trakt-connect-button i {
+    font-size: 1.1em;
+}
+
+.trakt-confirm-dialog .dialog-note {
+    color: #EAEAEC;
+    font-size: 0.9em;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    display: flex; 
+    align-items: center;
+    gap: 8px; 
+    opacity: 0.9; 
+    line-height: 1.4;
+}
+
+.trakt-confirm-dialog .dialog-note i {
+    color: #E5A00D;
     font-size: 1.1em;
 }
 
@@ -416,6 +508,110 @@
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
+}
+
+/* Custom Modal for Prompts/Confirms */
+.custom-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+}
+
+.custom-modal-content {
+    background-color: #3A3C41;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.custom-modal-content h3 {
+    color: #EAEAEC;
+    margin: 0 0 16px 0;
+    font-size: 1.25rem;
+}
+
+.custom-modal-content p {
+    color: #EAEAEC;
+    margin: 0 0 20px 0;
+    line-height: 1.5;
+}
+
+.custom-modal-input-group {
+    margin-bottom: 16px;
+}
+
+.custom-modal-input-group label {
+    display: block;
+    color: #EAEAEC;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 0.9em;
+}
+
+.custom-modal-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #5A5C61;
+    background-color: #212326;
+    color: #EAEAEC;
+    border-radius: 6px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+.custom-modal-input:focus {
+    border-color: #E5A00D;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.25);
+}
+
+.custom-modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.custom-modal-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.custom-modal-button.primary {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+.custom-modal-button.primary:hover {
+    background-color: #F8D68B;
+}
+
+.custom-modal-button.secondary {
+    background-color: #4A4C51;
+    color: #EAEAEC;
+}
+.custom-modal-button.secondary:hover {
+    background-color: #5A5C61;
+}
+.custom-modal-button.danger {
+    background-color: #DC2626;
+    color: white;
+}
+.custom-modal-button.danger:hover {
+    background-color: #EF4444;
 }
 
 .cancel-button {
@@ -771,6 +967,10 @@
 
 .user-option input[type="checkbox"] {
     accent-color: #E5A00D;
+}
+
+.user-option span {
+    color: #EAEAEC;
 }
 
 /* Timezone Field Wrapper */
@@ -1625,6 +1825,8 @@ select.setting-input option {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-left: 0;
+    list-style: none;
 }
 
 .user-item {

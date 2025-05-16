@@ -38,7 +38,10 @@ DEFAULT_SETTINGS = {
         'mobile_truncation': False,
         'homepage_mode': False,
         'enable_movie_logos': True, 
-        'load_movie_on_start': False, 
+        'load_movie_on_start': False,
+        'login_backdrop': {
+            'enabled': False
+        },
         'timezone': 'UTC',
         'poster_mode': 'default',  # 'default' or 'screensaver'
         'screensaver_interval': 300,
@@ -93,7 +96,10 @@ DEFAULT_SETTINGS = {
 AUTH_SETTINGS = {
     'auth': {
         'enabled': False,
-        'session_lifetime': 86400
+        'session_lifetime': 86400,
+        'passkey_enabled': False,
+        'relying_party_id': '',  # e.g., 'localhost' or 'yourdomain.com' - Should match the domain users use.
+        'relying_party_origin': '' # e.g., 'https://yourdomain.com' or 'http://localhost:4000' - Full origin.
     }
 }
 
@@ -150,6 +156,7 @@ ENV_MAPPINGS = {
     'ENABLE_MOBILE_TRUNCATION': ('features', 'mobile_truncation', lambda x: x.upper() == 'TRUE'),
     'ENABLE_MOVIE_LOGOS': ('features', 'enable_movie_logos', lambda x: x.upper() == 'TRUE'),
     'LOAD_MOVIE_ON_START': ('features', 'load_movie_on_start', lambda x: x.upper() == 'TRUE'),
+    'LOGIN_BACKDROP_ENABLED': ('features.login_backdrop', 'enabled', lambda x: x.upper() == 'TRUE'),
     # AppleTV ENV
     'APPLE_TV_ID': ('clients.apple_tv', 'id', str),
 
@@ -173,5 +180,8 @@ ENV_MAPPINGS = {
 
 AUTH_ENV_MAPPINGS = {
     'AUTH_ENABLED': ('auth', 'enabled', lambda x: x.upper() == 'TRUE'),
-    'AUTH_SESSION_LIFETIME': ('auth', 'session_lifetime', int)
+    'AUTH_SESSION_LIFETIME': ('auth', 'session_lifetime', int),
+    'AUTH_PASSKEY_ENABLED': ('auth', 'passkey_enabled', lambda x: x.upper() == 'TRUE'),
+    'AUTH_RELYING_PARTY_ID': ('auth', 'relying_party_id', str),
+    'AUTH_RELYING_PARTY_ORIGIN': ('auth', 'relying_party_origin', str)
 }

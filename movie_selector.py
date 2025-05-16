@@ -17,6 +17,7 @@ import pytz
 import asyncio
 import secrets 
 from flask import Flask, jsonify, render_template, send_from_directory, request, session, redirect, flash, g, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect 
 from flask_socketio import SocketIO, emit
 from utils.poster_view import set_current_movie, poster_bp, init_socket
@@ -36,13 +37,16 @@ from utils.jellyfin_service import JellyfinService
 from utils.tv import TVFactory
 from utils.tv.base.tv_discovery import TVDiscoveryFactory
 from utils.auth import auth_bp, auth_manager
+from utils.auth.managed_user_routes import managed_user_routes
+from utils.auth.passkey_routes import register_passkey_routes
 from routes.user_cache_routes import user_cache_bp
-from utils.collection_service import collection_service 
+from utils.collection_service import collection_service
 
 logging.basicConfig(level=logging.INFO) 
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='static', template_folder='web')
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 flask_secret = os.environ.get('FLASK_SECRET_KEY')
 if not flask_secret:
@@ -161,13 +165,30 @@ def initialize_services():
 
     logger.info("Starting services initialization")
 
-    logger.info("Initializing global cache manager instance...")
-    global_cache_manager = CacheManager(None, cache_file_path, socketio, app, update_interval=600)
-    app.config['GLOBAL_CACHE_MANAGER'] = global_cache_manager
-    cache_manager = global_cache_manager
-    app.config['CACHE_MANAGER'] = cache_manager
-    first_service_initialized = False 
+    logger.info("Attempting to initialize/ensure global cache manager instance...")
+    if not isinstance(global_cache_manager, CacheManager): 
+        try:
+            logger.info("Global cache manager is None or not a CacheManager instance. Creating new one.")
+            gcm_instance = CacheManager(plex_service=None, socketio=socketio, app=app, update_interval=600)
+            global_cache_manager = gcm_instance 
+            logger.info("Successfully created global_cache_manager instance.")
+        except Exception as e_cm_init:
+            logger.error(f"CRITICAL: Failed to instantiate CacheManager for global_cache_manager: {e_cm_init}", exc_info=True)
+    else:
+        logger.info("Global cache manager is already a valid CacheManager instance.")
 
+    if isinstance(global_cache_manager, CacheManager):
+        app.config['GLOBAL_CACHE_MANAGER'] = global_cache_manager
+        cache_manager = global_cache_manager 
+        app.config['CACHE_MANAGER'] = cache_manager
+        logger.info("Global cache manager configured in app.")
+    else:
+        logger.error("CRITICAL: global_cache_manager is NOT a valid CacheManager instance after initialization attempt. App features relying on it may fail.")
+        cache_manager = None 
+        app.config['GLOBAL_CACHE_MANAGER'] = None 
+        app.config['CACHE_MANAGER'] = None
+
+    first_service_initialized = False 
     logger.info("Current settings state:")
 
     from utils.appletv_discovery import fix_config_format
@@ -209,8 +230,11 @@ def initialize_services():
 
             if not first_service_initialized:
                 logger.info("Plex is the first service, associating with global cache manager.")
-                global_cache_manager.plex_service = plex 
-                global_cache_manager.start()
+                if global_cache_manager:
+                    global_cache_manager.plex_service = plex 
+                    global_cache_manager.start()
+                else:
+                    logger.error("Cannot associate Plex with global_cache_manager as it's None.")
                 first_service_initialized = True
 
             logger.info("Plex service initialized successfully")
@@ -241,8 +265,11 @@ def initialize_services():
 
             if not first_service_initialized:
                 logger.info("Jellyfin is the first service, associating with global cache manager.")
-                global_cache_manager.jellyfin_service = jellyfin 
-                global_cache_manager.start()
+                if global_cache_manager:
+                    global_cache_manager.jellyfin_service = jellyfin 
+                    global_cache_manager.start()
+                else:
+                    logger.error("Cannot associate Jellyfin with global_cache_manager as it's None.")
                 first_service_initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize Jellyfin service: {e}")
@@ -268,8 +295,12 @@ def initialize_services():
 
             if not first_service_initialized:
                 logger.info("Emby is the first service, associating with global cache manager.")
-                global_cache_manager.emby_service = emby 
-                global_cache_manager.start()
+                if global_cache_manager:
+                    global_cache_manager.emby_service = emby 
+                    global_cache_manager.start()
+                else:
+                    logger.error("Cannot associate Emby with global_cache_manager as it's None.")
+
                 first_service_initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize Emby service: {e}")
@@ -280,12 +311,14 @@ def initialize_services():
         emby = None 
         EMBY_AVAILABLE = False
 
-    if not first_service_initialized:
-        logger.warning("No primary media service (Plex, Jellyfin, Emby) could be initialized successfully.")
-        global_cache_manager = None 
-        cache_manager = None 
-        app.config['GLOBAL_CACHE_MANAGER'] = None
-        app.config['CACHE_MANAGER'] = None
+    if not first_service_initialized and global_cache_manager:
+        if not getattr(global_cache_manager, 'running', False):
+             logger.info("No media services initialized, but starting global_cache_manager if not already running.")
+             global_cache_manager.start()
+    elif not first_service_initialized and not global_cache_manager:
+        logger.warning("No primary media service (Plex, Jellyfin, Emby) could be initialized successfully. "
+                       "The global_cache_manager is also None.")
+        pass 
 
     overseerr_enabled = (
         (bool(os.getenv('OVERSEERR_URL')) and bool(os.getenv('OVERSEERR_API_KEY'))) or
@@ -399,6 +432,12 @@ def initialize_services():
     logger.info(f"- Jellyseerr: {jellyseerr_enabled}")
     logger.info(f"- Trakt: {trakt_enabled}")
 
+    try:
+        socketio.emit('services_ready', namespace='/')
+        logger.info("Emitted 'services_ready' signal via SocketIO.")
+    except Exception as emit_err:
+        logger.error(f"Failed to emit 'services_ready' signal: {emit_err}")
+
     return True
 
 @app.before_request
@@ -410,12 +449,14 @@ def load_user_context_and_cache():
 
     if auth_manager.auth_enabled:
         token = request.cookies.get('auth_token')
-        user_data = auth_manager.verify_auth(token) 
+        user_data = auth_manager.verify_auth(token)
 
         if user_data:
             internal_username = user_data['username']
             is_admin = user_data['is_admin']
-            service_type = user_data.get('service_type', 'local')
+            service_type = user_data.get('service_type', 'local') 
+            user_type = user_data.get('user_type', 'local')
+            plex_user_id = user_data.get('plex_user_id') 
 
             display_username = internal_username
             if internal_username.startswith('plex_'):
@@ -429,38 +470,86 @@ def load_user_context_and_cache():
                 'internal_username': internal_username,
                 'display_username': display_username,
                 'is_admin': is_admin,
-                'service_type': service_type
+                'service_type': service_type, 
+                'user_type': user_type,
+                'plex_user_id': plex_user_id
             }
             logger.debug(f"Before request: Set g.user = {g.user}")
 
-            user_cm = get_user_cache_manager(internal_username)
+            user_cm = get_user_cache_manager(
+                internal_username=internal_username,
+                plex_user_id=plex_user_id,
+                user_type=user_type,
+                is_admin=is_admin
+            )
             if user_cm:
                 g.cache_manager = user_cm
-                user_service = None
-                if service_type == 'plex' and hasattr(user_cm, 'plex_service'):
-                    user_service = user_cm.plex_service
-                elif service_type == 'jellyfin' and hasattr(user_cm, 'jellyfin_service'):
-                    user_service = user_cm.jellyfin_service
-                elif service_type == 'emby' and hasattr(user_cm, 'emby_service'):
-                    user_service = user_cm.emby_service
-                elif service_type == 'local': 
-                    user_service = getattr(user_cm, 'plex_service', None) or \
-                                   getattr(user_cm, 'jellyfin_service', None) or \
-                                   getattr(user_cm, 'emby_service', None)
-
-                if user_service:
-                    g.media_service = user_service
-                    logger.debug(f"Before request: Set g.cache_manager and g.media_service ({service_type}) for user '{display_username}'")
-                else:
-                    g.media_service = plex or jellyfin or emby
-                    logger.warning(f"Before request: Set g.cache_manager for user '{display_username}', but couldn't find specific service instance. Falling back to global media service.")
             else:
-                 logger.warning(f"Before request: Failed to get cache manager for user '{display_username}', using global defaults.")
+                logger.warning(f"Before request: Failed to get cache manager for user '{display_username}', using global cache manager.")
+                g.cache_manager = global_cache_manager
+
+            target_service_name = None
+            if is_admin:
+                target_service_name = session.get('current_service')
+                logger.debug(f"Admin user '{display_username}'. Target service from session: '{target_service_name}'.")
+            else:
+                target_service_name = service_type
+                logger.debug(f"User '{display_username}' (type: {user_type}). Target service from auth type: '{target_service_name}'.")
+
+            resolved_media_service = None
+            if target_service_name == 'plex' or target_service_name == 'plex_managed':
+                if user_cm and hasattr(user_cm, 'plex_service') and user_cm.plex_service:
+                    resolved_media_service = user_cm.plex_service
+                    logger.debug(f"Using user-specific PlexService for '{display_username}' (type: {user_type}) from CacheManager.")
+                elif PLEX_AVAILABLE and plex:
+                    resolved_media_service = plex
+                    logger.debug(f"Using global PlexService for '{display_username}' (type: {user_type}) as user-specific was not found or applicable.")
+                else:
+                    logger.warning(f"Plex service selected/required for '{display_username}' (type: {user_type}) but no Plex service (user-specific or global) is available.")
+            elif target_service_name == 'jellyfin':
+                if JELLYFIN_AVAILABLE and jellyfin:
+                    resolved_media_service = jellyfin
+                    logger.debug(f"Using global JellyfinService for '{display_username}'.")
+                else:
+                    logger.warning(f"Jellyfin selected/required for '{display_username}' but global Jellyfin service not available.")
+            elif target_service_name == 'emby':
+                if EMBY_AVAILABLE and emby:
+                    resolved_media_service = emby
+                    logger.debug(f"Using global EmbyService for '{display_username}'.")
+                else:
+                    logger.warning(f"Emby selected/required for '{display_username}' but global Emby service not available.")
+            
+            if resolved_media_service:
+                g.media_service = resolved_media_service
+            else:
+                g.media_service = plex or jellyfin or emby
+                logger.warning(f"Could not resolve target service '{target_service_name}' for '{display_username}'. Falling back to first available global service for g.media_service: {type(g.media_service).__name__ if g.media_service else 'None'}")
+
         else:
-             logger.debug("Before request: No valid user session found, using global defaults.")
+            logger.debug("Before request: No valid user session found. Setting g.media_service based on session's current_service or global fallback.")
+            session_current_service = session.get('current_service')
+            if session_current_service == 'plex' and PLEX_AVAILABLE and plex:
+                g.media_service = plex
+            elif session_current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+                g.media_service = jellyfin
+            elif session_current_service == 'emby' and EMBY_AVAILABLE and emby:
+                g.media_service = emby
+            else:
+                g.media_service = plex or jellyfin or emby
     else:
         g.user = {'internal_username': 'admin', 'display_username': 'admin', 'is_admin': True, 'service_type': 'local'}
-        logger.debug("Before request: Auth disabled, using admin context and global defaults.")
+        g.cache_manager = global_cache_manager
+        
+        session_current_service = session.get('current_service')
+        if session_current_service == 'plex' and PLEX_AVAILABLE and plex:
+            g.media_service = plex
+        elif session_current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+            g.media_service = jellyfin
+        elif session_current_service == 'emby' and EMBY_AVAILABLE and emby:
+            g.media_service = emby
+        else:
+            g.media_service = plex or jellyfin or emby
+        logger.debug(f"Before request: Auth disabled. g.media_service set to '{g.media_service.__class__.__name__ if g.media_service else 'None'}' based on session ('{session_current_service}') or fallback.")
 
 
 def get_current_jellyfin_user_creds():
@@ -485,17 +574,22 @@ from utils.user_cache import UserCacheManager
 user_cache_manager = UserCacheManager(app)
 app.config['USER_CACHE_MANAGER'] = user_cache_manager
 
-def get_user_cache_manager(internal_username=None): 
+def get_user_cache_manager(internal_username=None, plex_user_id=None, user_type='local', is_admin=False):
     """Get or create a cache manager for the specified user (using internal username for lookup)"""
-    global user_cache_managers, global_cache_manager, plex, cache_manager
-    from flask import g as request_context 
+    global user_cache_managers, global_cache_manager, plex
+
+    if is_admin:
+        logger.debug(f"get_user_cache_manager: User '{internal_username}' is admin. Returning global_cache_manager.")
+        if not global_cache_manager:
+            logger.error("CRITICAL: global_cache_manager is None when requested for admin. Attempting reinitialization.")
+            initialize_services() 
+            if not global_cache_manager:
+                 logger.error("CRITICAL: global_cache_manager is STILL None after reinitialization for admin.")
+                 return None
+        return global_cache_manager
 
     display_username = None
-    if hasattr(request_context, 'user') and request_context.user:
-         display_username = request_context.user.get('display_username')
-         internal_username = request_context.user.get('internal_username') 
-         logger.debug(f"get_user_cache_manager: Using display_username '{display_username}' from request context.")
-    elif internal_username:
+    if internal_username:
          if internal_username.startswith('plex_'):
              display_username = internal_username[len('plex_'):]
          elif internal_username.startswith('emby_'):
@@ -506,66 +600,91 @@ def get_user_cache_manager(internal_username=None):
              display_username = internal_username 
          logger.debug(f"get_user_cache_manager: Derived display_username '{display_username}' from internal_username '{internal_username}'.")
     else:
-         logger.debug("get_user_cache_manager: No username provided and not in request context.")
-
-    if not display_username or not auth_manager.auth_enabled or display_username == 'admin':
-        log_reason = "no user" if not display_username else "auth disabled" if not auth_manager.auth_enabled else "user is admin"
-        logger.debug(f"get_user_cache_manager: Returning global cache manager ({log_reason}).")
-        if not global_cache_manager:
-            logger.warning("Global cache manager is None, attempting to reinitialize services")
-            initialize_services()
-            if not global_cache_manager:
-                 logger.error("Global cache manager is still None after reinitialization attempt.")
-                 return None 
+         logger.warning("get_user_cache_manager: Called for non-admin without internal_username. Returning global_cache_manager.")
+         return global_cache_manager
+    
+    if not auth_manager.auth_enabled: 
+        logger.debug("get_user_cache_manager: Auth disabled (but called for non-admin context). Returning global_cache_manager.")
         return global_cache_manager
 
     if internal_username in user_cache_managers:
-        logger.debug(f"get_user_cache_manager: Returning existing manager for internal user '{internal_username}'.")
+        logger.debug(f"get_user_cache_manager: Returning existing manager for non-admin user '{internal_username}'.")
         return user_cache_managers[internal_username]
 
-    logger.info(f"Creating new cache manager for display user: '{display_username}' (internal: '{internal_username}')")
+    logger.info(f"Creating new cache manager for display user: '{display_username}' (internal: '{internal_username}', type: '{user_type}')")
 
-    if not plex:
-        logger.error(f"Cannot create user cache manager for '{display_username}': Global plex service is None")
-        logger.warning("Attempting to reinitialize services...")
+    is_plex_related_user = user_type in ['plex', 'plex_managed']
+    global_plex_service = plex 
+
+    if not global_plex_service and is_plex_related_user:
+        logger.error(f"Global Plex service is None, which is required for user '{display_username}' (type: {user_type}).")
+        logger.warning("Attempting to reinitialize services to bring Plex online...")
         initialize_services()
-        if not plex:
-            logger.error("Service reinitialization failed, still no global plex service")
-            return global_cache_manager
-        logger.info("Services reinitialized successfully, continuing with user cache creation")
+        global_plex_service = plex 
+        if not global_plex_service:
+            logger.error(f"Service reinitialization failed. Global Plex service is still None. Cannot create cache manager for Plex user '{display_username}'.")
+            return global_cache_manager 
+        logger.info("Global Plex service reinitialized. Continuing with cache manager creation.")
+    elif not global_plex_service and not is_plex_related_user:
+        logger.info(f"Global Plex service is None. User '{display_username}' (type: {user_type}) is not Plex-related. Proceeding with plex_service=None for CacheManager.")
 
     try:
-        from utils.plex_service import PlexService
+        from utils.plex_service import PlexService 
+        
+        plex_instance_to_use = global_plex_service
 
-        plex_instance_to_use = global_plex_service = plex 
-        service_type = getattr(request_context, 'user', {}).get('service_type', 'local')
-
-        if service_type == 'plex' and display_username != 'admin':
-             logger.info(f"Creating user-specific PlexService for Plex user '{display_username}'")
-             temp_cache_path_for_plex = None 
-             temp_cm_for_plex = CacheManager(None, temp_cache_path_for_plex, socketio, app, username=display_username, service_type=service_type)
-
-             user_plex = PlexService(
-                 url=global_plex_service.PLEX_URL,
-                 token=global_plex_service.PLEX_TOKEN,
-                 libraries=global_plex_service.PLEX_MOVIE_LIBRARIES,
-                 username=display_username, 
-                 cache_manager=temp_cm_for_plex
-             )
-             plex_instance_to_use = user_plex
-             logger.info(f"Using user-specific Plex instance for cache manager of '{display_username}'")
+        if user_type == 'plex' and display_username != 'admin':
+            if not global_plex_service:
+                logger.error(f"Critical error: Attempting to create Plex user-specific service for '{display_username}' but global Plex service is None.")
+                return global_cache_manager 
+            logger.info(f"Creating user-specific PlexService for regular Plex user '{display_username}'")
+            temp_cm_for_plex_user = CacheManager(
+                plex_service=None, socketio=socketio, app=app, 
+                username=internal_username, user_type=user_type, plex_user_id=plex_user_id
+            )
+            user_specific_plex_instance = PlexService(
+                url=global_plex_service.PLEX_URL,
+                token=global_plex_service.PLEX_TOKEN,
+                libraries=global_plex_service.PLEX_MOVIE_LIBRARIES,
+                username=display_username, 
+                cache_manager=temp_cm_for_plex_user
+            )
+            plex_instance_to_use = user_specific_plex_instance
+            logger.info(f"Using user-specific Plex instance for cache manager of '{display_username}'")
+        
+        elif user_type == 'plex_managed':
+            logger.info(f"Creating user-specific PlexService for managed Plex user '{display_username}' (ID: {plex_user_id})")
+            temp_cm_for_managed_user = CacheManager(
+                plex_service=None, socketio=socketio, app=app,
+                username=internal_username, 
+                user_type=user_type,
+                plex_user_id=plex_user_id
+            )
+            managed_user_plex_instance = PlexService(
+                url=global_plex_service.PLEX_URL,
+                token=global_plex_service.PLEX_TOKEN,
+                libraries=global_plex_service.PLEX_MOVIE_LIBRARIES,
+                username=display_username, 
+                cache_manager=temp_cm_for_managed_user
+            )
+            plex_instance_to_use = managed_user_plex_instance
+            logger.info(f"Using user-specific Plex instance for cache manager of managed user '{display_username}'")
+        
         else:
-             logger.info(f"Using global Plex instance for cache manager of '{display_username}' (service type: {service_type})")
+             logger.info(f"Using global Plex instance for cache manager of '{display_username}' (user type: {user_type})")
 
-        user_cm = CacheManager.get_user_cache_manager(
-             plex_service=plex_instance_to_use, 
-             socketio=socketio,
-             app=app,
-             username=display_username, 
-             service_type=service_type 
+        user_cm = CacheManager(
+            plex_service=plex_instance_to_use,
+            socketio=socketio,
+            app=app,
+            username=internal_username,
+            service_type=user_type,
+            plex_user_id=plex_user_id,
+            user_type=user_type
         )
 
-        if global_cache_manager:
+
+        if global_cache_manager and user_cm != global_cache_manager :
              user_cm._original_cache_manager = global_cache_manager
 
         user_cm.start()
@@ -578,7 +697,7 @@ def get_user_cache_manager(internal_username=None):
 
         if user_cm.cache_file_path and not os.path.exists(user_cm.cache_file_path):
             logger.info(f"Unwatched cache missing for {display_username} at {user_cm.cache_file_path}. Triggering build.")
-            if global_cache_manager:
+            if global_cache_manager and user_cm != global_cache_manager:
                  global_cache_manager._initializing = False
             socketio.start_background_task(user_cm.start_cache_build)
         return user_cm
@@ -855,28 +974,49 @@ app.register_blueprint(poster_bp)
 app.register_blueprint(trakt_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(user_cache_bp)
+app.register_blueprint(managed_user_routes)
+register_passkey_routes(app)
 
 default_poster_manager = init_default_poster_manager(socketio)
 app.config['DEFAULT_POSTER_MANAGER'] = default_poster_manager
 app.config['initialize_services'] = initialize_services
 
-initialize_services()
+def update_default_poster_manager_service():
+    """Sets or updates the movie service for the DefaultPosterManager."""
+    global default_poster_manager, plex, jellyfin, emby, PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE
+    try:
+        logger.info("Attempting to set movie service for default_poster_manager...")
+        current_service_type = get_available_service()
+        
+        active_service_instance = None
+        if current_service_type == 'plex' and PLEX_AVAILABLE and plex:
+            active_service_instance = plex
+            logger.info("Plex is the active service for poster manager.")
+        elif current_service_type == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+            active_service_instance = jellyfin
+            logger.info("Jellyfin is the active service for poster manager.")
+        elif current_service_type == 'emby' and EMBY_AVAILABLE and emby:
+            active_service_instance = emby
+            logger.info("Emby is the active service for poster manager.")
 
-try:
-   logger.info("Setting up movie service for poster manager...")
-   current_service = get_available_service()  
-   if current_service == 'plex' and PLEX_AVAILABLE and plex:
-       logger.info("Using Plex as movie service for poster manager")
-       plex.cache_manager = app.config['CACHE_MANAGER']
-       default_poster_manager.set_movie_service(plex)
-   elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
-       logger.info("Using Jellyfin as movie service for poster manager")
-       default_poster_manager.set_movie_service(jellyfin)
-   elif current_service == 'emby' and EMBY_AVAILABLE and emby:
-       logger.info("Using Emby as movie service for poster manager")
-       default_poster_manager.set_movie_service(emby)
-except EnvironmentError:
-   logger.warning("No media services available during initialization")
+        if active_service_instance:
+            default_poster_manager.set_movie_service(active_service_instance)
+            logger.info(f"Successfully set {current_service_type} as movie service for default_poster_manager.")
+        else:
+            logger.warning("No active media service instance found to set for default_poster_manager.")
+            default_poster_manager.set_movie_service(None)
+
+    except EnvironmentError:
+        logger.warning("No media services available when trying to update default_poster_manager.")
+        default_poster_manager.set_movie_service(None)
+    except Exception as e:
+        logger.error(f"Error updating default_poster_manager service: {e}", exc_info=True)
+        default_poster_manager.set_movie_service(None)
+
+app.config['update_default_poster_manager_service'] = update_default_poster_manager_service
+
+initialize_services()
+update_default_poster_manager_service()
 
 playback_monitor = PlaybackMonitor(app, interval=10)
 app.config['PLAYBACK_MONITOR'] = playback_monitor
@@ -983,8 +1123,9 @@ def logos(filename):
 @auth_manager.require_auth 
 def get_available_services():
     services = []
-    service_type = session.get('service_type', 'local')
-    is_local_admin = service_type == 'local' 
+    user_context = getattr(g, 'user', None)
+    user_type = user_context.get('user_type', 'local') if user_context else 'local'
+    is_local_admin = user_type == 'local' and user_context and user_context.get('is_admin', False)
 
     plex_configured = PLEX_AVAILABLE and bool(
         PLEX_SETTINGS.get('url') and
@@ -1011,24 +1152,37 @@ def get_available_services():
             services.append('jellyfin')
         if emby_configured:
             services.append('emby')
-        logger.info(f"Local admin user '{session.get('username')}': Available services: {services}")
-    else:
-        if service_type == 'plex' and plex_configured:
+        logger.info(f"Local admin user '{user_context.get('display_username', 'N/A')}': Available services: {services}")
+    elif user_type == 'plex_managed':
+        if plex_configured:
             services.append('plex')
-        elif service_type == 'jellyfin' and jellyfin_configured:
+        logger.info(f"Managed Plex user '{user_context.get('display_username', 'N/A')}': Available services: {services}")
+    else:
+        original_service_type = user_context.get('service_type', 'unknown') if user_context else 'unknown'
+        if original_service_type == 'plex' and plex_configured:
+            services.append('plex')
+        elif original_service_type == 'jellyfin' and jellyfin_configured:
             services.append('jellyfin')
-        elif service_type == 'emby' and emby_configured:
+        elif original_service_type == 'emby' and emby_configured:
             services.append('emby')
-        logger.info(f"Non-admin user '{session.get('username')}' (type: {service_type}): Available services: {services}")
+        logger.info(f"Non-admin user '{user_context.get('display_username', 'N/A')}' (type: {user_type}, service: {original_service_type}): Available services: {services}")
 
     return jsonify(services)
 
 @app.route('/current_service')
 @auth_manager.require_auth 
 def get_current_service():
-    service_type = session.get('service_type', 'local')
-    is_local_admin = service_type == 'local' 
-    user_available_services = [] 
+    user_context = getattr(g, 'user', None)
+    internal_username = user_context.get('internal_username') if user_context else None
+    user_type = user_context.get('user_type', 'local') if user_context else 'local' 
+    is_local_admin = user_type == 'local' and user_context and user_context.get('is_admin', False)
+    user_available_services = []
+
+    is_known_managed_user = False
+    if internal_username and auth_manager.db.get_managed_user_by_username(internal_username):
+        is_known_managed_user = True
+        user_type = 'plex_managed' 
+        logger.info(f"User '{internal_username}' confirmed as managed user from DB lookup.")
 
     plex_configured = PLEX_AVAILABLE and bool(PLEX_SETTINGS.get('url') and PLEX_SETTINGS.get('token') and PLEX_SETTINGS.get('movie_libraries'))
     jellyfin_configured = JELLYFIN_AVAILABLE and bool(JELLYFIN_SETTINGS.get('url') and JELLYFIN_SETTINGS.get('api_key') and JELLYFIN_SETTINGS.get('user_id'))
@@ -1038,13 +1192,17 @@ def get_current_service():
         if plex_configured: user_available_services.append('plex')
         if jellyfin_configured: user_available_services.append('jellyfin')
         if emby_configured: user_available_services.append('emby')
+    elif user_type == 'plex_managed': 
+        if plex_configured: user_available_services.append('plex')
     else:
-        if service_type == 'plex' and plex_configured: user_available_services.append('plex')
-        elif service_type == 'jellyfin' and jellyfin_configured: user_available_services.append('jellyfin')
-        elif service_type == 'emby' and emby_configured: user_available_services.append('emby')
+        original_service_type = user_context.get('service_type', 'unknown') if user_context else 'unknown'
+        if original_service_type == 'plex' and plex_configured: user_available_services.append('plex')
+        elif original_service_type == 'jellyfin' and jellyfin_configured: user_available_services.append('jellyfin')
+        elif original_service_type == 'emby' and emby_configured: user_available_services.append('emby')
 
     if not user_available_services:
-        logger.warning(f"User {session.get('username')} has no configured services available.")
+        user_display_name = user_context.get('display_username', 'Unknown') if user_context else 'Unknown'
+        logger.warning(f"User {user_display_name} (type: {user_type}) has no configured services available.")
         first_globally_available = None
         if plex_configured: first_globally_available = 'plex'
         elif jellyfin_configured: first_globally_available = 'jellyfin'
@@ -1052,10 +1210,10 @@ def get_current_service():
 
         if first_globally_available:
              session['current_service'] = first_globally_available
-             logger.warning(f"Defaulting user {session.get('username')} to first available service: {first_globally_available}")
+             logger.warning(f"Defaulting user {user_display_name} (type: {user_type}) to first available service: {first_globally_available}")
              return jsonify({"service": first_globally_available})
         else:
-             logger.error("No media services configured globally.")
+             logger.error(f"No media services configured globally for user {user_display_name} (type: {user_type}).")
              return jsonify({"error": "No media services configured"}), 503
 
 
@@ -1256,12 +1414,12 @@ def next_movie():
    watch_status = request.args.get('watch_status', 'unwatched')
 
    try: 
-       current_plex_service = getattr(g, 'plex_service', plex) 
+       service_instance = g.media_service
 
-       if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
-           movie_data = current_plex_service.filter_movies(genres, years, pg_ratings, watch_status)
-       elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-           movie_data = jellyfin.filter_movies(genres, years, pg_ratings, watch_status) 
+       if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+           movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status)
+       elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+           movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status) 
        elif current_service == 'emby' and EMBY_AVAILABLE:
            emby_instance = None 
            movie_data = None 
@@ -1404,17 +1562,17 @@ def get_genres():
     watch_status = request.args.get('watch_status', 'unwatched')
     try:
         logger.debug(f"Fetching genres for service: {current_service}")
-        current_plex_service = getattr(g, 'plex_service', plex)
+        service_instance = g.media_service
 
-        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
-            genres_list = current_plex_service.get_genres(watch_status)
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            genres_list = service_instance.get_genres(watch_status)
             logger.info(f"Found genres: {genres_list}")
             return jsonify(genres_list)
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-            genres = jellyfin.get_genres() 
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+            genres = service_instance.get_genres() 
             return jsonify(genres)
-        elif current_service == 'emby' and EMBY_AVAILABLE:
-            genres = emby.get_genres()
+        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+            genres = service_instance.get_genres()
             return jsonify(genres)
         else:
             return jsonify({"error": "No available media service"}), 400
@@ -1429,17 +1587,17 @@ def get_years():
     watch_status = request.args.get('watch_status', 'unwatched')
     try:
         logger.debug(f"Fetching years for service: {current_service}")
-        current_plex_service = getattr(g, 'plex_service', plex)
+        service_instance = g.media_service
 
-        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
-            years_list = current_plex_service.get_years(watch_status)
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            years_list = service_instance.get_years(watch_status)
             logger.info(f"Found years: {years_list}")
             return jsonify(years_list)
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-            years = jellyfin.get_years() 
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+            years = service_instance.get_years() 
             return jsonify(years)
-        elif current_service == 'emby' and EMBY_AVAILABLE:
-            years = emby.get_years()
+        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+            years = service_instance.get_years()
             return jsonify(years)
         else:
             return jsonify({"error": "No available media service"}), 400
@@ -1453,13 +1611,13 @@ def get_pg_ratings():
     current_service = session.get('current_service', get_available_service())
     watch_status = request.args.get('watch_status', 'unwatched')
     try:
-        current_plex_service = getattr(g, 'plex_service', plex)
+        service_instance = g.media_service
 
-        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
-            ratings = current_plex_service.get_pg_ratings(watch_status)
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            ratings = service_instance.get_pg_ratings(watch_status)
             return jsonify(ratings)
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-            ratings = jellyfin.get_pg_ratings() 
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+            ratings = service_instance.get_pg_ratings() 
             return jsonify(ratings)
         elif current_service == 'emby' and EMBY_AVAILABLE:
             emby_instance = None
@@ -1553,14 +1711,14 @@ def filtered_movie_count():
             if hasattr(g, 'user') and g.user:
                 if g.user['service_type'] == 'jellyfin':
                     user_creds = auth_manager.db.get_user(g.user['internal_username'])
-                    if user_creds and user_creds.get('service_user_id') and user_creds.get('service_token'):
-                        user_id = user_creds['service_user_id']
-                        api_key = user_creds['service_token']
+                    if user_creds and user_creds.get('jellyfin_user_id') and user_creds.get('jellyfin_token'):
+                        user_id = user_creds['jellyfin_user_id']
+                        api_key = user_creds['jellyfin_token']
                         logger.debug(f"Using Jellyfin user credentials for count: {g.user['display_username']}")
                     else:
-                        logger.warning(f"Jellyfin user {g.user['display_username']} missing credentials for count.")
+                        logger.warning(f"Jellyfin user {g.user['display_username']} missing credentials for count (keys 'jellyfin_user_id' or 'jellyfin_token' not found in user_creds).")
                 elif g.user['is_admin']: 
-                    user_id = None 
+                    user_id = None
                     api_key = None
                     logger.debug("Using default/admin Jellyfin credentials for count (admin user).")
             else: 
@@ -1626,13 +1784,13 @@ def filtered_movie_count():
 def clients():
     current_service = session.get('current_service', get_available_service())
     try:
-        current_plex_service = getattr(g, 'plex_service', plex)
+        service_instance = g.media_service
 
-        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
-            client_list = current_plex_service.get_clients()
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            client_list = service_instance.get_clients()
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
             user_id, api_key = get_current_jellyfin_user_creds()
-            client_list = jellyfin.get_clients(user_id=user_id, api_key=api_key)
+            client_list = service_instance.get_clients(user_id=user_id, api_key=api_key)
         elif current_service == 'emby' and EMBY_AVAILABLE:
             emby_instance = None
             client_list = [] 
@@ -1689,21 +1847,21 @@ def play_movie(client_id):
         return jsonify({"error": "No movie selected"}), 400
     current_service = session.get('current_service', get_available_service())
     try:
-        current_plex_service = getattr(g, 'plex_service', plex)
+        service_instance = g.media_service
+        movie_data = None
 
-        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
-            result = current_plex_service.play_movie(movie_id, client_id)
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            result = service_instance.play_movie(movie_id, client_id)
             if result.get("status") == "playing":
-                movie_data = current_plex_service.get_movie_by_id(movie_id)
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
+                movie_data = service_instance.get_movie_by_id(movie_id)
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
             user_id, api_key = get_current_jellyfin_user_creds()
-            result = jellyfin.play_movie(movie_id, client_id, user_id=user_id, api_key=api_key)
+            result = service_instance.play_movie(movie_id, client_id, user_id=user_id, api_key=api_key)
             if result.get("status") == "playing":
-                movie_data = jellyfin.get_movie_by_id(movie_id)
+                movie_data = service_instance.get_movie_by_id(movie_id)
         elif current_service == 'emby' and EMBY_AVAILABLE:
-            emby_instance = None
+            emby_instance = None 
             result = {"status": "error", "error": "Failed to initialize Emby service"} 
-            movie_data = None 
 
             if hasattr(g, 'user') and g.user:
                 if g.user['service_type'] == 'emby':
@@ -1751,7 +1909,13 @@ def play_movie(client_id):
             return jsonify({"error": "No available media service"}), 400
 
         if result.get("status") == "playing" and movie_data and result.get("username"):
-            set_current_movie(movie_data, current_service, username=result.get("username"))
+            playback_monitor = app.config.get('PLAYBACK_MONITOR')
+            if playback_monitor and playback_monitor.is_poster_user(result.get("username"), current_service):
+                set_current_movie(movie_data, current_service, username=result.get("username"))
+            elif playback_monitor:
+                logger.info(f"User {result.get('username')} is not authorized for poster updates on {current_service}. Poster will not be updated via 'Watch' button action.")
+            else:
+                logger.warning("PlaybackMonitor not found, cannot check poster user authorization for 'Watch' button action.")
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in play_movie: {e}")
@@ -1968,9 +2132,9 @@ def debug_service():
                 "user_specific_cache": False 
             })
 
-        elif service_type == 'local' and display_username == 'admin':
+        elif service_type == 'local' and user_context.get('is_admin'):
              logger.info(f"Debug service request for admin user.")
-             admin_debug_info = {"service": "admin_overview", "username": "admin"}
+             admin_debug_info = {"service": "admin_overview"}
              if PLEX_AVAILABLE and plex and global_cache_manager:
                  try:
                      plex_status = {}
@@ -2047,7 +2211,58 @@ def debug_service():
 
              return jsonify(admin_debug_info)
 
-        elif service_type == 'local': 
+        elif service_type == 'plex_managed':
+            logger.info(f"Debug service request for Plex Managed user '{display_username}' (internal: '{internal_username}')")
+            current_cache_manager = user_cache_managers.get(internal_username, global_cache_manager)
+
+            if not current_cache_manager:
+                 logger.error(f"No cache manager found for Plex Managed user '{display_username}' or globally.")
+                 return jsonify({"error": "Plex cache manager not available for managed user"}), 500
+
+            user_plex = plex
+            if not user_plex:
+                 logger.error("Global Plex service instance not found for managed user debug.")
+                 return jsonify({"error": "Plex service not available"}), 500
+
+            cache_status = current_cache_manager.get_cache_status()
+            unwatched_count = 0
+            unwatched_cache_path = current_cache_manager.cache_file_path
+            if unwatched_cache_path and os.path.exists(unwatched_cache_path):
+                try:
+                    with open(unwatched_cache_path, 'r') as f:
+                        unwatched_data = json.load(f)
+                        unwatched_count = len(unwatched_data)
+                except Exception as e:
+                    logger.error(f"Error reading managed user unwatched cache for debug: {e}")
+
+            all_movies_cache_path = current_cache_manager.all_movies_cache_path
+            all_movies_cache_exists = os.path.exists(all_movies_cache_path) if all_movies_cache_path else False
+            total_movies = 0
+            if all_movies_cache_exists:
+                try:
+                    with open(all_movies_cache_path, 'r') as f:
+                        total_movies = len(json.load(f))
+                except Exception as json_e:
+                    logger.error(f"Error reading managed user Plex all movies cache ({all_movies_cache_path}): {json_e}")
+
+            metadata_cache_path = current_cache_manager.metadata_cache_path
+
+            return jsonify({
+                "service": "plex_managed", 
+                "plex_url": user_plex.PLEX_URL,
+                "total_movies": total_movies,
+                "total_unwatched_movies": unwatched_count,
+                "cache_file_exists": cache_status.get('cache_file_exists', False),
+                "all_movies_cache_exists": all_movies_cache_exists,
+                "username": display_username,
+                "internal_username": internal_username, 
+                "user_specific_cache": True, 
+                "unwatched_cache_path": unwatched_cache_path,
+                "all_movies_cache_path": all_movies_cache_path,
+                "metadata_cache_path": metadata_cache_path
+            })
+
+        elif service_type == 'local':
              logger.info(f"Debug service request for local user '{display_username}'")
              return jsonify({
                  "service": "local",
@@ -2683,6 +2898,39 @@ def get_emby_users():
         logger.error(f"Error fetching Emby users: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/trigger_service_reinitialization', methods=['POST'])
+def trigger_service_reinitialization():
+    """Endpoint to manually trigger service reinitialization,
+       accessible without full auth for post-cache-build scenarios."""
+    logger.info("Received request to trigger service reinitialization.")
+    try:
+        if auth_manager.auth_enabled:
+             token = request.cookies.get('auth_token')
+             user_data = auth_manager.verify_auth(token)
+             if not user_data or not user_data.get('is_admin'):
+                 logger.warning("Unauthorized attempt to trigger service reinitialization.")
+                 return jsonify({"error": "Unauthorized"}), 403
+
+        if initialize_services():
+            logger.info("Service reinitialization triggered successfully via API.")
+            if global_cache_manager and hasattr(global_cache_manager, 'cache_all_plex_movies'):
+                logger.info("Ensuring global all_movies_cache is up-to-date before emitting services_ready.")
+                try:
+                    global_cache_manager.cache_all_plex_movies(synchronous=True)
+                    logger.info("Global all_movies_cache updated synchronously.")
+                except Exception as e_all_cache_reinit:
+                    logger.error(f"Error during synchronous cache_all_plex_movies in reinit endpoint: {e_all_cache_reinit}")
+            
+            socketio.emit('services_ready', namespace='/')
+            logger.info("Emitted 'services_ready' event after reinitialization and all_movies_cache update.")
+            return jsonify({"status": "success", "message": "Services reinitialized and services_ready event emitted"})
+        else:
+            logger.error("Service reinitialization failed via API.")
+            return jsonify({"error": "Failed to reinitialize services"}), 500
+    except Exception as e:
+        logger.error(f"Error during API-triggered service reinitialization: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/search_person')
 def search_person_api():
     """Search for a person and return their details with TMDb and IMDb links"""
@@ -2949,27 +3197,25 @@ def search_movies():
 
         logger.info(f"Searching movies in {current_service} with query: {query}")
 
-        current_plex_service = getattr(g, 'plex_service', plex)
-
+        service_instance = g.media_service
         results = [] 
 
-        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
             try:
                 hub_search_results = []
                 unique_movie_ids = set()
 
-                plex_instance = current_plex_service._get_user_plex_instance()
-                user_switched = (plex_instance != current_plex_service.plex)
-                logger.debug(f"Performing Plex Hub Search for query '{query}' using {'user (' + (current_plex_service.username or 'N/A') + ')' if user_switched else 'default'} perspective.")
+                plex_search_instance = service_instance._get_user_plex_instance()
+                
+                logger.debug(f"Performing Plex Hub Search for query '{query}' using perspective of service_instance (user: {service_instance.username or 'N/A'}).")
 
                 try:
-                    hubs = plex_instance.search(query, mediatype='movie', limit=50) 
+                    hubs = plex_search_instance.search(query, mediatype='movie', limit=50) 
                     logger.debug(f"Hub search returned {len(hubs)} items directly.")
                     hub_search_results = [item for item in hubs if item.type == 'movie']
-
                 except AttributeError:
-                     logger.warning("plex_instance.search failed, trying plex_instance.library.hubSearch")
-                     hubs = plex_instance.library.hubSearch(query, libtype='movie', limit=50)
+                     logger.warning("plex_search_instance.search failed, trying plex_search_instance.library.hubSearch")
+                     hubs = plex_search_instance.library.hubSearch(query, libtype='movie', limit=50)
                      logger.debug(f"Hub search returned {len(hubs)} hubs.")
                      for hub in hubs:
                          if hasattr(hub, 'items'):
@@ -2980,25 +3226,18 @@ def search_movies():
                          elif hub.type == 'movie' and hub.ratingKey not in unique_movie_ids: 
                               unique_movie_ids.add(hub.ratingKey)
                               hub_search_results.append(hub)
-
-
+                
                 logger.info(f"Found {len(hub_search_results)} unique movies via Hub Search for query: {query}")
-
-                results = [current_plex_service.get_movie_data(movie) for movie in hub_search_results]
-
-            except Exception as search_error:
-                logger.error(f"Plex Hub Search failed: {search_error}")
-
-                results = [current_plex_service.get_movie_data(movie) for movie in all_plex_results]
+                results = [service_instance.get_movie_data(movie) for movie in hub_search_results]
 
             except Exception as search_error:
-                logger.error(f"Plex library search failed: {search_error}")
+                logger.error(f"Plex search failed: {search_error}", exc_info=True)
                 results = [] 
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
             user_id, api_key = get_current_jellyfin_user_creds()
-            results = jellyfin.search_movies(query, user_id=user_id, api_key=api_key)
-        elif current_service == 'emby' and EMBY_AVAILABLE:
-            results = emby.search_movies(query)
+            results = service_instance.search_movies(query, user_id=user_id, api_key=api_key)
+        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+            results = service_instance.search_movies(query)
         else:
             logger.error(f"No available media service (current: {current_service})")
             return jsonify({"error": "No available media service"}), 400

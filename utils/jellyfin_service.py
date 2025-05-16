@@ -423,11 +423,11 @@ class JellyfinService:
             logger.error(f"Error fetching PG ratings: {e}")
             return []
 
-    def get_playback_info(self, item_id, user_id=None, api_key=None):
+    def get_playback_info(self, item_id):
         try:
-            target_user_id, _, headers = self._get_request_details(user_id, api_key)
+            _, _, headers = self._get_request_details()
             sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=headers, params={'userId': target_user_id}) 
+            response = requests.get(sessions_url, headers=headers)
             response.raise_for_status()
             sessions = response.json()
             for session in sessions:
@@ -503,16 +503,17 @@ class JellyfinService:
             logger.error(f"Error fetching clients: {e}")
             return []
 
-    def get_movie_by_id(self, movie_id):
+    def get_movie_by_id(self, movie_id, user_id=None, api_key=None):
         try:
-            item_url = f"{self.server_url}/Users/{self.user_id}/Items/{movie_id}"
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
+            item_url = f"{self.server_url}/Users/{target_user_id}/Items/{movie_id}"
             params = {
                 'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating'
             }
-            response = requests.get(item_url, headers=self.headers, params=params)
+            response = requests.get(item_url, headers=headers, params=params)
             response.raise_for_status()
             movie = response.json()
-            return self.get_movie_data(movie)
+            return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
         except Exception as e:
             logger.error(f"Error fetching movie by ID: {e}")
             return None
@@ -562,14 +563,23 @@ class JellyfinService:
 
             username = None
             try:
-                session_info_url = f"{self.server_url}/Sessions/{session_id}"
-                session_response = requests.get(session_info_url, headers=headers)
-                session_response.raise_for_status()
-                session_data = session_response.json()
-                username = session_data.get('UserName')
-                logger.info(f"Playing movie for Jellyfin user: {username}")
+                all_sessions_url = f"{self.server_url}/Sessions"
+                all_sessions_response = requests.get(all_sessions_url, headers=headers)
+                all_sessions_response.raise_for_status()
+                all_sessions_data = all_sessions_response.json()
+                
+                for session_info in all_sessions_data:
+                    if session_info.get('Id') == session_id:
+                        username = session_info.get('UserName')
+                        if username:
+                            logger.info(f"Determined username '{username}' for session {session_id} during play_movie.")
+                        else:
+                            logger.warning(f"Username not found in session data for session_id {session_id}.")
+                        break
+                if not username:
+                     logger.warning(f"Could not find session_id {session_id} in active sessions to determine username.")
             except Exception as session_err:
-                logger.warning(f"Could not determine Jellyfin username for session {session_id}: {session_err}")
+                logger.warning(f"Could not determine Jellyfin username for session {session_id} by listing all sessions: {session_err}")
 
             response = requests.post(playback_url, headers=headers, params=params)
             response.raise_for_status()
@@ -580,14 +590,10 @@ class JellyfinService:
             movie_data = self.get_movie_by_id(movie_id, user_id=target_user_id, api_key=target_api_key)
         
             if movie_data:
-                start_time = self.playback_start_times[movie_id]
-                end_time = start_time + timedelta(hours=movie_data['duration_hours'], 
-                                                minutes=movie_data['duration_minutes'])
-                from flask import session
-                session['current_movie'] = movie_data
-                session['movie_start_time'] = start_time.isoformat()
-                session['movie_end_time'] = end_time.isoformat()
-                session['current_service'] = 'jellyfin'
+                from utils.poster_view import set_current_movie as set_global_current_movie
+                set_global_current_movie(movie_data, 'jellyfin', username=username)
+                # from flask import session # Keep session for current_service if other parts rely on it
+                # session['current_service'] = 'jellyfin'
             
             return {
                 "status": "playing",
@@ -623,8 +629,9 @@ class JellyfinService:
 
     def get_current_username(self):
         try:
+            _, _, headers = self._get_request_details()
             sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=self.headers)
+            response = requests.get(sessions_url, headers=headers)
             response.raise_for_status()
             sessions = response.json()
             for session in sessions:

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="csrf-token" content="{{ csrf_token() }}"> {# Added CSRF token meta tag #}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="orientation" content="portrait">
@@ -32,9 +32,8 @@
         document.body.classList.add('in-iframe');
     }
 </script>
-    {# Container for the movie title logo #}
     <div id="movie-logo-container">
-        <img id="movie-logo-img" src="" alt="Movie Title Logo" style="display: none;"> {# Initially hidden #}
+        <img id="movie-logo-img" src="" alt="Movie Title Logo" style="display: none;">
     </div>
 
     <main>
@@ -108,8 +107,8 @@
     	    	</div>
 	    </div>
 
-            <button id="btn_get_movie" class="button large-button initially-hidden{% if load_movie_on_start %} hidden{% endif %}">Get Random Movie</button> {# Conditionally hidden #}
-            <div id="movieContent"{% if not load_movie_on_start %} class="hidden"{% endif %}> {# Conditionally hidden #}
+            <button id="btn_get_movie" class="button large-button initially-hidden{% if load_movie_on_start %} hidden{% endif %}">Get Random Movie</button>
+            <div id="movieContent"{% if not load_movie_on_start %} class="hidden"{% endif %}>
                 <div class="movie_poster">
                     <img src="" alt="" id="poster_img">
                 </div>
@@ -132,7 +131,7 @@
                 </div>
 
                 {% if not homepage_mode %}
-                <div class="button_container{% if not load_movie_on_start %} hidden{% endif %}"> {# Conditionally hidden #}
+                <div class="button_container{% if not load_movie_on_start %} hidden{% endif %}">
                     {% if use_watch_button %}
                     <button id="btn_watch" class="button">WATCH</button>
                     {% endif %}
@@ -235,11 +234,11 @@
 
 	<div id="change-password-modal" class="hidden">
     	    <div class="change-password-content">
-        	<div id="change-password-close" onclick="closeChangePasswordModal()">
-            	    <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
+        	<button id="change-password-close" class="close-button" onclick="closeChangePasswordModal()" aria-label="Close change password modal">
+            	    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                 	<path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
             	    </svg>
-        	</div>
+        	</button>
         	<div class="change-password-form">
             	    <h3>Change Password</h3>
             	    <div id="password-error" class="error-message" style="display: none;"></div>
@@ -286,7 +285,6 @@
                     	<i class="fa-solid fa-cog"></i> Settings
                     </a>
                     {% endif %}
-                    {# Only show Change Password if user is local admin #}
                     <a href="/logout" class="dropdown-item">
                     	<i class="fa-solid fa-sign-out-alt"></i> Logout
                     </a>

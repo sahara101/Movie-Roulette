@@ -1,4 +1,3 @@
-/* Login Page Styles - Matched to Movie Roulette theme */
 :root {
     --primary-color: #E5A00D;       
     --primary-dark: #D29000;
@@ -45,7 +44,7 @@ body {
     background-color: var(--card-background);
     border-radius: 8px;
     box-shadow: 0 4px 20px var(--shadow-color);
-    padding: 30px;
+    padding: 20px;
     overflow: hidden;
 }
 
@@ -55,16 +54,16 @@ body {
 
 .logo-section {
     text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 15px;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
 .logo-section h1 {
-    font-size: 24px;
+    font-size: 22px;
     color: var(--primary-color);
-    margin: 15px 0;
+    margin: 10px 0;
     font-weight: 700;
 }
 
@@ -83,7 +82,7 @@ body {
 .login-form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 15px;
 }
 
 .form-group {
@@ -93,9 +92,9 @@ body {
 }
 
 .form-group label {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-light);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     font-weight: 500;
 }
 
@@ -113,8 +112,8 @@ body {
 
 .input-with-icon input {
     width: 100%;
-    padding: 12px 15px 12px 45px;
-    font-size: 16px;
+    padding: 10px 15px 10px 40px;
+    font-size: 15px;
     border: 1px solid var(--border-color);
     background-color: var(--input-background);
     color: var(--text-color);
@@ -150,8 +149,8 @@ body {
 }
 
 .login-button {
-    margin-top: 25px; 
-    padding: 12px;
+    margin-top: 15px;
+    padding: 10px;
     background-color: var(--primary-color);
     color: #282A2D;
     border: none;
@@ -165,6 +164,11 @@ body {
     align-items: center;
     gap: 10px;
     font-family: 'Montserrat', sans-serif;
+    width: 100%;
+}
+
+.passkey-login-section {
+    margin-top: 10px !important;
 }
 
 .login-button:hover {
@@ -173,6 +177,14 @@ body {
 
 .login-button i {
     font-size: 18px;
+}
+
+.form-hint {
+    font-size: 0.8em;
+    color: var(--text-light);
+    text-align: center;
+    margin-top: -5px;
+    margin-bottom: 10px;
 }
 
 .error-message {
@@ -207,7 +219,7 @@ body {
 /* Media Services Login Section */
 .services-login-section {
     width: 100%;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -221,7 +233,7 @@ body {
 
 .dropdown-toggle {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
     background-color: var(--input-background);
     color: var(--text-color);
     border: 1px solid var(--border-color);
@@ -280,8 +292,8 @@ body {
 .dropdown-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 15px;
+    gap: 8px;
+    padding: 10px 12px;
     border: none;
     background: none;
     width: 100%;
@@ -315,7 +327,7 @@ body {
     align-items: center;
     text-align: center;
     width: 100%;
-    margin: 20px 0;
+    margin: 15px 0;
     color: var(--text-light);
 }
 
@@ -419,6 +431,48 @@ body {
     background-color: var(--primary-light);
 }
 
+/* Login Tabs */
+.login-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-button {
+    flex: 1;
+    padding: 10px 15px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-light);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+    font-family: 'Montserrat', sans-serif;
+    text-align: center;
+}
+
+.tab-button:hover {
+    color: var(--text-color);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 700;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+
 /* Media Queries */
 @media (max-width: 480px) {
     .login-container {
@@ -441,4 +495,37 @@ body {
     .modal-content {
         padding: 20px;
     }
+}
+
+/* Backdrop Styles */
+#backdrop-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background-color: #101010;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: background-image 0.7s ease-in-out;
+}
+
+body.has-backdrop {
+
+}
+
+body.has-backdrop .login-container {
+    position: relative; 
+    z-index: 1; 
+}
+
+body.has-backdrop .login-card {
+    background: rgba(30, 30, 30, 0.6);
+    backdrop-filter: blur(10px) saturate(120%);
+    -webkit-backdrop-filter: blur(10px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    border-radius: 8px;
 }

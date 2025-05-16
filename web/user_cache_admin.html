@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>User Cache Administration - Movie Roulette</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -177,10 +178,10 @@
             let iconSvg = '';
 
             if (type === 'success') {
-                typeClasses = 'bg-brand-green'; // Use custom color
+                typeClasses = 'bg-brand-green';
                 iconSvg = '<svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
-            } else { // Default to error
-                typeClasses = 'bg-brand-red'; // Use custom color
+            } else {
+                typeClasses = 'bg-brand-red';
                 iconSvg = '<svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>';
             }
 
@@ -206,7 +207,7 @@
 
         function showCustomConfirm(message, onConfirm) {
             customConfirmMessage.textContent = message;
-            confirmCallback = onConfirm; // Store the callback
+            confirmCallback = onConfirm;
 
             let currentOkButton = document.getElementById('customConfirmOk');
             let currentCancelButton = document.getElementById('customConfirmCancel');
@@ -236,6 +237,10 @@
 
         function handleConfirmCancel() {
             hideCustomConfirm();
+        }
+
+        function getCsrfToken() {
+            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         }
 
         async function loadUserCacheStats() {
@@ -396,11 +401,10 @@
         async function refreshGlobalCache() {
             try {
                 showLoading('Refreshing global cache...');
-
                 const response = await fetch('/api/reinitialize_services');
 
                 if (!response.ok) {
-                    throw new Error('Failed to refresh global cache');
+                    throw new Error('Failed to refresh global cache (reinitialize_services)');
                 }
 
                 showToast('Global cache refresh started successfully!');
@@ -434,7 +438,8 @@
                     const response = await fetch('/api/clear_global_cache', {
                         method: 'POST', 
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
                         },
                         body: JSON.stringify(requestBody) 
                     });
@@ -470,7 +475,8 @@
                 const response = await fetch('/api/refresh_global_cache', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
                     },
                     body: JSON.stringify({ service: service }) 
                 });
@@ -495,7 +501,12 @@
             try {
                 showLoading(`Refreshing cache for ${username}...`);
 
-                const response = await fetch(`/api/user_cache/build/${username}`);
+                const response = await fetch(`/api/user_cache/build/${username}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                });
 
                 if (!response.ok) {
                     const data = await response.json();
@@ -517,7 +528,14 @@
                 try {
                     showLoading(`Clearing cache for ${username}...`);
 
-                const response = await fetch(`/api/user_cache/clear/${username}?service=plex`);
+                const response = await fetch(`/api/user_cache/clear/${username}`, { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ service: 'plex' })
+                });
 
                 if (!response.ok) {
                     const data = await response.json();
