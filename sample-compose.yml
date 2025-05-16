@@ -9,6 +9,11 @@ services:
       AUTH_ENABLED: "TRUE"           # Enable authentication
       AUTH_SESSION_LIFETIME: "86400" # Session lifetime in seconds
 
+      # Passkeys
+      AUTH_PASSKEY_ENABLED: TRUE
+      AUTH_RELYING_PARTY_ID: yourdomain.com
+      AUTH_RELYING_PARTY_ORIGIN: https://roulette.yourdomain.com
+
       # Media Server Configurations - Required if using service
       # Plex Configuration
       PLEX_URL: "http://plex.example.com"
@@ -26,6 +31,7 @@ services:
       EMBY_USER_ID: "your-emby-user-id"
 
       # Optional Features
+      LOGIN_BACKDROP_ENABLED: TRUE   # Show random movie backdrops on the login page.
       HOMEPAGE_MODE: "FALSE"         # Homepage widget mode
       TMDB_API_KEY: "your-tmdb-key"  # Custom TMDb key (optional)
       USE_LINKS: "TRUE"              # Show links buttons
