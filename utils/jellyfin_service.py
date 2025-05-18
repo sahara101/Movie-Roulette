@@ -142,7 +142,8 @@ class JellyfinService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating'
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating',
+                'IsPlayed': 'false'
             }
             response = requests.get(movies_url, headers=headers, params=params)
             response.raise_for_status()

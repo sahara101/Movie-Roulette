@@ -435,7 +435,8 @@ class EmbyService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear'
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear',
+                'IsPlayed': 'false'
             }
 
             response = requests.get(movies_url, headers=self.headers, params=params)
