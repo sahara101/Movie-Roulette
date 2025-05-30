@@ -2034,9 +2034,9 @@ body.in-iframe main {
     border-radius: 15px;
     box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
     color: #eee;
-    max-width: 90%;
-    width: 600px;
-    min-width: 450px;
+    width: 90%; /* Changed from fixed width */
+    max-width: 600px; /* Ensured max-width for larger screens */
+    /* min-width: 450px; */ /* Removed problematic min-width */
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.2);
     max-height: 85vh;

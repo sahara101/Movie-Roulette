@@ -46,8 +46,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     const shouldLoadOnStart = window.LOAD_MOVIE_ON_START || isMobile;
     console.log(`Initial check: LOAD_MOVIE_ON_START=${window.LOAD_MOVIE_ON_START}, isMobile=${isMobile}, shouldLoadOnStart=${shouldLoadOnStart}`);
 
-    if (shouldLoadOnStart) {
-        console.log("Condition met: Loading movie automatically (button hidden by default CSS).");
+    const filterContainer = document.querySelector('.filter-container');
+
+    if (shouldLoadOnStart) { 
+        console.log("Condition met: Loading movie automatically.");
         initialMovieLoaded = true;
         document.getElementById('movieContent')?.classList.add('hidden');
         document.querySelector('.button_container')?.classList.add('hidden');
@@ -57,20 +59,35 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.log("Movie loaded successfully. Showing movie content and buttons.");
             document.getElementById('movieContent')?.classList.remove('hidden');
             document.querySelector('.button_container')?.classList.remove('hidden');
+            
+            if (!window.HOMEPAGE_MODE && window.USE_FILTER && filterContainer) {
+                console.log("Movie loaded on start (mobile or desktop LOAD_ON_START=true): Making filter/search buttons visible.");
+                filterContainer.style.display = '';
+            }
         } catch (error) {
              console.error("Error during initial movie load:", error);
         }
-    } else {
+    } else { 
         console.log("Condition NOT met: Making 'Get Random Movie' button visible.");
         document.getElementById('btn_get_movie')?.classList.remove('initially-hidden');
         document.getElementById('movieContent')?.classList.add('hidden');
         document.querySelector('.button_container')?.classList.add('hidden');
+
+        if (!window.HOMEPAGE_MODE && window.USE_FILTER && filterContainer && !isMobile) { 
+            console.log("Desktop, 'Get Random Movie' button shown (LOAD_ON_START=false): Hiding filter/search buttons initially.");
+            filterContainer.style.display = 'none';
+        }
     }
     if (!window.HOMEPAGE_MODE) {
         if (window.USE_FILTER) {
             await loadFilterOptions();
             await updateFilteredMovieCount();
-            setupFilterEventListeners();
+            setupFilterEventListeners(); 
+
+            if (isMobile && filterContainer) { 
+                 console.log("Mobile: Final check to ensure filter/search buttons are visible if USE_FILTER is true.");
+                 filterContainer.style.display = '';
+            }
         }
     }
     // setupEventListeners();
@@ -399,13 +416,38 @@ function closeSearchModal() {
 }
 
 function setupEventListeners() {
-    if (!window.LOAD_MOVIE_ON_START) {
+    const isMobileForButtonListener = window.matchMedia('(max-width: 767px)').matches;
+    if (!window.LOAD_MOVIE_ON_START && !isMobileForButtonListener) { 
         let getMovieButton = document.getElementById("btn_get_movie");
         if (getMovieButton) {
             const newGetMovieButton = getMovieButton.cloneNode(true);
             getMovieButton.parentNode.replaceChild(newGetMovieButton, getMovieButton);
             newGetMovieButton.addEventListener('click', async () => {
                 console.log("Get Random Movie button clicked");
+                initialMovieLoaded = true;
+                await loadRandomMovie();
+                newGetMovieButton.classList.add('hidden');
+                document.getElementById('movieContent').classList.remove('hidden');
+                const buttonContainer = document.querySelector('.button_container');
+                if (buttonContainer) {
+                    buttonContainer.classList.remove('hidden');
+                }
+
+                const filterContainer = document.querySelector('.filter-container');
+                if (!window.HOMEPAGE_MODE && window.USE_FILTER && filterContainer) {
+                    console.log("Desktop, 'Get Random Movie' clicked: Making filter/search buttons visible.");
+                    filterContainer.style.display = '';
+                }
+            });
+            getMovieButton = newGetMovieButton;
+        }
+    } else if (!window.LOAD_MOVIE_ON_START && isMobileForButtonListener) {
+        let getMovieButton = document.getElementById("btn_get_movie");
+        if (getMovieButton) {
+            const newGetMovieButton = getMovieButton.cloneNode(true);
+            getMovieButton.parentNode.replaceChild(newGetMovieButton, getMovieButton);
+            newGetMovieButton.addEventListener('click', async () => {
+                console.log("Get Random Movie button clicked (mobile, LOAD_MOVIE_ON_START=false path)");
                 initialMovieLoaded = true;
                 await loadRandomMovie();
                 newGetMovieButton.classList.add('hidden');
@@ -1581,9 +1623,12 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                     const statusText = movie.in_library ? 'In library' :
                                      (movie.is_requested ? 'Requested' : 'Not in library');
                     const requestIconHTML = createRequestIcon(movie);
+                    const movieTitleHTML = !movie.in_library ?
+                        `<a href="https://www.themoviedb.org/movie/${movie.id}" target="_blank" rel="noopener noreferrer" class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></a>` :
+                        `<span class="movie-title">${movie.title}${year}</span>`;
                     return `
                         <li class="movie-item">
-                            <span class="movie-title">${movie.title}${year}</span>
+                            ${movieTitleHTML}
                             ${requestIconHTML}
                             <span class="movie-status ${statusClass}">${statusText}</span>
                         </li>
@@ -1602,9 +1647,12 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                         const statusText = movie.in_library ? 'In library' :
                                          (movie.is_requested ? 'Requested' : 'Not in library');
                         const requestIconHTML = createRequestIcon(movie);
+                        const movieTitleHTML = !movie.in_library ?
+                            `<a href="https://www.themoviedb.org/movie/${movie.id}" target="_blank" rel="noopener noreferrer" class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></a>` :
+                            `<span class="movie-title">${movie.title}${year}</span>`;
                         return `
                             <li class="movie-item">
-                                <span class="movie-title">${movie.title}${year}</span>
+                                ${movieTitleHTML}
                                 ${requestIconHTML}
                                 <span class="movie-status ${statusClass}">${statusText}</span>
                             </li>
