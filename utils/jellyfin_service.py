@@ -157,7 +157,7 @@ class JellyfinService:
             logger.error(f"Error fetching random movie: {e}")
             return None
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None, get_all=False):
         try:
             target_user_id, _, headers = self._get_request_details(user_id, api_key)
             movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
@@ -165,10 +165,11 @@ class JellyfinService:
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SortBy': 'Random',
-                'Limit': '1',
                 'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating',
-                'IsPlayed': 'false' 
             }
+
+            if not get_all:
+                params['Limit'] = '1'
 
             if watch_status == 'unwatched':
                 params['IsPlayed'] = 'false'
@@ -197,12 +198,34 @@ class JellyfinService:
             if not movies:
                 logger.warning("No unwatched movies found matching the criteria")
                 return None
+            
+            if get_all:
+                return [self.get_movie_data(movie, user_id=target_user_id, api_key=api_key) for movie in movies]
 
             chosen_movie = random.choice(movies)
             return self.get_movie_data(chosen_movie, user_id=target_user_id, api_key=api_key)
         except Exception as e:
             logger.error(f"Error filtering movies: {str(e)}")
             return None
+
+    def get_random_movies(self, count=9, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None):
+        """Get a list of random movies based on criteria"""
+        try:
+            movies_to_filter = self.filter_movies(genres, years, pg_ratings, watch_status, user_id, api_key, get_all=True)
+            if movies_to_filter:
+                return random.sample(movies_to_filter, min(count, len(movies_to_filter)))
+            return []
+        except Exception as e:
+            logger.error(f"Error in get_random_movies: {str(e)}")
+            return []
+
+    def get_all_movies(self, watch_status='unwatched', user_id=None, api_key=None):
+        """Get all movies based on watch status"""
+        try:
+            return self.filter_movies(None, None, None, watch_status, user_id, api_key, get_all=True)
+        except Exception as e:
+            logger.error(f"Error in get_all_movies: {str(e)}")
+            return []
 
     def movie_matches_criteria(self, movie, genres, years, pg_ratings):
         if genres and not any(genre in movie.get('Genres', []) for genre in genres):
@@ -424,6 +447,23 @@ class JellyfinService:
             logger.error(f"Error fetching PG ratings: {e}")
             return []
 
+    def get_filtered_options(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        """Get available filter options based on the current selection."""
+        movies = self.filter_movies(genres, years, pg_ratings, watch_status, get_all=True)
+
+        if movies is None:
+            return {"genres": [], "years": [], "ratings": []}
+
+        available_genres = sorted(list(set(g for m in movies for g in m.get('genres', []))))
+        available_years = sorted(list(set(str(m.get('year')) for m in movies if m.get('year'))), reverse=True)
+        available_ratings = sorted(list(set(m.get('contentRating') for m in movies if m.get('contentRating'))))
+
+        return {
+            "genres": available_genres,
+            "years": available_years,
+            "ratings": available_ratings
+        }
+
     def get_playback_info(self, item_id):
         try:
             _, _, headers = self._get_request_details()
@@ -593,7 +633,7 @@ class JellyfinService:
             if movie_data:
                 from utils.poster_view import set_current_movie as set_global_current_movie
                 set_global_current_movie(movie_data, 'jellyfin', username=username)
-                # from flask import session # Keep session for current_service if other parts rely on it
+                # from flask import session 
                 # session['current_service'] = 'jellyfin'
             
             return {

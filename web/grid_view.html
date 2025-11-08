@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Grid</title>
+    <link rel="stylesheet" href="/static/style/style.css">
+    <link rel="stylesheet" href="/static/style/grid.css">
+    <link rel="stylesheet" href="/static/style/auth.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="main-nav">
+    	<div class="nav-links">
+            <a href="/" class="nav-link active">Movies</a>
+            <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
+        
+            {% if auth_enabled %}
+            <div class="nav-link user-menu">
+            	<span class="user-menu-trigger">
+                    <i class="fa-solid fa-user-circle"></i>
+                    <span class="user-name">{{ session.username }}</span>
+            	</span>
+            	<div class="user-dropdown">
+                    {% if not settings_disabled %}
+                    <a href="/settings" class="dropdown-item">
+                    	<i class="fa-solid fa-cog"></i> Settings
+                    </a>
+                    {% endif %}
+                    <a href="/logout" class="dropdown-item">
+                    	<i class="fa-solid fa-sign-out-alt"></i> Logout
+                    </a>
+            	</div>
+            </div>
+            {% else %}
+            {% if not settings_disabled %}
+            <a href="/settings" class="nav-link">Settings</a>
+            {% endif %}
+            {% endif %}
+    	</div>
+    </nav>
+    <div class="container">
+        <div class="filters">
+            <select id="genre-filter" class="filter-select">
+                <option value="">All Genres</option>
+            </select>
+            <select id="year-filter" class="filter-select">
+                <option value="">All Years</option>
+            </select>
+            <select id="rating-filter" class="filter-select">
+                <option value="">All Ratings</option>
+            </select>
+            <button id="refresh-btn" class="filter-button">Refresh</button>
+        </div>
+        <div id="movie-grid" class="movie-grid"></div>
+    </div>
+
+    <div id="loading-overlay" class="hidden">
+        <div id="loading-content" class="custom-loading">
+            <h2>Building Movie Library Cache</h2>
+            <div class="loading-text"><span class="loading-status">Loading movies</span>: <span class="loading-count">0/0</span></div>
+            <div id="loading-bar-container">
+                <div id="loading-progress"></div>
+            </div>
+        </div>
+    </div>
+    <div id="movies_overlay" class="hidden">
+        <div id="movies_overlay_content">
+            <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                </svg>
+            </button>
+            <div id="overlay_title">Movies by Person</div>
+            <div id="movies_container"></div>
+        </div>
+    </div>
+    <div id="movie_data_overlay" class="hidden">
+        <div id="movie_data_overlay_content"></div>
+    </div>
+    <div id="client_prompt" class="hidden">
+        <div id="client_prompt_content">
+            <button id="client_prompt_close" class="close-button" onclick="closeClientPrompt()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                </svg>
+            </button>
+            <div id="list_of_clients"></div>
+        </div>
+    </div>
+    <div id="trailer_popup" class="hidden">
+        <div id="trailer_popup_close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
+                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+            </svg>
+        </div>
+        <iframe id="trailer_iframe" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="/static/js/script.js"></script>
+    <script src="/static/js/grid_view.js"></script>
+    <script src="/static/js/auth.js"></script>
+</body>
+</html>

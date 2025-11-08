@@ -588,17 +588,18 @@ class EmbyService:
             "actors": [a["name"] for a in actors]
         }
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SortBy': 'Random',
-                'Limit': '1',
                 'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
-                'IsPlayed': 'false'
             }
+
+            if not get_all:
+                params['Limit'] = '1'
 
             logger.info(f"Filter movies called with - genres: {genres}, years: {years}, pg_ratings: {pg_ratings}")
 
@@ -634,10 +635,32 @@ class EmbyService:
                 logger.warning("No unwatched movies found matching the criteria")
                 return None
 
+            if get_all:
+                return [self.get_movie_data(movie) for movie in movies]
+
             return self.get_movie_data(movies[0])
         except Exception as e:
             logger.error(f"Error filtering movies: {str(e)}")
             return None
+
+    def get_random_movies(self, count=9, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        """Get a list of random movies based on criteria"""
+        try:
+            movies_to_filter = self.filter_movies(genres, years, pg_ratings, watch_status, get_all=True)
+            if movies_to_filter:
+                return random.sample(movies_to_filter, min(count, len(movies_to_filter)))
+            return []
+        except Exception as e:
+            logger.error(f"Error in get_random_movies: {str(e)}")
+            return []
+
+    def get_all_movies(self, watch_status='unwatched'):
+        """Get all movies based on watch status"""
+        try:
+            return self.filter_movies(None, None, None, watch_status, get_all=True)
+        except Exception as e:
+            logger.error(f"Error in get_all_movies: {str(e)}")
+            return []
 
     def get_playback_info(self, item_id):
         try:
@@ -809,6 +832,23 @@ class EmbyService:
         except Exception as e:
             logger.error(f"Error fetching PG ratings by aggregating items: {e}")
             return []
+
+    def get_filtered_options(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        """Get available filter options based on the current selection."""
+        movies = self.filter_movies(genres, years, pg_ratings, watch_status, get_all=True)
+
+        if movies is None:
+            return {"genres": [], "years": [], "ratings": []}
+
+        available_genres = sorted(list(set(g for m in movies for g in m.get('genres', []))))
+        available_years = sorted(list(set(str(m.get('year')) for m in movies if m.get('year'))), reverse=True)
+        available_ratings = sorted(list(set(m.get('contentRating') for m in movies if m.get('contentRating'))))
+
+        return {
+            "genres": available_genres,
+            "years": available_years,
+            "ratings": available_ratings
+        }
 
     def get_movie_by_id(self, movie_id):
         """Get detailed data for a specific movie by its Emby ID"""

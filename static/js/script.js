@@ -2673,11 +2673,19 @@ async function openMoviesOverlay(personId, personType, personName) {
 async function openMovieDataOverlay(movieId) {
     console.log('openMovieDataOverlay started for movieId:', movieId);
     try {
-        const [movieResponse, plexAvailable, requestServiceStatus, mediaStatus] = await Promise.all([
-            fetch(`/api/movie_details/${movieId}`),
-            fetch(`/is_movie_in_plex/${movieId}`).then(r => r.json()),
+        const movieResponse = await fetch(`/api/movie_details/${movieId}`);
+        
+        if (!movieResponse.ok) {
+            throw new Error(`Failed to fetch movie details: ${movieResponse.status} ${movieResponse.statusText}`);
+        }
+
+        const movieData = await movieResponse.json();
+        const tmdbId = movieData.tmdb_id;
+
+        const [plexAvailable, requestServiceStatus, mediaStatus] = await Promise.all([
+            fetch(`/is_movie_in_plex/${tmdbId}`).then(r => r.json()),
             checkRequestServiceAvailability(),
-            fetch(`/api/overseerr/media/${movieId}`).then(r => r.json()).catch(() => null)
+            fetch(`/api/overseerr/media/${tmdbId}`).then(r => r.json()).catch(() => null)
         ]);
 
         console.log('Media status in overlay:', mediaStatus);
@@ -2686,7 +2694,6 @@ async function openMovieDataOverlay(movieId) {
             throw new Error(`Failed to fetch movie details: ${movieResponse.status} ${movieResponse.statusText}`);
         }
 
-        const movieData = await movieResponse.json();
         const isInPlex = plexAvailable.available;
         const isRequested = mediaStatus?.mediaInfo?.status === 3 || mediaStatus?.mediaInfo?.status === 4;
 
@@ -2716,7 +2723,7 @@ async function openMovieDataOverlay(movieId) {
             watchButton.id = 'watch_movie_button';
             watchButton.className = 'action-button';
             watchButton.textContent = 'Watch Movie';
-            watchButton.addEventListener('click', () => showClientsForPoster(movieId));
+            watchButton.addEventListener('click', () => showClientsForPoster(tmdbId));
             overlayContent.appendChild(watchButton);
         } else if (requestServiceStatus.available) {
             const requestButton = document.createElement('button');
@@ -2728,7 +2735,7 @@ async function openMovieDataOverlay(movieId) {
                 requestButton.classList.add('requested');
 	    } else {
                 requestButton.id = 'request_movie_button';
-                requestButton.dataset.movieId = movieId;
+                requestButton.dataset.movieId = tmdbId;
 		let serviceName;
                 switch(requestServiceStatus.service) {
                     case 'overseerr':
@@ -2746,7 +2753,7 @@ async function openMovieDataOverlay(movieId) {
                 requestButton.textContent = `Request (${serviceName})`;
 		requestButton.addEventListener('click', (e) => {
                     e.preventDefault();
-                    requestMovie(movieId);
+                    requestMovie(tmdbId);
                 });
             }
             overlayContent.appendChild(requestButton);

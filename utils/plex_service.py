@@ -645,6 +645,16 @@ class PlexService:
                         "job": writer.get('role')
                     })
 
+            genres = metadata.get('Genre', [])
+            genres_list = []
+            for genre in genres:
+                genre_name = genre.get('tag')
+                if genre_name:
+                    genres_list.append(genre_name)
+
+            if genres_list:
+                movie_data['genres'] = genres_list
+
             if actors:
                 movie_data['actors'] = actors
                 movie_data['actors_enriched'] = actors_enriched
@@ -813,7 +823,18 @@ class PlexService:
             logger.error(f"Error getting random movie for screensaver: {e}")
             return None
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+    def get_random_movies(self, count=9, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        """Get a list of random movies based on criteria"""
+        try:
+            movies_to_filter = self.filter_movies(genres, years, pg_ratings, watch_status, get_all=True)
+            if movies_to_filter:
+                return random.sample(movies_to_filter, min(count, len(movies_to_filter)))
+            return []
+        except Exception as e:
+            logger.error(f"Error in get_random_movies: {str(e)}")
+            return []
+
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False):
         """Filter movies based on criteria and return a random movie"""
         try:
             start_time = time.time()
@@ -911,6 +932,8 @@ class PlexService:
                 logger.info(f"After rating filter: {len(movies_to_filter)} movies")
 
             if movies_to_filter:
+                if get_all:
+                    return movies_to_filter
                 movie = random.choice(movies_to_filter)
                 duration = (time.time() - start_time) * 1000
                 logger.info(f"Movie selection took {duration:.2f}ms")
@@ -1100,6 +1123,23 @@ class PlexService:
             logger.error(f"Error getting PG ratings: {e}")
             return []
 
+    def get_filtered_options(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched'):
+        """Get available filter options based on the current selection."""
+        movies = self.filter_movies(genres, years, pg_ratings, watch_status, get_all=True)
+
+        if movies is None:
+            return {"genres": [], "years": [], "ratings": []}
+
+        available_genres = sorted(list(set(g for m in movies for g in m.get('genres', []))))
+        available_years = sorted(list(set(str(m.get('year')) for m in movies if m.get('year'))), reverse=True)
+        available_ratings = sorted(list(set(m.get('contentRating') for m in movies if m.get('contentRating'))))
+
+        return {
+            "genres": available_genres,
+            "years": available_years,
+            "ratings": available_ratings
+        }
+
     def get_clients(self):
         """Get available Plex clients"""
         return [{"id": client.machineIdentifier, "title": client.title}
@@ -1152,7 +1192,7 @@ class PlexService:
             
             if movie_data:
                 set_current_movie(movie_data, 'plex', username=username)
-                # from flask import session # Keep session for current_service if other parts rely on it
+                # from flask import session
                 # session['current_service'] = 'plex'
 
 
@@ -1170,6 +1210,42 @@ class PlexService:
         if progress_callback:
             progress_callback(1.0)  
         return self._movies_cache
+
+    def get_all_movies(self, watch_status='unwatched'):
+        """Get all movies based on watch status"""
+        try:
+            movies = []
+            source_description = "unknown source"
+
+            if hasattr(g, 'cache_manager') and g.cache_manager:
+                if watch_status == 'unwatched':
+                    movies = g.cache_manager.get_cached_movies()
+                    source_description = f"g.cache_manager_memory (unwatched - {len(movies)} movies)"
+                else:
+                    all_movies_path = g.cache_manager.all_movies_cache_path
+                    if all_movies_path and os.path.exists(all_movies_path) and os.path.getsize(all_movies_path) > 0:
+                        with open(all_movies_path, 'r') as f:
+                            all_movies_data = json.load(f)
+                        if watch_status == 'watched':
+                            movies = [m for m in all_movies_data if m.get('watched', False)]
+                            source_description = f"g.cache_manager (all_movies - watched - {len(movies)} movies)"
+                        else:
+                            movies = all_movies_data
+                            source_description = f"g.cache_manager (all_movies - {len(movies)} movies)"
+                    else:
+                        movies = g.cache_manager.get_cached_movies()
+                        source_description = f"g.cache_manager (unwatched fallback - {len(movies)} movies)"
+                        logger.warning(f"User's all_movies cache not found for get_all_movies, falling back to unwatched.")
+            else:
+                movies = self._movies_cache
+                source_description = f"self._movies_cache (unwatched fallback - {len(movies)} movies)"
+                logger.warning("g.cache_manager not found for get_all_movies, falling back to internal unwatched cache.")
+
+            logger.debug(f"Returning all movies from: {source_description}")
+            return movies
+        except Exception as e:
+            logger.error(f"Error getting all movies: {e}")
+            return []
 
     def get_movie_by_id(self, movie_id):
         """Get movie by ID from cache first, then Plex if needed"""
@@ -1200,11 +1276,11 @@ class PlexService:
                             logger.error(f"get_movie_by_id: Error calling get_movie_data for ID {movie_id_int} ('{getattr(movie, 'title', 'N/A')}') from library '{library_name}': {get_data_err}", exc_info=True)
                 except Exception as e:
                     if 'NotFound' in str(e):
-                         logger.debug(f"get_movie_by_id: Movie ID {movie_id_int} not found in library '{library_name}' using perspective '{perspective}'.")
+                         logger.debug(f"get_movie_by_id: Movie ID {movie_id_int} not found in library '{library_name}'.")
                     else:
-                         logger.error(f"get_movie_by_id: Error fetching movie ID {movie_id_int} from library '{library_name}' using perspective '{perspective}': {e}")
+                         logger.error(f"get_movie_by_id: Error fetching movie ID {movie_id_int} from library '{library_name}': {e}")
             
-            logger.warning(f"get_movie_by_id: Movie with ID {movie_id_str} not found via Plex in any configured library ({self.library_names}) using perspective '{perspective}'.")
+            logger.warning(f"get_movie_by_id: Movie with ID {movie_id_str} not found via Plex in any configured library ({self.library_names}).")
             return None
         except Exception as outer_err:
             logger.error(f"get_movie_by_id: Unexpected error processing movie ID {movie_id_str}: {outer_err}", exc_info=True)

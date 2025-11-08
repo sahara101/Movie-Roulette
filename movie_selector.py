@@ -1605,8 +1605,28 @@ def get_years():
         logger.error(f"Error in get_years: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/filtered_options')
+@auth_manager.require_auth
+def filtered_options():
+    current_service = session.get('current_service', get_available_service())
+    genres = request.args.get('genres', '').split(',') if request.args.get('genres') else None
+    years = request.args.get('years', '').split(',') if request.args.get('years') else None
+    pg_ratings = request.args.get('pg_ratings', '').split(',') if request.args.get('pg_ratings') else None
+    watch_status = request.args.get('watch_status', 'unwatched')
+
+    try:
+        service_instance = g.media_service
+        if service_instance:
+            options = service_instance.get_filtered_options(genres, years, pg_ratings, watch_status)
+            return jsonify(options)
+        else:
+            return jsonify({"error": "No available media service"}), 400
+    except Exception as e:
+        logger.error(f"Error in filtered_options: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/get_pg_ratings')
-@auth_manager.require_auth 
+@auth_manager.require_auth
 def get_pg_ratings():
     current_service = session.get('current_service', get_available_service())
     watch_status = request.args.get('watch_status', 'unwatched')
@@ -3003,6 +3023,20 @@ def movie_details(movie_id):
     """Get movie details using centralized TMDB service"""
     try:
         from utils.tmdb_service import tmdb_service
+        
+        current_service = session.get('current_service', get_available_service())
+        service_instance = g.media_service
+        movie_data_from_service = None
+
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            movie_data_from_service = service_instance.get_movie_by_id(movie_id)
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+            movie_data_from_service = service_instance.get_movie_by_id(movie_id)
+        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+            movie_data_from_service = service_instance.get_movie_by_id(movie_id)
+
+        if movie_data_from_service and 'tmdb_id' in movie_data_from_service:
+            movie_id = movie_data_from_service['tmdb_id']
 
         movie_data = tmdb_service.get_movie_details(movie_id)
         if not movie_data:
@@ -3046,6 +3080,7 @@ def movie_details(movie_id):
             logger.error(f"Error getting collection info in API route for movie {movie_id}: {e}")
 
         formatted_data = {
+            "tmdb_id": movie_id,
             "title": title,
             "year": year,
             "duration_hours": duration_hours,
@@ -3255,6 +3290,109 @@ def search_movies():
 
     except Exception as e:
         logger.error(f"Error in search_movies: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/filter_options')
+@auth_manager.require_auth
+def filter_options():
+    """Get all filter options"""
+    current_service = session.get('current_service', get_available_service())
+    service_instance = g.media_service
+    
+    genres = []
+    years = []
+    pg_ratings = []
+
+    if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+        genres = service_instance.get_genres('unwatched')
+        years = service_instance.get_years('unwatched')
+        pg_ratings = service_instance.get_pg_ratings('unwatched')
+    elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+        genres = service_instance.get_genres()
+        years = service_instance.get_years()
+        pg_ratings = service_instance.get_pg_ratings()
+    elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+        genres = service_instance.get_genres()
+        years = service_instance.get_years()
+        pg_ratings = service_instance.get_pg_ratings()
+
+    return jsonify({
+        "genres": genres,
+        "years": years,
+        "pg_ratings": pg_ratings
+    })
+
+@app.route('/grid_view')
+@auth_manager.require_auth
+def grid_view():
+    """Render the grid view page"""
+    return render_template(
+        'grid_view.html',
+        auth_enabled=auth_manager.auth_enabled,
+        settings_disabled=settings.get('system', {}).get('disable_settings', False)
+    )
+
+@app.route('/random_movies_grid')
+@auth_manager.require_auth
+def random_movies_grid():
+    """Get a grid of random movies"""
+    current_service = session.get('current_service', get_available_service())
+    count = int(request.args.get('count', 9))
+    watch_status = request.args.get('watch_status', 'unwatched')
+
+    try:
+        service_instance = g.media_service
+        movies_data = []
+
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            movies_data = service_instance.get_random_movies(count, None, None, None, watch_status)
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+            movies_data = service_instance.get_random_movies(count, None, None, None, watch_status)
+        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+            movies_data = service_instance.get_random_movies(count, None, None, None, watch_status)
+        else:
+            return jsonify({"error": "No available media service"}), 400
+
+        if movies_data:
+            return jsonify({
+                "service": current_service,
+                "movies": movies_data
+            })
+        else:
+            return jsonify({"error": "No movies found matching the criteria"}), 404
+    except Exception as e:
+        logger.error(f"Error in random_movies_grid: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/all_movies_grid')
+@auth_manager.require_auth
+def all_movies_grid():
+    """Get all movies for the grid view"""
+    current_service = session.get('current_service', get_available_service())
+    watch_status = request.args.get('watch_status', 'unwatched')
+
+    try:
+        service_instance = g.media_service
+        movies_data = []
+
+        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
+            movies_data = service_instance.get_all_movies(watch_status)
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
+            movies_data = service_instance.get_all_movies(watch_status)
+        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
+            movies_data = service_instance.get_all_movies(watch_status)
+        else:
+            return jsonify({"error": "No available media service"}), 400
+
+        if movies_data:
+            return jsonify({
+                "service": current_service,
+                "movies": movies_data
+            })
+        else:
+            return jsonify({"error": "No movies found"}), 404
+    except Exception as e:
+        logger.error(f"Error in all_movies_grid: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/user_cache_admin')

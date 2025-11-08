@@ -376,15 +376,6 @@ main {
     height: 36px;
 }
 
-.filter-container {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 30;
-    display: flex;
-    gap: 10px;
-    flex-direction: row-reverse;
-}
 
 .filter-button {
   background-color: #E5A00D;
@@ -407,6 +398,27 @@ main, #section, #movieContent {
 }
 
 .filter-button:hover {
+    background-color: #F8D68B;
+    transform: translateY(-1px);
+}
+
+.grid-view-button {
+  background-color: #E5A00D;
+  color: #282A2D;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex !important;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.grid-view-button:hover {
     background-color: #F8D68B;
     transform: translateY(-1px);
 }
@@ -957,6 +969,10 @@ main, #section, #movieContent {
 
 /* Mobile styles (both PWA and browser) */
 @media (max-width: 767px) {
+  .grid-view-button {
+    display: none !important;
+  }
+
   body, main, #section {
     background-color: #282A2D;
     padding: 0;
@@ -1558,7 +1574,7 @@ body.in-iframe main {
 .filter-dropdown-content .filter-options {
     display: flex;
     flex-direction: column;
-    gap: 10px; /* Adjust gap as needed */
+    gap: 10px;
 }
 
 /* Sort button base styles */
@@ -2034,9 +2050,8 @@ body.in-iframe main {
     border-radius: 15px;
     box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
     color: #eee;
-    width: 90%; /* Changed from fixed width */
-    max-width: 600px; /* Ensured max-width for larger screens */
-    /* min-width: 450px; */ /* Removed problematic min-width */
+    width: 90%;
+    max-width: 600px; 
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.2);
     max-height: 85vh;

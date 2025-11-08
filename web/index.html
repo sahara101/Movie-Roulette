@@ -50,6 +50,14 @@
         <section id="section">
             {% if not homepage_mode and use_filter %}
             <div class="filter-container">
+		<a href="/grid_view" class="grid-view-button" aria-label="Grid View">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                    </svg>
+                </a>
                 <button id="filterButton" class="filter-button" aria-label="Filter">
                     <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
@@ -301,14 +309,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script type="text/javascript" src="/js/script.js"></script>
     <script>
-        window.HOMEPAGE_MODE = {{ homepage_mode | tojson }};
-        window.USE_LINKS = {{ use_links | tojson }};
-        window.USE_FILTER = {{ use_filter | tojson }};
-        window.USE_WATCH_BUTTON = {{ use_watch_button | tojson }};
-        window.USE_NEXT_BUTTON = {{ use_next_button | tojson }};
-        window.MOBILE_TRUNCATION = {{ mobile_truncation | tojson }};
-        window.ENABLE_MOVIE_LOGOS = {{ enable_movie_logos | tojson }}; 
-        window.LOAD_MOVIE_ON_START = {{ load_movie_on_start | tojson }}; 
+        var HOMEPAGE_MODE = {{ homepage_mode | tojson }};
+        var USE_LINKS = {{ use_links | tojson }};
+        var USE_FILTER = {{ use_filter | tojson }};
+        var USE_WATCH_BUTTON = {{ use_watch_button | tojson }};
+        var USE_NEXT_BUTTON = {{ use_next_button | tojson }};
+        var MOBILE_TRUNCATION = {{ mobile_truncation | tojson }};
+        var ENABLE_MOVIE_LOGOS = {{ enable_movie_logos | tojson }};
+        var LOAD_MOVIE_ON_START = {{ load_movie_on_start | tojson }};
     </script>
     <script>
         if ('serviceWorker' in navigator) {
