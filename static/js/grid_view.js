@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const populateFilters = () => {
         const genres = new Set();
         const years = new Set();
+        const ratings = new Set();
 
         allMovies.forEach(movie => {
             if (movie.genres) {
@@ -31,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (movie.year) {
                 years.add(movie.year);
+            }
+            if (movie.contentRating) {
+                ratings.add(movie.contentRating);
             }
         });
 
@@ -50,16 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
             yearFilter.appendChild(option);
         });
 
-        fetch('/get_pg_ratings')
-            .then(response => response.json())
-            .then(ratings => {
-                ratings.forEach(rating => {
-                    const option = document.createElement('option');
-                    option.value = rating;
-                    option.textContent = rating;
-                    ratingFilter.appendChild(option);
-                });
-            });
+        const sortedRatings = Array.from(ratings).sort();
+        sortedRatings.forEach(rating => {
+            const option = document.createElement('option');
+            option.value = rating;
+            option.textContent = rating;
+            ratingFilter.appendChild(option);
+        });
     };
 
     const filterMovies = () => {
@@ -76,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             movies = movies.filter(movie => movie.year == selectedYear);
         }
         if (selectedRating) {
-            movies = movies.filter(movie => movie.certification === selectedRating);
+            movies = movies.filter(movie => movie.contentRating === selectedRating);
         }
 
         filteredMovies = movies;

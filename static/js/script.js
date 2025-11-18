@@ -1629,8 +1629,10 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                     return `
                         <li class="movie-item">
                             ${movieTitleHTML}
-                            ${requestIconHTML}
-                            <span class="movie-status ${statusClass}">${statusText}</span>
+                            <div class="status-container">
+                                ${requestIconHTML}
+                                <span class="movie-status ${statusClass}">${statusText}</span>
+                            </div>
                         </li>
                     `;
                 }).join('')}
@@ -1653,8 +1655,10 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                         return `
                             <li class="movie-item">
                                 ${movieTitleHTML}
-                                ${requestIconHTML}
-                                <span class="movie-status ${statusClass}">${statusText}</span>
+                                <div class="status-container">
+                                    ${requestIconHTML}
+                                    <span class="movie-status ${statusClass}">${statusText}</span>
+                                </div>
                             </li>
                         `;
                     }).join('')}

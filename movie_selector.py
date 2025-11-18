@@ -16,10 +16,10 @@ import uuid
 import pytz
 import asyncio
 import secrets 
-from flask import Flask, jsonify, render_template, send_from_directory, request, session, redirect, flash, g, url_for
+from flask import Flask, jsonify, render_template, send_from_directory, request, session, redirect, flash, g, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect 
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from utils.poster_view import set_current_movie, poster_bp, init_socket
 from utils.default_poster_manager import init_default_poster_manager, default_poster_manager
 from utils.playback_monitor import PlaybackMonitor
@@ -40,7 +40,7 @@ from utils.auth import auth_bp, auth_manager
 from utils.auth.managed_user_routes import managed_user_routes
 from utils.auth.passkey_routes import register_passkey_routes
 from routes.user_cache_routes import user_cache_bp
-from utils.collection_service import collection_service
+from utils.collection_service import CollectionService
 
 logging.basicConfig(level=logging.INFO) 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,25 @@ csrf = CSRFProtect()
 csrf.init_app(app) 
 socketio = SocketIO(app, cors_allowed_origins="*")
 init_socket(socketio)
+collection_service = CollectionService(app=app, socketio=socketio)
+
+@socketio.on('connect')
+def on_connect():
+    token = request.cookies.get('auth_token')
+    user_data = auth_manager.verify_auth(token)
+    if user_data and 'username' in user_data:
+        user_id = user_data['username']
+        join_room(user_id)
+        logger.info(f"Socket connected for user {user_id}, joined room {user_id}")
+
+@socketio.on('disconnect')
+def on_disconnect():
+    token = request.cookies.get('auth_token')
+    user_data = auth_manager.verify_auth(token)
+    if user_data and 'username' in user_data:
+        user_id = user_data['username']
+        leave_room(user_id)
+        logger.info(f"Socket disconnected for user {user_id}, left room {user_id}")
 
 HOMEPAGE_SETTINGS = {}
 FEATURE_SETTINGS = {}
@@ -3332,6 +3351,16 @@ def grid_view():
         settings_disabled=settings.get('system', {}).get('disable_settings', False)
     )
 
+@app.route('/collections')
+@auth_manager.require_auth
+def collections():
+    """Render the collections page"""
+    return render_template(
+        'collections.html',
+        auth_enabled=auth_manager.auth_enabled,
+        settings_disabled=settings.get('system', {}).get('disable_settings', False)
+    )
+
 @app.route('/random_movies_grid')
 @auth_manager.require_auth
 def random_movies_grid():
@@ -3363,6 +3392,53 @@ def random_movies_grid():
     except Exception as e:
         logger.error(f"Error in random_movies_grid: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/collections')
+@auth_manager.require_auth
+def get_collections():
+    """Get all movie collections"""
+    user = g.user if hasattr(g, 'user') else None
+    user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
+    
+    from utils.trakt_service import is_trakt_enabled_for_user
+    trakt_currently_enabled = is_trakt_enabled_for_user(user_id)
+
+    current_service = session.get('current_service', get_available_service())
+    cached_data = collection_service.get_collections_from_cache(user=user, service_name=current_service)
+    
+    if isinstance(cached_data, dict):
+        trakt_enabled_in_cache = cached_data.get('trakt_enabled_in_cache', False)
+        
+        if trakt_currently_enabled == trakt_enabled_in_cache:
+            return jsonify({"collections": cached_data.get('collections', [])})
+    
+    if collection_service.cache_building:
+        return jsonify({"status": "building_cache"}), 202
+
+    current_service = session.get('current_service', get_available_service())
+    cache_manager = g.cache_manager if hasattr(g, 'cache_manager') else None
+    
+    logger.info(f"Rebuilding collections cache for user {user_id}. Reason: Trakt status changed or cache is invalid/old.")
+    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id)
+    
+    return jsonify({"status": "building_cache"}), 202
+
+@app.route('/api/collections/build_cache', methods=['POST'])
+@auth_manager.require_auth
+def build_collections_cache_endpoint():
+    """API endpoint to trigger the collections cache build."""
+    if collection_service.cache_building:
+        return jsonify({'status': 'cache build already in progress'}), 409
+
+    user = g.user if hasattr(g, 'user') else None
+    user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
+    
+    current_service = session.get('current_service', get_available_service())
+    cache_manager = g.cache_manager if hasattr(g, 'cache_manager') else None
+    
+    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id)
+    return jsonify({'status': 'cache build started'}), 202
+
 
 @app.route('/all_movies_grid')
 @auth_manager.require_auth
@@ -3476,6 +3552,61 @@ def poster_disconnect():
     print('Client disconnected from poster namespace')
 
 import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+
+def schedule_cache_updates():
+    """Schedule periodic cache updates."""
+    def job():
+        with app.app_context():
+            logger.info("Scheduler job started: updating collection caches.")
+            if auth_manager.auth_enabled:
+                users = auth_manager.get_users()
+                if not users:
+                    logger.info("Scheduler: No users found to update cache for.")
+                    return
+                
+                for username, user_data in users.items():
+                    try:
+                        user = {'internal_username': username, **user_data}
+                        
+                        user_type = user_data.get('user_type', 'local')
+                        if username.startswith('plex_'):
+                            user_type = 'plex'
+                        elif username.startswith('jellyfin_'):
+                            user_type = 'jellyfin'
+                        elif username.startswith('emby_'):
+                            user_type = 'emby'
+                        
+                        current_service = user.get('service_type', user_type)
+                        if not current_service or current_service == 'local':
+                             current_service = get_available_service()
+
+                        cache_manager_instance = get_user_cache_manager(
+                            internal_username=username,
+                            plex_user_id=user_data.get('plex_user_id'),
+                            user_type=user_type,
+                            is_admin=user_data.get('is_admin', False)
+                        )
+                        
+                        if cache_manager_instance:
+                            logger.info(f"Scheduler: Updating collection cache for user '{username}' with service '{current_service}'.")
+                            collection_service.update_collections_cache(app, current_service, cache_manager_instance, user=user)
+                        else:
+                            logger.error(f"Scheduler: Could not get cache manager for user {username}, skipping collection update.")
+                    except Exception as e:
+                        logger.error(f"Scheduler: Error updating cache for user {username}: {e}", exc_info=True)
+            else:
+                logger.info("Scheduler: Auth disabled, running global collection cache update.")
+                try:
+                    collection_service.update_collections_cache(app, get_available_service(), global_cache_manager)
+                except Exception as e:
+                    logger.error(f"Scheduler: Error updating global cache: {e}", exc_info=True)
+            logger.info("Scheduler job finished.")
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(job, 'interval', hours=12)
+    scheduler.start()
+    logger.info("Cache update scheduler started, will run every 12 hours.")
 
 def cleanup_services():
     if JELLYFIN_AVAILABLE and jellyfin:
@@ -3486,6 +3617,8 @@ def cleanup_services():
         cache_manager.stop()
 
 atexit.register(cleanup_services)
+
+schedule_cache_updates()
 
 if __name__ == '__main__':
     logger.info("Application starting")

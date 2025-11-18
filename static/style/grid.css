@@ -228,3 +228,130 @@
 .filter-button:hover {
     background-color: #F8D68B;
 }
+
+.collection-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    padding: 1rem;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.collection-grid > .collection-card {
+    cursor: pointer;
+}
+
+.collection-card {
+    display: flex;
+    background-color: #000;
+    border-radius: 10px;
+    box-shadow: 0px 20px 30px 3px rgba(0, 0, 0, 0.55);
+    width: 100%;
+    margin: 1rem 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.collection-grid > .collection-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+}
+
+.card_left {
+    width: 40%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.card_left img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 10px 0 0 10px;
+}
+
+.card_right {
+    width: 60%;
+    height: 100%;
+    padding: 1rem 2rem;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.card_right h1 {
+    font-weight: 400;
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+
+.card_right__details {
+    margin-top: 0;
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.card_right__review p {
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+#collection-grid .collection-card .card_right__review p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 8;
+    -webkit-box-orient: vertical;
+}
+
+.read-more-link {
+    text-decoration: none;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    color: #ffda00;
+    margin-top: 10px;
+    display: inline-block;
+}
+
+.toolbar {
+    display: flex;
+    justify-content: center;
+    padding: 1rem 2rem;
+    margin-bottom: 1rem;
+}
+
+.search-container {
+    display: flex;
+    width: 100%;
+    max-width: 600px;
+}
+
+#search-collections {
+    flex-grow: 1;
+    border-radius: 0.375rem 0 0 0.375rem;
+    border: 1px solid hsl(var(--border));
+    border-right: none;
+    background-color: hsl(var(--input));
+    color: hsl(var(--foreground));
+    font-size: 0.875rem;
+    padding: 0 1rem;
+    height: 2.5rem;
+    box-sizing: border-box;
+}
+
+#random-collection-btn {
+    border-radius: 0 0.375rem 0.375rem 0;
+    width: auto;
+    padding: 0 1.5rem;
+    flex-shrink: 0;
+    border: 1px solid hsl(var(--border));
+    border-left: none;
+    height: 2.5rem;
+    box-sizing: border-box;
+}

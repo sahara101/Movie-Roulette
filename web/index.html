@@ -226,8 +226,7 @@
             </div>
         </div>
 
-        <!-- Collection modal for displaying collection information -->
-        <div id="collection_modal" class="hidden">
+        <div id="collection_modal" class="hidden main-page-modal">
             <div class="collection-modal-content">
                 <button id="collection_modal_close" class="close-button" aria-label="Close collection info">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -278,7 +277,14 @@
 
     <nav class="main-nav">
     	<div class="nav-links">
-            <a href="/" class="nav-link active">Movies</a>
+            <a href="/" class="nav-link movies-link-mobile active">Movies</a>
+            <div class="nav-link media-menu movies-menu-desktop">
+                <span class="media-menu-trigger">Movies</span>
+                <div class="media-dropdown">
+                    <a href="/" class="dropdown-item active">Movies</a>
+                    <a href="/collections" class="dropdown-item">Collections</a>
+                </div>
+            </div>
             <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
         
             {% if auth_enabled %}
@@ -307,7 +313,7 @@
     </nav>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script type="text/javascript" src="/js/script.js"></script>
+    <script src="/static/js/script.js"></script>
     <script>
         var HOMEPAGE_MODE = {{ homepage_mode | tojson }};
         var USE_LINKS = {{ use_links | tojson }};
@@ -329,7 +335,7 @@
             });
         }
     </script>
-    <script type="text/javascript" src="/js/auth.js"></script>
+    <script src="/static/js/auth.js"></script>
 </body>
 
 </html>

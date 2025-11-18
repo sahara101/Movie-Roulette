@@ -851,13 +851,34 @@ class EmbyService:
         }
 
     def get_movie_by_id(self, movie_id):
-        """Get detailed data for a specific movie by its Emby ID"""
+        """Get detailed data for a specific movie by its Emby ID or TMDB ID"""
         try:
             movie_url = f"{self.server_url}/Users/{self.user_id}/Items/{movie_id}"
             params = {
                  'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear'
             }
             response = requests.get(movie_url, headers=self.headers, params=params)
+            if response.status_code == 200:
+                movie = response.json()
+                return self.get_movie_data(movie)
+            elif response.status_code == 404:
+                logger.warning(f"Movie with Emby ID {movie_id} not found. Checking if it's a TMDB ID.")
+                if os.path.exists(self.cache_path):
+                    with open(self.cache_path, 'r') as f:
+                        all_movies = json.load(f)
+                    
+                    for movie_info in all_movies:
+                        if str(movie_info.get('tmdb_id')) == str(movie_id):
+                            emby_id = movie_info.get('emby_id')
+                            logger.info(f"Found matching Emby ID {emby_id} for TMDB ID {movie_id}. Refetching.")
+                            movie_url = f"{self.server_url}/Users/{self.user_id}/Items/{emby_id}"
+                            response = requests.get(movie_url, headers=self.headers, params=params)
+                            response.raise_for_status()
+                            movie = response.json()
+                            return self.get_movie_data(movie)
+                
+                response.raise_for_status()
+
             response.raise_for_status()
             movie = response.json()
             return self.get_movie_data(movie)

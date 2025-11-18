@@ -1249,11 +1249,18 @@ class PlexService:
 
     def get_movie_by_id(self, movie_id):
         """Get movie by ID from cache first, then Plex if needed"""
-        movie_id_str = str(movie_id) 
+        movie_id_str = str(movie_id)
+        
         cached_movie = next((movie for movie in self._movies_cache
-                           if str(movie.get('id')) == movie_id_str), None) 
+                           if str(movie.get('id')) == movie_id_str), None)
         if cached_movie:
             return cached_movie
+
+        cached_movie = next((movie for movie in self._movies_cache
+                           if str(movie.get('tmdb_id')) == movie_id_str), None)
+        if cached_movie:
+            return cached_movie
+
         try:
             movie_id_int = int(movie_id) 
             plex_instance = self._get_user_plex_instance() 
@@ -1315,8 +1322,8 @@ class PlexService:
                         if (session.viewOffset / session.duration) > 0.9:  
                             username = session.user.title if hasattr(session, 'user') and hasattr(session.user, 'title') else None
                             if username:
-                                logger.info(f"Detected movie {item_id} watched >= 90% by user '{username}'. Updating status.")
-                                self.update_watched_status(item_id, username)
+                                logger.info(f"Detected movie {item_id} watched >= 90% by user '{username}'.")
+                                # self.update_watched_status(item_id, username)
                             else:
                                 logger.warning(f"Could not determine username for session watching item {item_id}. Cannot update watched status.")
 

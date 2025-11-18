@@ -257,12 +257,12 @@
 }
 
 /* User menu in nav */
-.user-menu {
+.user-menu, .media-menu {
     position: relative;
     cursor: pointer;
 }
 
-.user-menu-trigger {
+.user-menu-trigger, .media-menu-trigger {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -272,7 +272,7 @@
     display: none; 
 }
 
-.user-dropdown {
+.user-dropdown, .media-dropdown {
     position: absolute;
     top: 100%;  
     right: 0;
@@ -286,7 +286,7 @@
     margin-top: 10px;
 }
 
-.user-menu.active .user-dropdown {
+.user-menu.active .user-dropdown, .media-menu.active .media-dropdown {
     display: block;
 }
 

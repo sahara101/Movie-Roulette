@@ -2,7 +2,7 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Release](https://img.shields.io/badge/release-v4.2-blue)]()
+[![Release](https://img.shields.io/badge/release-v5.0-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
 [![GHCR Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fsahara101%2FMovie-Roulette%2Fmovie-roulette.json&query=%24.downloads&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
@@ -17,6 +17,7 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 
 ## Additional Views
 - [Cinema Poster Mode](.github/screenshots/poster-mode.png)
+- [Collections Page](.github/screenshots/collections-page.png)
 - [Homepage Widget](.github/screenshots/homepage-mode-iframe.png)
 - [PWA on Mobile](.github/screenshots/pwa-interface-mobile.png)
 - [Login Page](.github/screenshots/login-page.png)
@@ -46,12 +47,13 @@ This project was extended with the assistance of AI tools. The core functionalit
 
 ## Features
 
-- 🎬 **Media Server Support**: Get random movies with Plex, Jellyfin, Emby
-- 🎫 **Cinema Poster Mode**: Digital movie poster display with real-time progress
-- 🔍 **Smart Discovery**: Filter by watch status, genre, year, and rating
-- 📱 **PWA Support**: Install as app on mobile and desktop
-- 🎮 **Device Control**: Power on Apple TV and TV devices directly in the selected service application
-- 🔄 **Service Integration**: 
+-  **Media Server Support**: Get random movies with Plex, Jellyfin, Emby
+-  **Cinema Poster Mode**: Digital movie poster display with real-time progress
+-  **Collections Page**: Find al collections with missing watched movies. Optional connect Trakt to include more data
+-  **Smart Discovery**: Filter by watch status, genre, year, and rating
+-  **PWA Support**: Install as app on mobile and desktop
+-  **Device Control**: Power on Apple TV and TV devices directly in the selected service application
+-  **Service Integration**: 
   - Trakt for global watch status
   - Overseerr/Jellyseerr/Ombi for requests
   - YouTube for trailers
@@ -165,6 +167,17 @@ See [sample-compose.yml](sample-compose.yml) for full configuration options.
 
 3. **Homepage Mode**
    - Minimalist widget
+
+4. **Collections Page**
+   - Request individual movies which are missing from library
+   - Request movies in bulk in each collection
+   - Availabe buttons/status:
+      - Watch and Watch Again
+      - Request
+      - Requested
+      - Watched on Trakt
+   - Integration with trakt for a full list of collections
+   - Search and display a random collection 
 
 ## Setup
 

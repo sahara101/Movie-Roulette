@@ -117,6 +117,30 @@ def request_movie(movie_id, csrf_token=None):
 
         response = requests.post(endpoint, headers=headers, json=data)
         response.raise_for_status()
+        
+        # Update the collections cache
+        try:
+            from utils.collection_service import collection_service
+            from flask import g
+            
+            user = g.get('user')
+            cache_path = collection_service._get_cache_path(user)
+            
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r+') as f:
+                    collections_data = json.load(f)
+                    for collection in collections_data.get('collections', []):
+                        for movie in collection.get('movies', []):
+                            if movie.get('id') == int(movie_id):
+                                movie['is_requested'] = True
+                                movie['status'] = 'Requested'
+                                break
+                    f.seek(0)
+                    json.dump(collections_data, f)
+                    f.truncate()
+        except Exception as e:
+            logger.error(f"Error updating collections cache: {e}")
+            
         return response.json()
 
     except requests.RequestException as e:

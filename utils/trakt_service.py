@@ -92,23 +92,9 @@ def is_trakt_enabled_for_user(user_id=None):
     if user_id == 'global':
         return settings.get('trakt', {}).get('enabled', False)
 
-    token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
-    session_data = auth_manager.verify_auth(token) if token else None
-    user_type = session_data.get('user_type', 'local') if session_data and session_data.get('username') == user_id else 'local'
-
-    user_data = None
-    if user_type == 'plex_managed':
-        user_data = auth_manager.db.get_managed_user_by_username(user_id)
-    else:
-        user_data = auth_manager.db.get_user(user_id)
-
+    user_data = auth_manager.db.get_managed_user_by_username(user_id)
     if not user_data:
-        if session_data and session_data.get('username') == user_id:
-             user_type = session_data.get('user_type', 'local')
-             if user_type == 'plex_managed':
-                 user_data = auth_manager.db.get_managed_user_by_username(user_id)
-             else:
-                 user_data = auth_manager.db.get_user(user_id)
+        user_data = auth_manager.db.get_user(user_id)
 
     if not user_data:
          return False
@@ -138,23 +124,9 @@ def get_user_trakt_tokens(user_id=None):
          else:
              return None
 
-    token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
-    session_data = auth_manager.verify_auth(token) if token else None
-    user_type = session_data.get('user_type', 'local') if session_data and session_data.get('username') == user_id else 'local'
-
-    user_data = None
-    if user_type == 'plex_managed':
-        user_data = auth_manager.db.get_managed_user_by_username(user_id)
-    else:
-        user_data = auth_manager.db.get_user(user_id)
-
+    user_data = auth_manager.db.get_managed_user_by_username(user_id)
     if not user_data:
-        if session_data and session_data.get('username') == user_id:
-             user_type = session_data.get('user_type', 'local')
-             if user_type == 'plex_managed':
-                 user_data = auth_manager.db.get_managed_user_by_username(user_id)
-             else:
-                 user_data = auth_manager.db.get_user(user_id)
+        user_data = auth_manager.db.get_user(user_id)
 
     if not user_data:
          return None
@@ -206,23 +178,21 @@ def refresh_user_trakt_token(user_id=None):
                 'trakt_refresh_token': new_refresh_token
             }
 
-            token = request.cookies.get('auth_token') if hasattr(request, 'cookies') else None
-            session_data = auth_manager.verify_auth(token) if token else None
-            user_type = session_data.get('user_type', 'local') if session_data and session_data.get('username') == user_id else 'local'
-
-            if user_type == 'local' and not auth_manager.db.get_user(user_id):
-                 if auth_manager.db.get_managed_user_by_username(user_id):
-                     user_type = 'plex_managed'
-
+            user_type = None
+            if auth_manager.db.get_managed_user_by_username(user_id):
+                user_type = 'plex_managed'
+            elif auth_manager.db.get_user(user_id):
+                user_type = 'local'
 
             success = False
             message = "User type not handled for token refresh save"
 
             if user_type == 'plex_managed':
                 success, message = auth_manager.db.update_managed_user_data(user_id, update_data)
-            else:
+            elif user_type == 'local':
                 success, message = auth_manager.db.update_user_data(user_id, update_data)
-
+            else:
+                print(f"Could not determine user type for {user_id} to save refreshed token.")
 
             if success:
                 print(f"Successfully refreshed and saved Trakt token for user {user_id} (type: {user_type})")
@@ -231,16 +201,26 @@ def refresh_user_trakt_token(user_id=None):
                 print(f"Failed to save refreshed Trakt token for user {user_id} (type: {user_type}): {message}")
                 return False
         else:
+            user_type = 'unknown'
+            if auth_manager.db.get_managed_user_by_username(user_id):
+                user_type = 'plex_managed'
+            elif auth_manager.db.get_user(user_id):
+                user_type = 'local'
             print(f"Trakt token refresh API call failed for user {user_id} (type: {user_type}): {response.status_code} - {response.text}")
             if response.status_code == 401:
                  print(f"Refresh token for user {user_id} (type: {user_type}) seems invalid. Clearing tokens and disabling.")
                  clear_data = {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False}
                  if user_type == 'plex_managed':
                      auth_manager.db.update_managed_user_data(user_id, clear_data)
-                 else:
+                 elif user_type == 'local':
                      auth_manager.db.update_user_data(user_id, clear_data)
             return False
     except Exception as e:
+        user_type = 'unknown'
+        if auth_manager.db.get_managed_user_by_username(user_id):
+            user_type = 'plex_managed'
+        elif auth_manager.db.get_user(user_id):
+            user_type = 'local'
         print(f"Exception during Trakt token refresh for user {user_id} (type: {user_type}): {e}")
         return False
 

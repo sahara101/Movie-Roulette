@@ -16,3 +16,4 @@ websocket-client
 wakeonlan
 Flask-WTF>=1.0.0
 webauthn>=1.6.0,<3.0.0
+apscheduler

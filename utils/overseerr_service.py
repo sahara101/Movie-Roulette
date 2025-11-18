@@ -6,10 +6,9 @@ from dotenv import load_dotenv
 from utils.settings import settings
 from utils.tmdb_service import tmdb_service
 
-load_dotenv()  # Load environment variables from .env
+load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Global state
 OVERSEERR_INITIALIZED = False
 OVERSEERR_URL = None
 OVERSEERR_API_KEY = None
@@ -18,22 +17,18 @@ def initialize_overseerr():
     """Initialize or reinitialize Overseerr service"""
     global OVERSEERR_INITIALIZED, OVERSEERR_URL, OVERSEERR_API_KEY
     
-    # First capture current state for logging
     previous_state = {
         'initialized': OVERSEERR_INITIALIZED,
         'has_url': bool(OVERSEERR_URL),
         'has_key': bool(OVERSEERR_API_KEY)
     }
 
-    # Get settings
     overseerr_settings = settings.get('overseerr', {})
     enabled = overseerr_settings.get('enabled', False)
 
-    # Get values from ENV or settings
     OVERSEERR_URL = os.getenv('OVERSEERR_URL') or overseerr_settings.get('url', '').strip()
     OVERSEERR_API_KEY = os.getenv('OVERSEERR_API_KEY') or overseerr_settings.get('api_key', '').strip()
 
-    # Check if service should be enabled
     is_env_configured = bool(os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY'))
     is_settings_configured = bool(enabled and OVERSEERR_URL and OVERSEERR_API_KEY)
 
@@ -41,7 +36,6 @@ def initialize_overseerr():
         try:
             OVERSEERR_INITIALIZED = True
             
-            # Save state to file
             state_file = '/app/data/overseerr_state.json'
             os.makedirs(os.path.dirname(state_file), exist_ok=True)
             with open(state_file, 'w') as f:
@@ -62,7 +56,6 @@ def initialize_overseerr():
 
     OVERSEERR_INITIALIZED = False
     
-    # Clean up state file if it exists
     try:
         state_file = '/app/data/overseerr_state.json'
         if os.path.exists(state_file):
@@ -73,7 +66,6 @@ def initialize_overseerr():
     logger.info("Overseerr service not initialized - missing configuration or disabled")
     return False
 
-# Initialize right away
 initialize_overseerr()
 
 OVERSEERR_HEADERS = {}
@@ -128,11 +120,34 @@ def request_movie(movie_id, csrf_token=None):
     try:
         response = requests.post(endpoint, headers=headers, json=data)
         response.raise_for_status()
+        
+        try:
+            from utils.collection_service import collection_service
+            from flask import g
+            
+            user = g.get('user')
+            cache_path = collection_service._get_cache_path(user)
+            
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r+') as f:
+                    collections_data = json.load(f)
+                    for collection in collections_data.get('collections', []):
+                        for movie in collection.get('movies', []):
+                            if movie.get('id') == int(movie_id):
+                                movie['is_requested'] = True
+                                movie['status'] = 'Requested'
+                                break
+                    f.seek(0)
+                    json.dump(collections_data, f)
+                    f.truncate()
+        except Exception as e:
+            logger.error(f"Error updating collections cache: {e}")
+            
         return response.json()
     except requests.RequestException as e:
         if csrf_token and 'CSRF' in str(e):
             logger.warning("CSRF token failed, retrying without CSRF")
-            return request_movie(movie_id)  # Retry without CSRF token
+            return request_movie(movie_id)
         logger.error(f"Error requesting movie via Overseerr: {e}")
         if hasattr(e.response, 'text'):
             logger.error(f"Response content: {e.response.text}")
@@ -173,7 +188,6 @@ def fetch_all_movies():
 def get_tmdb_api_key():
     """Get the TMDB API key from ENV or settings"""
     global TMDB_API_KEY
-    # Get tmdb key from overseerr section
     overseerr_settings = settings.get('overseerr', {})
     TMDB_API_KEY = os.getenv('TMDB_API_KEY') or overseerr_settings.get('tmdb_api_key', '')
     return TMDB_API_KEY

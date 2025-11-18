@@ -9,7 +9,6 @@ from utils.tmdb_service import tmdb_service
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Global state
 OMBI_INITIALIZED = False
 OMBI_URL = None
 OMBI_API_KEY = None
@@ -27,7 +26,6 @@ def initialize_ombi():
     global OMBI_INITIALIZED, OMBI_URL, OMBI_API_KEY
     write_debug("\n=== initialize_ombi called ===")
     
-    # First capture current state for logging
     previous_state = {
         'initialized': OMBI_INITIALIZED,
         'has_url': bool(OMBI_URL),
@@ -35,17 +33,14 @@ def initialize_ombi():
     }
     write_debug(f"Previous state: {previous_state}")
 
-    # Get settings
     ombi_settings = settings.get('ombi', {})
     enabled = ombi_settings.get('enabled', False)
     write_debug(f"Settings: {ombi_settings}")
     write_debug(f"Enabled: {enabled}")
 
-    # Get values from ENV or settings
     OMBI_URL = os.getenv('OMBI_URL') or ombi_settings.get('url', '').strip()
     OMBI_API_KEY = os.getenv('OMBI_API_KEY') or ombi_settings.get('api_key', '').strip()
 
-    # Check if service should be enabled
     is_env_configured = bool(os.getenv('OMBI_URL') and os.getenv('OMBI_API_KEY'))
     is_settings_configured = bool(enabled and OMBI_URL and OMBI_API_KEY)
     write_debug(f"ENV configured: {is_env_configured}")
@@ -55,7 +50,6 @@ def initialize_ombi():
         try:
             OMBI_INITIALIZED = True
             
-            # Save state to file
             state_file = '/app/data/ombi_state.json'
             os.makedirs(os.path.dirname(state_file), exist_ok=True)
             state = {
@@ -78,7 +72,6 @@ def initialize_ombi():
 
     OMBI_INITIALIZED = False
     
-    # Clean up state file if it exists
     try:
         state_file = '/app/data/ombi_state.json'
         if os.path.exists(state_file):
@@ -91,7 +84,6 @@ def initialize_ombi():
     logger.info("Ombi service not initialized - missing configuration or disabled")
     return False
 
-# Initialize right away
 initialize_ombi()
 
 OMBI_HEADERS = {}
@@ -101,7 +93,7 @@ def update_headers():
     global OMBI_HEADERS
     if OMBI_API_KEY:
         OMBI_HEADERS = {
-            'ApiKey': OMBI_API_KEY,  # Note: Ombi uses 'ApiKey' instead of 'X-Api-Key'
+            'ApiKey': OMBI_API_KEY,
             'Content-Type': 'application/json'
         }
 
@@ -141,7 +133,7 @@ def request_movie(movie_id, csrf_token=None):
 
         data = {
             "theMovieDbId": int(movie_id),
-            "languageCode": "string",  # Default to system language
+            "languageCode": "string",
             "is4KRequest": False,
             "rootFolderOverride": 0,
             "qualityPathOverride": 0
@@ -152,11 +144,33 @@ def request_movie(movie_id, csrf_token=None):
 
         response = requests.post(endpoint, headers=headers, json=data)
 
-        # Log the response for debugging
         logger.debug(f"Response status code: {response.status_code}")
         logger.debug(f"Response content: {response.text}")
 
         response.raise_for_status()
+        
+        try:
+            from utils.collection_service import collection_service
+            from flask import g
+            
+            user = g.get('user')
+            cache_path = collection_service._get_cache_path(user)
+            
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r+') as f:
+                    collections_data = json.load(f)
+                    for collection in collections_data.get('collections', []):
+                        for movie in collection.get('movies', []):
+                            if movie.get('id') == int(movie_id):
+                                movie['is_requested'] = True
+                                movie['status'] = 'Requested'
+                                break
+                    f.seek(0)
+                    json.dump(collections_data, f)
+                    f.truncate()
+        except Exception as e:
+            logger.error(f"Error updating collections cache: {e}")
+            
         return response.json()
 
     except requests.RequestException as e:
@@ -177,7 +191,6 @@ def get_media_status(tmdb_id):
     update_headers()
 
     try:
-        # First try to get the movie request status
         response = requests.get(
             f"{OMBI_URL}/api/v1/Request/movie",
             headers=OMBI_HEADERS
@@ -185,10 +198,8 @@ def get_media_status(tmdb_id):
         response.raise_for_status()
         all_requests = response.json()
 
-        # Find the request matching our tmdb_id
         for request in all_requests:
             if request.get('theMovieDbId') == int(tmdb_id):
-                # Convert Ombi status to match Overseerr/Jellyseerr format
                 status = 4 if request.get('approved') else 3  # 4=approved, 3=requested
                 if request.get('available'):
                     status = 5  # available
@@ -204,7 +215,6 @@ def get_media_status(tmdb_id):
                     }
                 }
 
-        # If no request found, return standard format with no request
         return {
             "mediaInfo": {
                 "status": 1,  # not requested

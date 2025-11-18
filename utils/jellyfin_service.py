@@ -545,6 +545,7 @@ class JellyfinService:
             return []
 
     def get_movie_by_id(self, movie_id, user_id=None, api_key=None):
+        """Get detailed data for a specific movie by its Jellyfin ID or TMDB ID"""
         try:
             target_user_id, _, headers = self._get_request_details(user_id, api_key)
             item_url = f"{self.server_url}/Users/{target_user_id}/Items/{movie_id}"
@@ -552,6 +553,28 @@ class JellyfinService:
                 'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating'
             }
             response = requests.get(item_url, headers=headers, params=params)
+            
+            if response.status_code == 200:
+                movie = response.json()
+                return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
+            elif response.status_code == 404:
+                logger.warning(f"Movie with Jellyfin ID {movie_id} not found. Checking if it's a TMDB ID.")
+                if os.path.exists(self.cache_path):
+                    with open(self.cache_path, 'r') as f:
+                        all_movies = json.load(f)
+                    
+                    for movie_info in all_movies:
+                        if str(movie_info.get('tmdb_id')) == str(movie_id):
+                            jellyfin_id = movie_info.get('jellyfin_id')
+                            logger.info(f"Found matching Jellyfin ID {jellyfin_id} for TMDB ID {movie_id}. Refetching.")
+                            item_url = f"{self.server_url}/Users/{target_user_id}/Items/{jellyfin_id}"
+                            response = requests.get(item_url, headers=headers, params=params)
+                            response.raise_for_status()
+                            movie = response.json()
+                            return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
+                
+                response.raise_for_status()
+
             response.raise_for_status()
             movie = response.json()
             return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)

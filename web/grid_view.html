@@ -12,7 +12,13 @@
 <body>
     <nav class="main-nav">
     	<div class="nav-links">
-            <a href="/" class="nav-link active">Movies</a>
+            <div class="nav-link media-menu">
+                <span class="media-menu-trigger">Movies</span>
+                <div class="media-dropdown">
+                    <a href="/" class="dropdown-item">Movies</a>
+                    <a href="/collections" class="dropdown-item">Collections</a>
+                </div>
+            </div>
             <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
         
             {% if auth_enabled %}

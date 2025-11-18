@@ -30,7 +30,7 @@ body {
     line-height: 1.6;
     min-height: 100vh;
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
 }
 
@@ -38,6 +38,7 @@ body {
     width: 100%;
     max-width: 420px;
     padding: 20px;
+    margin-right: 3vw;
 }
 
 .login-card {
@@ -522,7 +523,7 @@ body.has-backdrop .login-container {
 }
 
 body.has-backdrop .login-card {
-    background: rgba(30, 30, 30, 0.6);
+    background: rgba(30, 30, 30, 0.85);
     backdrop-filter: blur(10px) saturate(120%);
     -webkit-backdrop-filter: blur(10px) saturate(120%);
     border: 1px solid rgba(255, 255, 255, 0.1);

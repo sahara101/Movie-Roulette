@@ -1489,6 +1489,18 @@ body.in-iframe main {
 /* Search container styles */
 .search-container {
     flex-grow: 1;
+    position: relative;
+}
+
+.clear-search {
+    position: absolute;
+    right: 190px;
+    top: 40%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    padding: 0 10px;
+    font-size: 20px;
+    color: #888;
 }
 
 /* Search input styles */
@@ -1689,6 +1701,10 @@ body.in-iframe main {
     font-weight: 500;
 }
 
+.movies-link-mobile {
+    display: none;
+}
+
 .nav-link:hover {
     background-color: #3A3C41;
 }
@@ -1729,6 +1745,14 @@ body.in-iframe main {
 @media (max-width: 767px) {
     .nav-links {
         justify-content: space-between;
+    }
+
+    .movies-menu-desktop {
+        display: none;
+    }
+
+    .movies-link-mobile {
+        display: block;
     }
 
     .nav-link {
@@ -2051,11 +2075,42 @@ body.in-iframe main {
     box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
     color: #eee;
     width: 90%;
-    max-width: 600px; 
+    max-width: 1400px !important; 
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.2);
     max-height: 85vh;
     overflow-y: auto;
+}
+
+.main-page-modal .collection-modal-content {
+    max-width: 800px !important;
+}
+
+.main-page-modal .movie-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.95em;
+    gap: 10px;
+}
+
+.main-page-modal .movie-title {
+    flex-grow: 1;
+    margin-right: 10px;
+    color: #eee;
+    display: inline;
+}
+
+.main-page-modal .status-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#collection_modal.two-movie-collection .collection-modal-content {
+    max-width: 950px !important;
 }
 
 .collection-modal-content .close-button {
@@ -2114,8 +2169,8 @@ body.in-iframe main {
 .movie-item {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
+    align-items: flex-start;
+    padding: 12px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     font-size: 0.95em;
     gap: 10px;
@@ -2256,6 +2311,20 @@ body.in-iframe main {
 
 .action-button.dismiss-button:hover {
     background-color: #777;
+}
+
+#collection_modal .movie-item .action-button.watch-button,
+#collection_modal .movie-item .movie-status {
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    flex: 0 0 auto !important;
+    line-height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 /* --- End Collection Modal Styles --- */
@@ -2903,6 +2972,269 @@ body.homepage-mode #description.truncated::after {
     font-weight: bold;
 }
 
+#collection_modal .movie-list {
+    list-style: none;
+    padding: 0;
+}
+
+#collection_modal .movie-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #444;
+}
+
+#collection_modal .movie-title-link {
+    color: #EAEAEC;
+    text-decoration: none;
+}
+
+#collection_modal .movie-title-link:hover {
+    text-decoration: underline;
+}
+
+#collection_modal .request-icon-span {
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+#collection_modal .request-icon {
+    fill: #E5A00D;
+}
+
+#collection_modal .movie-status {
+    font-size: 0.9em;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+#collection_modal .status-in-library {
+    background-color: #27ae60;
+    color: white;
+}
+
+#collection_modal .status-requested {
+    background-color: #2980b9;
+    color: white;
+}
+
+#collection_modal .status-not-in-library {
+    background-color: #c0392b;
+    color: white;
+}
+
+#collection_modal .action-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#collection_modal .action-button {
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+#collection_modal .request-button {
+    background-color: #E5A00D;
+    color: #282A2D;
+}
+
+#collection_modal .dismiss-button {
+    background-color: #7f8c8d;
+    color: white;
+}
+
+.collection-movies {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 1.5rem;
+}
+
+.modal-movie-card {
+    display: flex;
+    background-color: #000;
+    border-radius: 10px;
+    box-shadow: 0px 20px 30px 3px rgba(0, 0, 0, 0.55);
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.modal-movie-card .card_left {
+    width: 40%;
+    overflow: hidden;
+}
+
+.modal-movie-card .card_left img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 10px 0 0 10px;
+}
+
+.modal-movie-card .card_right {
+    width: 60%;
+    padding: 1.5rem;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-movie-card .card_right h1 {
+    font-size: 1rem;
+}
+
+.modal-movie-card .card_right__review {
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    flex-grow: 1;
+    padding-bottom: 50px;
+}
+
+.modal-movie-card .card_right__review p {
+    font-size: 0.7rem;
+    color: #EAEAEC;
+    max-height: 6.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+}
+
+.modal-movie-card .card_right__details {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.modal-movie-card .collection-movie-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    position: absolute;
+    bottom: 0.5rem;
+    right: 1.5rem;
+    left: 35%;
+    padding-left: 1.5rem;
+    box-sizing: border-box;
+}
+
+.modal-movie-card .collection-movie-actions > * {
+    height: 32px;
+    padding: 0 12px;
+    line-height: 32px;
+}
+
+.modal-movie-card .read-more-link {
+    font-size: 0.7rem;
+    color: #E5A00D;
+    text-decoration: none;
+    display: block;
+    margin-top: 0.5rem;
+}
+
+.collection-movie-card {
+    background-color: #282A2D;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+}
+
+.collection-movie-card:hover {
+    transform: scale(1.05);
+}
+
+.collection-movie-poster {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+}
+
+.collection-movie-card-content {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.collection-movie-card {
+}
+
+.collection-movie-card .movie-title {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #EAEAEC;
+    margin-bottom: 10px;
+}
+
+.collection-movie-overview {
+    font-size: 0.8em;
+    color: #b0b0b0;
+    margin-bottom: 10px;
+    flex-grow: 1;
+}
+
+.collection-movie-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+}
+
+.collection-movie-actions .request-icon-span {
+    margin-right: 5px;
+}
+
+.collection-movie-actions .movie-status,
+.collection-movie-actions .watch-button {
+    font-size: 0.8em;
+    padding: 5px 8px;
+    border-radius: 5px;
+}
+
+.collection-movie {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.collection-movie img {
+    width: 100%;
+    border-radius: 5px;
+}
+
+.collection-movie p {
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.button-container {
+    margin-top: 0.5rem;
+}
+
+.request-all-button {
+    margin-top: 1rem;
+    width: 100%;
+    padding: 0.75rem;
+    background-color: #E5A00D;
+    color: #282A2D;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
 @keyframes breath {
     0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 160, 13, 0.7); }
     50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(229, 160, 13, 0); }
@@ -3171,11 +3503,12 @@ body.homepage-mode #description.truncated::after {
 
 .movie-title {
     flex: 1;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: normal;
 }
 
-.movie-status {
+.movie-status,
+#collection_modal .movie-item .watch-button {
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 0.9rem;
@@ -3183,20 +3516,33 @@ body.homepage-mode #description.truncated::after {
     text-align: center;
     min-width: 100px;
     font-weight: normal;
+    height: 28px;
+    box-sizing: border-box;
+    line-height: 20px;
 }
 
 .status-in-library {
-    background: #2ecc71;
-    color: white;
-}
-
-.status-not-in-library {
-    background: #e74c3c;
+    background-color: #4CAF50;
     color: white;
 }
 
 .status-requested {
-    background: #f39c12;
+    background-color: #f44336;
+    color: white;
+}
+
+.status-not-in-library {
+    background-color: #ff9800;
+    color: white;
+}
+
+.status-unwatched {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.status-watched-again {
+    background-color: #008CBA;
     color: white;
 }
 
@@ -3483,4 +3829,23 @@ body.homepage-mode #movie-logo-container {
 #person_details_overlay .person-details-content .movie-links a:hover {
   background-color: #E5A00D;
   color: #282A2D;
+}
+
+#collection_modal .modal-movie-card .collection-movie-actions > * {
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    line-height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-grow: 1;
+    flex-basis: 0;
+}
+
+#collection_modal .modal-movie-card .collection-movie-actions > *:hover {
+    transform: none !important;
 }
