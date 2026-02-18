@@ -33,6 +33,7 @@ DEFAULT_SETTINGS = {
     'features': {
         'use_links': True,
         'use_filter': True,
+        'use_grid_view': True,
         'use_watch_button': True,
         'use_next_button': True,
         'mobile_truncation': False,
@@ -45,6 +46,7 @@ DEFAULT_SETTINGS = {
         'timezone': 'UTC',
         'poster_mode': 'default',  # 'default' or 'screensaver'
         'screensaver_interval': 300,
+        'poster_cinema_overlay': True,
         'default_poster_text': '',
         'poster_users': {
             'plex': [],
@@ -110,6 +112,7 @@ ENV_MAPPINGS = {
     'DEFAULT_POSTER_TEXT': ('features', 'default_poster_text', str),
     'POSTER_MODE': ('features', 'poster_mode', str),
     'SCREENSAVER_INTERVAL': ('features', 'screensaver_interval', int),
+    'POSTER_CINEMA_OVERLAY': ('features', 'poster_cinema_overlay', lambda x: x.upper() == 'TRUE'),
     'PLEX_POSTER_USERS': ('features.poster_users', 'plex', lambda x: [s.strip() for s in x.split(',')]),
     'JELLYFIN_POSTER_USERS': ('features.poster_users', 'jellyfin', lambda x: [s.strip() for s in x.split(',')]),
     'EMBY_POSTER_USERS': ('features.poster_users', 'emby', lambda x: [s.strip() for s in x.split(',')]),

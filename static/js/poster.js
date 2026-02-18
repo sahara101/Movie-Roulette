@@ -7,6 +7,12 @@ const posterImage = document.getElementById('poster-image');
 const rotatingInfoItemElement = document.getElementById('rotatingInfoItem');
 const customTextContainer = document.getElementById('custom-text-container');
 const customText = document.getElementById('custom-text');
+const cinemaOverlayTop = document.getElementById('cinemaOverlayTop');
+const cinemaOverlayBottom = document.getElementById('cinemaOverlayBottom');
+const directorText = document.getElementById('directorText');
+const taglineText = document.getElementById('taglineText');
+const cinemaCast = document.getElementById('cinemaCast');
+const cinemaTechInfo = document.getElementById('cinemaTechInfo');
 const isScreensaverMode = window.settings?.features?.poster_mode === 'screensaver';
 const isPWA = (() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
@@ -78,13 +84,18 @@ socket.on('movie_changed', function(data) {
     movieContentRating = data.movie.contentRating || null;
     movieVideoFormat = data.movie.videoFormat || null;
     movieAudioFormat = data.movie.audioFormat || null;
-    
+    movieDirectors = data.movie.directors || [];
+    movieDescription = data.movie.description || null;
+    movieTagline = data.movie.tagline || null;
+
+    posterContainer.classList.remove('cinema-info');
+
     setupInfoRotation();
     if (playbackStatusElement) playbackStatusElement.textContent = 'NOW PLAYING';
-    
+
     updateTimes(startTime, resumePosition, 'PLAYING');
     updatePlaybackStatus('playing');
-    
+
     clearInterval(playbackInterval);
     playbackInterval = setInterval(fetchPlaybackState, 2000);
 });
@@ -116,7 +127,16 @@ socket.on('set_default_poster', function(data) {
     startTime = null;
     currentStatus = 'UNKNOWN';
     currentPlaybackPositionSeconds = 0;
+    movieDirectors = [];
+    movieDescription = null;
+    movieTagline = null;
+    movieActors = [];
+    screensaverContentRating = null;
+    screensaverVideoFormat = null;
+    screensaverAudioFormat = null;
     clearInterval(playbackInterval);
+    posterContainer.classList.remove('cinema-info');
+    cinemaOverlayBottom.classList.remove('has-cast');
 
     if (customTextContainer && data.custom_text !== undefined) {
         customTextContainer.style.display = 'flex';
@@ -131,6 +151,12 @@ socket.on('set_default_poster', function(data) {
 
 socket.on('settings_updated', function(data) {
     console.log('Settings updated:', data);
+
+    if (data.features && data.features.poster_cinema_overlay !== undefined) {
+        window.settings.features.poster_cinema_overlay = data.features.poster_cinema_overlay;
+        updateCinemaOverlays();
+    }
+
     if (data.timezone !== configuredTimezone) {
         console.log('Timezone changed from', configuredTimezone, 'to', data.timezone);
         configuredTimezone = data.timezone;
@@ -171,6 +197,7 @@ socket.on('settings_updated', function(data) {
         if (posterImage) {
             posterImage.style.maxHeight = '100vh';
         }
+        updateCinemaOverlays();
     }
 });
 
@@ -190,6 +217,14 @@ socket.on('update_screensaver', function(data) {
 
     const currentSrc = posterImage.src;
 
+    movieDirectors = data.directors || [];
+    movieDescription = data.description || null;
+    movieTagline = data.tagline || null;
+    movieActors = data.actors || [];
+    screensaverContentRating = data.contentRating || null;
+    screensaverVideoFormat = data.videoFormat || null;
+    screensaverAudioFormat = data.audioFormat || null;
+
     function handleImageLoad() {
         console.log('New poster loaded successfully');
         posterImage.style.opacity = '1';
@@ -202,6 +237,8 @@ socket.on('update_screensaver', function(data) {
         movieDuration = 0;
         startTime = null;
         clearInterval(playbackInterval);
+
+        updateCinemaOverlays();
     }
 
     function handleImageError() {
@@ -283,6 +320,59 @@ function updatePosterDisplay() {
     }
 }
 
+function getDisplayTagline() {
+    return movieTagline || '';
+}
+
+function updateCinemaOverlays() {
+    if (!cinemaOverlayTop || !cinemaOverlayBottom) return;
+
+    var overlayEnabled = window.settings?.features?.poster_cinema_overlay !== false;
+    var isInScreensaver = posterContainer.classList.contains('screensaver');
+    var displayTagline = getDisplayTagline();
+    var hasData = (movieDirectors && movieDirectors.length > 0) || displayTagline;
+    var shouldShow = overlayEnabled && isInScreensaver && hasData;
+
+    if (shouldShow) {
+        posterContainer.classList.add('cinema-info');
+
+        if (movieDirectors && movieDirectors.length > 0) {
+            directorText.textContent = 'A FILM BY ' + movieDirectors[0].toUpperCase();
+        } else {
+            directorText.textContent = '';
+        }
+
+        taglineText.textContent = displayTagline;
+
+        var hasCast = movieActors && movieActors.length > 0;
+        if (hasCast && cinemaCast) {
+            cinemaCast.textContent = movieActors.slice(0, 5).join('  \u2022  ').toUpperCase();
+            cinemaOverlayBottom.classList.add('has-cast');
+        } else if (cinemaCast) {
+            cinemaCast.textContent = '';
+            cinemaOverlayBottom.classList.remove('has-cast');
+        }
+
+        if (cinemaTechInfo) {
+            var techParts = [];
+            var vf = screensaverVideoFormat || movieVideoFormat;
+            var af = screensaverAudioFormat || movieAudioFormat;
+            var cr = screensaverContentRating || movieContentRating;
+            if (vf) techParts.push(vf);
+            if (af) techParts.push(af);
+            if (cr) techParts.push(cr);
+            cinemaTechInfo.textContent = techParts.length > 0 ? techParts.join('  \u2022  ') : '';
+        }
+    } else {
+        posterContainer.classList.remove('cinema-info');
+        cinemaOverlayBottom.classList.remove('has-cast');
+        directorText.textContent = '';
+        taglineText.textContent = '';
+        if (cinemaCast) cinemaCast.textContent = '';
+        if (cinemaTechInfo) cinemaTechInfo.textContent = '';
+    }
+}
+
 function adjustCustomText() {
     if (isScreensaverMode || !customTextContainer || !customText) return;
     
@@ -306,7 +396,12 @@ function updatePoster(movieData) {
     movieContentRating = movieData.movie.contentRating || null;
     movieVideoFormat = movieData.movie.videoFormat || null;
     movieAudioFormat = movieData.movie.audioFormat || null;
-    
+    movieDirectors = movieData.movie.directors || [];
+    movieDescription = movieData.movie.description || null;
+    movieTagline = movieData.movie.tagline || null;
+
+    posterContainer.classList.remove('cinema-info');
+
     if (!isScreensaverMode) {
         startTime = movieData.start_time;
         sessionType = movieData.session_type || 'NEW';
@@ -331,6 +426,13 @@ function clearMovieInfo() {
     movieId = null;
     movieDuration = 0;
     currentPlaybackPositionSeconds = 0;
+    movieDirectors = [];
+    movieDescription = null;
+    movieTagline = null;
+    movieActors = [];
+    screensaverContentRating = null;
+    screensaverVideoFormat = null;
+    screensaverAudioFormat = null;
     if (rotatingInfoItemElement) rotatingInfoItemElement.innerHTML = '';
     clearInterval(infoRotationInterval);
     infoItems.length = 0;
@@ -339,6 +441,7 @@ function clearMovieInfo() {
     progressBar.style.width = '0%';
     clearInterval(playbackInterval);
     startTime = null;
+    posterContainer.classList.remove('cinema-info');
 }
 
 function updateProgress(position) {
@@ -534,6 +637,7 @@ function initialize() {
         if (rotatingInfoItemElement) rotatingInfoItemElement.innerHTML = '';
         clearInterval(infoRotationInterval);
         if (customTextContainer) customTextContainer.style.display = 'none';
+        updateCinemaOverlays();
     } else if (isDefaultPoster) {
         posterContainer.classList.add('default-poster');
         posterContainer.classList.remove('screensaver');
@@ -595,16 +699,31 @@ function setupInfoRotation() {
     }
 
     currentInfoIndex = 0;
+    var isFirstDisplay = true;
 
     function displayNextInfo() {
         if (infoItems.length === 0) {
             rotatingInfoItemElement.innerHTML = '';
             return;
         }
-        const item = infoItems[currentInfoIndex];
-        const value = typeof item.valueGetter === 'function' ? item.valueGetter() : item.value;
-        rotatingInfoItemElement.innerHTML = `<span class="info-label">${item.label}</span><span class="info-value">${value}</span>`;
-        currentInfoIndex = (currentInfoIndex + 1) % infoItems.length;
+
+        function renderItem() {
+            var item = infoItems[currentInfoIndex];
+            var value = typeof item.valueGetter === 'function' ? item.valueGetter() : item.value;
+            rotatingInfoItemElement.innerHTML = '<span class="info-label">' + item.label + '</span><span class="info-value">' + value + '</span>';
+            currentInfoIndex = (currentInfoIndex + 1) % infoItems.length;
+        }
+
+        if (isFirstDisplay) {
+            renderItem();
+            isFirstDisplay = false;
+        } else {
+            rotatingInfoItemElement.style.opacity = '0';
+            setTimeout(function() {
+                renderItem();
+                rotatingInfoItemElement.style.opacity = '1';
+            }, 500);
+        }
     }
 
     displayNextInfo();

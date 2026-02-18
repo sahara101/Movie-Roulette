@@ -318,7 +318,8 @@ def poster():
                                 custom_text=custom_text,
                                 features={
                                     'poster_mode': 'default',  
-                                    'screensaver_interval': features.get('screensaver_interval', 300)
+                                    'screensaver_interval': features.get('screensaver_interval', 300),
+                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                 })
 
         if not active_movie_found:
@@ -374,7 +375,8 @@ def poster():
                                         custom_text=custom_text,
                                         features={
                                             'poster_mode': 'default',  
-                                            'screensaver_interval': features.get('screensaver_interval', 300)
+                                            'screensaver_interval': features.get('screensaver_interval', 300),
+                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                         })
 
         current_poster = default_poster_manager.get_current_poster()
@@ -416,9 +418,17 @@ def poster():
                                         current_poster=proxy_url,
                                         movie=None,
                                         custom_text=custom_text,
+                                        initial_directors=random_movie.get('directors', []),
+                                        initial_description=random_movie.get('description') or None,
+                                        initial_tagline=random_movie.get('tagline') or None,
+                                        initial_actors=random_movie.get('actors', [])[:5],
+                                        initial_content_rating=random_movie.get('contentRating') or None,
+                                        initial_video_format=random_movie.get('videoFormat') or None,
+                                        initial_audio_format=random_movie.get('audioFormat') or None,
                                         features={
                                             'poster_mode': 'screensaver',
-                                            'screensaver_interval': features.get('screensaver_interval', 300)
+                                            'screensaver_interval': features.get('screensaver_interval', 300),
+                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                         })
                 else:
                     logger.warning("Failed to get random movie for screensaver")
@@ -431,7 +441,8 @@ def poster():
                                 custom_text=custom_text,
                                 features={
                                     'poster_mode': features.get('poster_mode', 'default'),
-                                    'screensaver_interval': features.get('screensaver_interval', 300)
+                                    'screensaver_interval': features.get('screensaver_interval', 300),
+                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                 })
 
         logger.info("Fallback to default poster")
@@ -441,7 +452,8 @@ def poster():
                             custom_text=custom_text,
                             features={
                                 'poster_mode': features.get('poster_mode', 'default'),
-                                'screensaver_interval': features.get('screensaver_interval', 300)
+                                'screensaver_interval': features.get('screensaver_interval', 300),
+                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                             })
 
     except Exception as e:
@@ -452,7 +464,8 @@ def poster():
                             custom_text="Error loading poster",
                             features={
                                 'poster_mode': 'default',
-                                'screensaver_interval': 300
+                                'screensaver_interval': 300,
+                                'poster_cinema_overlay': True
                             })
 
 @poster_bp.route('/current_poster')

@@ -8,6 +8,9 @@
     --total-info-height-portrait: calc(var(--info-height-top-portrait) + var(--info-height-bottom-portrait));
     --viewport-height: 100vh;
     --safe-height: 100vh;
+    --cinema-overlay-padding: clamp(15px, 3vh, 50px);
+    --director-font-size: clamp(0.9rem, 2vh, 2.5rem);
+    --description-font-size: clamp(0.8rem, 1.6vh, 1.8rem);
 }
 
 body, html {
@@ -16,7 +19,7 @@ body, html {
     height: 100vh;
     background-color: #000;
     color: #FFD700;
-    font-family: Arial, sans-serif;
+    font-family: 'Montserrat', Arial, sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -84,7 +87,7 @@ body, html {
 
 .progress-container {
     width: 100%;
-    background-color: #333;
+    background-color: rgba(255, 255, 255, 0.1);
     height: 5px;
     z-index: 2;
 }
@@ -127,6 +130,7 @@ body, html {
 .info-item-rotating {
     text-align: center;
     margin: 0 20px;
+    transition: opacity 0.5s ease;
 }
 
 .info-label {
@@ -162,7 +166,120 @@ body, html {
     margin: 0;
 }
 
-/* Special Modes */
+/* ==========================================================================
+   Cinema Overlays (Director / Description) — Three-Zone Layout
+   Zone 1: .cinema-overlay-top  → pinned to top via order: -1
+   Zone 2: .poster-image        → fills center via flex: 1
+   Zone 3: .cinema-overlay-bottom → pinned to bottom via order: 1
+   ========================================================================== */
+
+.cinema-overlay {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    z-index: 2;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.cinema-overlay-top {
+    padding: var(--cinema-overlay-padding) 0;
+}
+
+.cinema-overlay-bottom {
+    padding: var(--cinema-overlay-padding) clamp(20px, 5vw, 80px);
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.cinema-overlay-bottom.has-cast {
+    justify-content: space-around;
+}
+
+.cinema-overlay-bottom:not(.has-cast) {
+    justify-content: center;
+}
+
+.director-text {
+    color: #fff;
+    font-weight: 300;
+    font-size: var(--director-font-size);
+    letter-spacing: clamp(0.15em, 0.4vw, 0.35em);
+    text-transform: uppercase;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+
+.tagline-text {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 300;
+    font-style: italic;
+    font-size: var(--description-font-size);
+    letter-spacing: 0.05em;
+    line-height: 1.6;
+    margin: 0;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    max-width: 80%;
+    text-align: center;
+}
+
+.cast-text {
+    display: none;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 300;
+    font-size: clamp(0.6rem, 1vw, 1.2rem);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    text-align: center;
+    max-width: 90%;
+}
+
+.tech-text {
+    display: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 300;
+    font-size: clamp(0.5rem, 0.8vw, 1rem);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.poster-container.cinema-info .cast-text,
+.poster-container.cinema-info .tech-text {
+    display: block;
+}
+
+/* Cinema-info mode: activate three-zone layout via flex order */
+.poster-container.cinema-info .cinema-overlay {
+    display: flex;
+}
+
+.poster-container.cinema-info .cinema-overlay-top {
+    order: -1;
+}
+
+.poster-container.cinema-info .cinema-overlay-bottom {
+    order: 1;
+}
+
+.poster-container.cinema-info .movie-info {
+    display: none !important;
+}
+
+.poster-container.cinema-info .poster-image {
+    order: 0;
+    flex: 1;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+}
+
+/* ==========================================================================
+   Special Modes
+   ========================================================================== */
+
 /* Default Poster Mode */
 .default-poster .poster-image {
     max-height: 100vh;
@@ -178,16 +295,20 @@ body, html {
     display: flex;
 }
 
-/* Screensaver Mode */
-.screensaver .poster-image {
-    max-height: 100vh;
-    width: auto;
-    height: 100vh;
+.default-poster .cinema-overlay {
+    display: none !important;
 }
 
+/* Screensaver Mode */
 .screensaver .movie-info,
 .screensaver .custom-text-container {
     display: none;
+}
+
+.screensaver:not(.cinema-info) .poster-image {
+    max-height: 100vh;
+    width: auto;
+    height: 100vh;
 }
 
 /* Override for active movie mode */
@@ -195,9 +316,12 @@ body, html {
     display: none !important;
 }
 
-/* Media Queries */
+/* ==========================================================================
+   Media Queries
+   ========================================================================== */
+
 @media (orientation: portrait) {
-    .poster-container:not(.screensaver):not(.default-poster) .poster-image {
+    .poster-container:not(.screensaver):not(.default-poster):not(.cinema-info) .poster-image {
         height: calc(100vh - var(--total-info-height-portrait));
     }
 
@@ -249,7 +373,7 @@ body, html {
         width: 50%;
         height: 20%;
     }
-    
+
     .info-bar,
     .bottom-info {
         padding: 3px;
@@ -263,6 +387,121 @@ body, html {
         margin: 0 5px;
     }
 }
+
+/* 4K+ portrait scaling — only activates on tall displays (1vh ≈ 41px at 4095px) */
+@media (orientation: portrait) and (min-height: 2000px) {
+    :root {
+        --info-height-top: 150px;
+        --info-height-bottom: 100px;
+        --info-height-top-portrait: 130px;
+        --info-height-bottom-portrait: 90px;
+        --cinema-overlay-padding: clamp(15px, 1.2vh, 50px);
+        --director-font-size: clamp(2rem, 3vw, 4.5rem);
+        --description-font-size: clamp(1.2rem, 1.8vw, 2.5rem);
+    }
+
+    /* Labels: yellow, Values: white */
+    .time-label,
+    .info-label {
+        font-size: clamp(0.8em, 1.4vh, 4rem);
+        color: #FFD700;
+        font-weight: 500;
+	letter-spacing: 0.5em;
+        opacity: 0.7;
+        text-transform: uppercase;
+    }
+
+    .info-label {
+        letter-spacing: 0.5em;
+    }
+
+    .time,
+    .info-value {
+        font-size: clamp(1.2em, 2.1vh, 5rem);
+        color: #fff;
+        font-weight: 700;
+    }
+
+    .playback-status {
+        font-size: clamp(1.5em, 2.7vh, 7rem);
+    }
+
+    .progress-container {
+        height: clamp(6px, 1vh, 15px);
+        width: 100%;
+    }
+
+    /* Playing mode: poster at full width with 2:3 height (100vw × 1.5),
+       info bars expand to fill the remaining vertical space */
+    .poster-container:not(.screensaver):not(.default-poster):not(.cinema-info) .poster-image {
+        width: 100%;
+        height: calc(100vw * 1.5);
+        max-height: none;
+        flex: 0 0 auto;
+    }
+
+    .poster-container:not(.screensaver):not(.default-poster):not(.cinema-info) .info-bar,
+    .poster-container:not(.screensaver):not(.default-poster):not(.cinema-info) .bottom-info {
+        flex: 1 0 auto;
+    }
+
+    /* All modes: poster fills full width on 4K */
+    .screensaver:not(.cinema-info) .poster-image,
+    .default-poster .poster-image {
+        width: 100%;
+    }
+
+    /* Cinema-info (screensaver): same 2:3 poster, overlays fill the rest.
+       Top = 40% of remaining space (director name), Bottom = 60% (tagline + cast + tech).
+       Poster sits higher, giving the info footer comfortable breathing room. */
+    .poster-container.cinema-info .poster-image {
+        height: calc(100vw * 1.5);
+        flex: 0 0 auto;
+    }
+
+    .poster-container.cinema-info .cinema-overlay-top {
+        flex: 2 0 0;
+    }
+
+    .poster-container.cinema-info .cinema-overlay-bottom {
+        flex: 3 0 0;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(8px, 1.2vh, 30px);
+        padding-top: clamp(15px, 2vh, 50px);
+        padding-bottom: clamp(10px, 1.5vh, 40px);
+    }
+
+    /* Bottom info typography */
+    .info-item-rotating {
+        line-height: 1.6;
+    }
+
+    .director-text {
+        font-weight: 300;
+        letter-spacing: 0.6em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 95%;
+    }
+
+    .tagline-text {
+        line-height: 1.8;
+        letter-spacing: 0.08em;
+    }
+
+    .cast-text {
+        font-size: clamp(1rem, 1.4vw, 2rem);
+        letter-spacing: 0.3em;
+    }
+
+    .tech-text {
+        font-size: clamp(0.8rem, 1.1vw, 1.5rem);
+        letter-spacing: 0.4em;
+    }
+}
+
 @media screen and (max-width: 768px) {
     .poster-container {
         min-height: var(--safe-height);
@@ -291,7 +530,7 @@ body, html {
         }
 
         .default-poster .poster-image,
-        .screensaver .poster-image {
+        .screensaver:not(.cinema-info) .poster-image {
             height: 100vh !important;
             height: 100dvh !important;
             max-height: 100dvh !important;
@@ -307,7 +546,7 @@ body, html {
 
     /* Handle orientation changes */
     @media screen and (orientation: portrait) {
-        .poster-container:not(.default-poster):not(.screensaver) .poster-image {
+        .poster-container:not(.default-poster):not(.screensaver):not(.cinema-info) .poster-image {
             max-height: calc(100vh - var(--total-info-height-portrait));
         }
     }

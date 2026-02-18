@@ -435,7 +435,7 @@ class EmbyService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear',
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,MediaSources,MediaStreams,ProductionYear,Taglines',
                 'IsPlayed': 'false'
             }
 
@@ -572,6 +572,7 @@ class EmbyService:
             "duration_hours": hours,
             "duration_minutes": minutes,
             "description": movie.get('Overview', ''),
+            "tagline": (movie.get('Taglines') or [''])[0],
             "genres": movie.get('Genres', []),
             "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={self.api_key}",
             "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={self.api_key}" if movie.get('BackdropImageTags') else None,
@@ -595,7 +596,7 @@ class EmbyService:
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SortBy': 'Random',
-                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
+                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear,Taglines',
             }
 
             if not get_all:
@@ -870,7 +871,7 @@ class EmbyService:
                     for movie_info in all_movies:
                         if str(movie_info.get('tmdb_id')) == str(movie_id):
                             emby_id = movie_info.get('emby_id')
-                            logger.info(f"Found matching Emby ID {emby_id} for TMDB ID {movie_id}. Refetching.")
+                            logger.info(f"Resolved TMDB ID {movie_id} to Emby ID {emby_id} via cache")
                             movie_url = f"{self.server_url}/Users/{self.user_id}/Items/{emby_id}"
                             response = requests.get(movie_url, headers=self.headers, params=params)
                             response.raise_for_status()
@@ -940,7 +941,7 @@ class EmbyService:
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SearchTerm': query,
-                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
+                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear,Taglines',
                 'Limit': 20 
             }
             response = requests.get(search_url, headers=self.headers, params=params)

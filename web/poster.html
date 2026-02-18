@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Now Playing</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style/poster.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         const defaultPosterUrl = "{{ url_for('static', filename='images/default_poster.png') }}";
@@ -13,12 +14,20 @@
         let movieContentRating = {{ movie.contentRating | tojson if movie and movie.contentRating else 'null' }};
         let movieVideoFormat = {{ movie.videoFormat | tojson if movie and movie.videoFormat else 'null' }};
         let movieAudioFormat = {{ movie.audioFormat | tojson if movie and movie.audioFormat else 'null' }};
+        let movieDirectors = {{ (movie.directors if movie and movie.directors else initial_directors|default([])) | tojson }};
+        let movieDescription = {{ (movie.description if movie and movie.description else initial_description|default(none)) | tojson }};
+        let movieTagline = {{ (initial_tagline|default(none)) | tojson }};
+        let movieActors = {{ (movie.actors if movie and movie.actors else initial_actors|default([])) | tojson }};
+        let screensaverContentRating = {{ (initial_content_rating|default(none)) | tojson }};
+        let screensaverVideoFormat = {{ (initial_video_format|default(none)) | tojson }};
+        let screensaverAudioFormat = {{ (initial_audio_format|default(none)) | tojson }};
         let isDefaultPoster = {{ 'true' if current_poster == url_for('static', filename='images/default_poster.png') else 'false' }};
         const startTimeFromServer = {{ start_time | tojson if start_time else 'null' }};
         window.settings = {
             features: {
                 poster_mode: {{ features.poster_mode | tojson }},
-                screensaver_interval: {{ features.screensaver_interval | tojson }}
+                screensaver_interval: {{ features.screensaver_interval | tojson }},
+                poster_cinema_overlay: {{ features.poster_cinema_overlay | default(true) | tojson }}
             }
         };
     </script>
@@ -47,6 +56,15 @@
             <div class="custom-text" id="custom-text">{{ custom_text | safe }}</div>
         </div>
         
+        <div class="cinema-overlay cinema-overlay-top" id="cinemaOverlayTop">
+            <span class="director-text" id="directorText"></span>
+        </div>
+        <div class="cinema-overlay cinema-overlay-bottom" id="cinemaOverlayBottom">
+            <p class="tagline-text" id="taglineText"></p>
+            <span class="cast-text" id="cinemaCast"></span>
+            <span class="tech-text" id="cinemaTechInfo"></span>
+        </div>
+
         <div class="bottom-info movie-info" id="bottomInfoContainer">
             <div class="info-item-rotating" id="rotatingInfoItem">
                 <!-- Content will be injected by JavaScript -->

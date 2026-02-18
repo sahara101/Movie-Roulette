@@ -89,6 +89,7 @@ EMBY_SETTINGS = {}
 HOMEPAGE_MODE = False
 USE_LINKS = True
 USE_FILTER = True
+USE_GRID_VIEW = True
 USE_WATCH_BUTTON = True
 USE_NEXT_BUTTON = True
 PLEX_AVAILABLE = False
@@ -111,8 +112,8 @@ def load_settings():
     """Load all settings and update global variables"""
     global FEATURE_SETTINGS, CLIENT_SETTINGS, APPLE_TV_SETTINGS
     global PLEX_SETTINGS, JELLYFIN_SETTINGS, EMBY_SETTINGS
-    global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_WATCH_BUTTON, USE_NEXT_BUTTON, ENABLE_MOVIE_LOGOS
-    global PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE, MOBILE_TRUNCATION 
+    global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_GRID_VIEW, USE_WATCH_BUTTON, USE_NEXT_BUTTON, ENABLE_MOVIE_LOGOS
+    global PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE, MOBILE_TRUNCATION
 
     FEATURE_SETTINGS = settings.get('features', {})
     CLIENT_SETTINGS = settings.get('clients', {})
@@ -124,6 +125,7 @@ def load_settings():
     HOMEPAGE_MODE = FEATURE_SETTINGS.get('homepage_mode', False)
     USE_LINKS = FEATURE_SETTINGS.get('use_links', True)
     USE_FILTER = FEATURE_SETTINGS.get('use_filter', True)
+    USE_GRID_VIEW = FEATURE_SETTINGS.get('use_grid_view', True)
     USE_WATCH_BUTTON = FEATURE_SETTINGS.get('use_watch_button', True)
     USE_NEXT_BUTTON = FEATURE_SETTINGS.get('use_next_button', True)
     MOBILE_TRUNCATION = FEATURE_SETTINGS.get('mobile_truncation', False)
@@ -166,7 +168,7 @@ def initialize_services():
     """Initialize or reinitialize media services based on current settings"""
     global plex, jellyfin, emby, PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE
     global cache_manager, global_cache_manager
-    global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_WATCH_BUTTON, USE_NEXT_BUTTON
+    global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_GRID_VIEW, USE_WATCH_BUTTON, USE_NEXT_BUTTON
 
     load_settings()
 
@@ -985,7 +987,7 @@ def get_movie_details(movie_id):
 load_settings()
 
 from routes.overseerr_routes import overseerr_bp
-from utils.trakt_service import get_local_watched_movies, sync_watched_status, get_movie_ratings, get_trakt_rating, get_current_user_id
+from utils.trakt_service import get_local_watched_movies, sync_watched_status, get_movie_ratings, get_trakt_rating, get_current_user_id, get_watched_movies
 
 app.register_blueprint(overseerr_bp)
 app.register_blueprint(settings_bp)
@@ -1087,6 +1089,7 @@ def index():
         homepage_mode=HOMEPAGE_MODE,
         use_links=USE_LINKS,
         use_filter=USE_FILTER,
+        use_grid_view=USE_GRID_VIEW,
         use_watch_button=USE_WATCH_BUTTON,
         use_next_button=USE_NEXT_BUTTON,
         mobile_truncation=MOBILE_TRUNCATION,
@@ -3039,23 +3042,9 @@ def get_person_details_with_external_ids(person_id):
 
 @app.route('/api/movie_details/<movie_id>')
 def movie_details(movie_id):
-    """Get movie details using centralized TMDB service"""
+    """Get movie details using centralized TMDB service - movie_id is always a TMDB ID"""
     try:
         from utils.tmdb_service import tmdb_service
-        
-        current_service = session.get('current_service', get_available_service())
-        service_instance = g.media_service
-        movie_data_from_service = None
-
-        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
-            movie_data_from_service = service_instance.get_movie_by_id(movie_id)
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
-            movie_data_from_service = service_instance.get_movie_by_id(movie_id)
-        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
-            movie_data_from_service = service_instance.get_movie_by_id(movie_id)
-
-        if movie_data_from_service and 'tmdb_id' in movie_data_from_service:
-            movie_id = movie_data_from_service['tmdb_id']
 
         movie_data = tmdb_service.get_movie_details(movie_id)
         if not movie_data:
@@ -3256,33 +3245,27 @@ def search_movies():
 
         if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
             try:
-                hub_search_results = []
+                library_search_results = []
                 unique_movie_ids = set()
 
                 plex_search_instance = service_instance._get_user_plex_instance()
-                
-                logger.debug(f"Performing Plex Hub Search for query '{query}' using perspective of service_instance (user: {service_instance.username or 'N/A'}).")
 
-                try:
-                    hubs = plex_search_instance.search(query, mediatype='movie', limit=50) 
-                    logger.debug(f"Hub search returned {len(hubs)} items directly.")
-                    hub_search_results = [item for item in hubs if item.type == 'movie']
-                except AttributeError:
-                     logger.warning("plex_search_instance.search failed, trying plex_search_instance.library.hubSearch")
-                     hubs = plex_search_instance.library.hubSearch(query, libtype='movie', limit=50)
-                     logger.debug(f"Hub search returned {len(hubs)} hubs.")
-                     for hub in hubs:
-                         if hasattr(hub, 'items'):
-                             for item in hub.items:
-                                 if item.type == 'movie' and item.ratingKey not in unique_movie_ids:
-                                     unique_movie_ids.add(item.ratingKey)
-                                     hub_search_results.append(item)
-                         elif hub.type == 'movie' and hub.ratingKey not in unique_movie_ids: 
-                              unique_movie_ids.add(hub.ratingKey)
-                              hub_search_results.append(hub)
-                
-                logger.info(f"Found {len(hub_search_results)} unique movies via Hub Search for query: {query}")
-                results = [service_instance.get_movie_data(movie) for movie in hub_search_results]
+                logger.debug(f"Performing Plex library search for query '{query}' using perspective of service_instance (user: {service_instance.username or 'N/A'}).")
+
+                for library_name in service_instance.library_names:
+                    try:
+                        library = plex_search_instance.library.section(library_name.strip())
+                        library_results = library.search(title=query, libtype='movie', limit=50)
+                        for item in library_results:
+                            if item.ratingKey not in unique_movie_ids:
+                                unique_movie_ids.add(item.ratingKey)
+                                library_search_results.append(item)
+                    except Exception as lib_err:
+                        logger.warning(f"Error searching library '{library_name}': {lib_err}")
+                        continue
+
+                logger.info(f"Found {len(library_search_results)} unique movies via library search for query: {query}")
+                results = [service_instance.get_movie_data(movie) for movie in library_search_results]
 
             except Exception as search_error:
                 logger.error(f"Plex search failed: {search_error}", exc_info=True)
@@ -3422,6 +3405,33 @@ def get_collections():
     socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id)
     
     return jsonify({"status": "building_cache"}), 202
+
+@app.route('/api/collections/trakt_watched', methods=['POST'])
+@auth_manager.require_auth
+def get_collections_trakt_watched():
+    """Get live Trakt watched status for collection movies via direct API call"""
+    user = g.user if hasattr(g, 'user') else None
+    user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
+
+    from utils.trakt_service import is_trakt_enabled_for_user
+
+    if not is_trakt_enabled_for_user(user_id):
+        return jsonify({'enabled': False, 'watched_tmdb_ids': []})
+
+    try:
+        tmdb_ids_filter = set()
+        if request.json and 'tmdb_ids' in request.json:
+            tmdb_ids_filter = {int(tid) for tid in request.json['tmdb_ids']}
+
+        watched_tmdb_ids = get_watched_movies(user_id)
+
+        if tmdb_ids_filter:
+            watched_tmdb_ids = [tid for tid in watched_tmdb_ids if tid in tmdb_ids_filter]
+
+        return jsonify({'enabled': True, 'watched_tmdb_ids': watched_tmdb_ids})
+    except Exception as e:
+        logger.error(f"Error fetching live Trakt watched status: {e}")
+        return jsonify({'enabled': False, 'watched_tmdb_ids': []}), 500
 
 @app.route('/api/collections/build_cache', methods=['POST'])
 @auth_manager.require_auth
@@ -3604,9 +3614,10 @@ def schedule_cache_updates():
             logger.info("Scheduler job finished.")
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(job, 'interval', hours=12)
+    first_run = datetime.now() + timedelta(minutes=5)
+    scheduler.add_job(job, 'interval', hours=12, next_run_time=first_run)
     scheduler.start()
-    logger.info("Cache update scheduler started, will run every 12 hours.")
+    logger.info(f"Cache update scheduler started, first run at {first_run.strftime('%H:%M:%S')}, then every 12 hours.")
 
 def cleanup_services():
     if JELLYFIN_AVAILABLE and jellyfin:

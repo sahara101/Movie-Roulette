@@ -50,6 +50,7 @@
         <section id="section">
             {% if not homepage_mode and use_filter %}
             <div class="filter-container">
+		{% if use_grid_view %}
 		<a href="/grid_view" class="grid-view-button" aria-label="Grid View">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="3" width="7" height="7"></rect>
@@ -58,6 +59,7 @@
                         <rect x="14" y="14" width="7" height="7"></rect>
                     </svg>
                 </a>
+		{% endif %}
                 <button id="filterButton" class="filter-button" aria-label="Filter">
                     <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>

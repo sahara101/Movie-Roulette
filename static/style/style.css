@@ -2779,7 +2779,7 @@ body.homepage-mode #description.truncated::after {
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     border-radius: 5px;
     transition: transform 0.3s ease;
 }
@@ -3021,6 +3021,11 @@ body.homepage-mode #description.truncated::after {
 
 #collection_modal .status-not-in-library {
     background-color: #c0392b;
+    color: white;
+}
+
+#collection_modal .movie-item .status-watched {
+    background-color: #1a1a1a;
     color: white;
 }
 

@@ -1571,7 +1571,28 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     const modalContainer = document.getElementById('collection_modal');
     const infoContainer = document.getElementById('collection_info_container');
 
-    const requestServiceStatus = await checkRequestServiceAvailability();
+    const allMovieIds = [
+        ...unwatchedMovies.map(m => m.id),
+        ...(otherMovies ? otherMovies.map(m => m.id) : [])
+    ];
+
+    const [requestServiceStatus, traktData] = await Promise.all([
+        checkRequestServiceAvailability(),
+        fetchTraktWatchedStatus(allMovieIds)
+    ]);
+
+    if (traktData.enabled) {
+        const watchedSet = new Set(traktData.watched_tmdb_ids);
+        unwatchedMovies.forEach(movie => {
+            movie.is_watched_on_trakt = watchedSet.has(movie.id);
+        });
+        if (otherMovies) {
+            otherMovies.forEach(movie => {
+                movie.is_watched_on_trakt = watchedSet.has(movie.id);
+            });
+        }
+    }
+
     const isRequestServiceAvailable = requestServiceStatus.available;
 
     let requestServiceName = "";
@@ -1619,9 +1640,11 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                 ${unwatchedMovies.map(movie => {
                     const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
                     const statusClass = movie.in_library ? 'status-in-library' :
-                                      (movie.is_requested ? 'status-requested' : 'status-not-in-library');
+                                      (movie.is_watched_on_trakt ? 'status-watched' :
+                                      (movie.is_requested ? 'status-requested' : 'status-not-in-library'));
                     const statusText = movie.in_library ? 'In library' :
-                                     (movie.is_requested ? 'Requested' : 'Not in library');
+                                     (movie.is_watched_on_trakt ? 'Watched on Trakt' :
+                                     (movie.is_requested ? 'Requested' : 'Not in library'));
                     const requestIconHTML = createRequestIcon(movie);
                     const movieTitleHTML = !movie.in_library ?
                         `<a href="https://www.themoviedb.org/movie/${movie.id}" target="_blank" rel="noopener noreferrer" class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></a>` :
@@ -1645,9 +1668,11 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                     ${otherMovies.map(movie => {
                         const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
                         const statusClass = movie.in_library ? 'status-in-library' :
-                                          (movie.is_requested ? 'status-requested' : 'status-not-in-library');
+                                          (movie.is_watched_on_trakt ? 'status-watched' :
+                                          (movie.is_requested ? 'status-requested' : 'status-not-in-library'));
                         const statusText = movie.in_library ? 'In library' :
-                                         (movie.is_requested ? 'Requested' : 'Not in library');
+                                         (movie.is_watched_on_trakt ? 'Watched on Trakt' :
+                                         (movie.is_requested ? 'Requested' : 'Not in library'));
                         const requestIconHTML = createRequestIcon(movie);
                         const movieTitleHTML = !movie.in_library ?
                             `<a href="https://www.themoviedb.org/movie/${movie.id}" target="_blank" rel="noopener noreferrer" class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></a>` :
@@ -1744,6 +1769,26 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     document.getElementById('collection_modal_close').addEventListener('click', () => {
         modalContainer.classList.add('hidden');
     });
+}
+
+async function fetchTraktWatchedStatus(tmdbIds) {
+    try {
+        const response = await fetch('/api/collections/trakt_watched', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ tmdb_ids: tmdbIds }),
+            credentials: 'include'
+        });
+        if (!response.ok) {
+            return { enabled: false, watched_tmdb_ids: [] };
+        }
+        return await response.json();
+    } catch (error) {
+        return { enabled: false, watched_tmdb_ids: [] };
+    }
 }
 
 async function requestPreviousMovies(movies) {

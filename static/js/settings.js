@@ -104,6 +104,10 @@ document.addEventListener('DOMContentLoaded', function() {
             	value = value.split(',').map(item => item.trim()).filter(Boolean);
             }
 
+            if (key === 'features.poster_cinema_overlay') {
+            	value = value === 'true';
+            }
+
             const category = key.split('.')[0];
             const updateData = {};
             const keyParts = key.split('.');
@@ -639,7 +643,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const optionElement = document.createElement('option');
                     optionElement.value = option.value;
                     optionElement.textContent = option.label;
-                    if (option.value === value) {
+                    if (String(option.value) === String(value)) {
                     	optionElement.selected = true;
                     }
                     select.appendChild(optionElement);
@@ -922,6 +926,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     fields: [
                         { key: 'features.use_links', label: 'Enable Links', type: 'switch', description: "Show external links (e.g., IMDb, TMDB) buttons." },
                         { key: 'features.use_filter', label: 'Enable Filters', type: 'switch', description: "Show filter button." },
+                        { key: 'features.use_grid_view', label: 'Enable Grid View', type: 'switch', description: "Show grid view button for filtered movie browsing." },
                         { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch', description: "Display a 'Watch Now' button to directly play movies (if supported by the client)." },
                         { key: 'features.use_next_button', label: 'Enable Next Button', type: 'switch', description: "Show a 'Next Movie' button to quickly get another random movie." },
 			{ key: 'features.mobile_truncation', label: 'Enable Mobile Description Truncation', type: 'switch', description: "Shorten long movie descriptions on mobile devices for better readability." },
@@ -958,6 +963,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 		{ value: 'screensaver', label: 'Movie Poster Screensaver' }
             		    ],
             		    description: 'Choose between showing a static default poster or cycling through your movie posters'
+        		},
+        		{
+            		    key: 'features.poster_cinema_overlay',
+            		    label: 'Screensaver Movie Details',
+            		    type: 'select',
+            		    options: [
+                		{ value: 'true', label: 'Enabled' },
+                		{ value: 'false', label: 'Disabled' }
+            		    ],
+            		    description: 'Show director, tagline, cast and technical info around the poster in screensaver mode'
         		},
         		{
             		    key: 'features.screensaver_interval',

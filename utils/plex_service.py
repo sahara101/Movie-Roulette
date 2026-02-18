@@ -469,7 +469,17 @@ class PlexService:
             movie_duration_hours = (duration_ms / (1000 * 60 * 60)) % 24
             movie_duration_minutes = (duration_ms / (1000 * 60)) % 60
 
-            tmdb_id = self._get_guid_tmdb_id(movie.ratingKey)
+            tmdb_id = None
+            try:
+                if hasattr(movie, 'guids') and movie.guids:
+                    for guid in movie.guids:
+                        if 'tmdb://' in guid.id:
+                            tmdb_id = guid.id.split('//')[1]
+                            break
+            except Exception:
+                pass
+            if not tmdb_id:
+                tmdb_id = self._get_guid_tmdb_id(movie.ratingKey)
 
             directors = {director.tag for director in movie.directors} if hasattr(movie, 'directors') else set()
             writers = {writer.tag for writer in movie.writers} if hasattr(movie, 'writers') else set()
@@ -484,6 +494,7 @@ class PlexService:
                 "duration_hours": int(movie_duration_hours),
                 "duration_minutes": int(movie_duration_minutes),
                 "description": movie.summary,
+                "tagline": getattr(movie, 'tagline', '') or '',
                 "poster": movie.thumbUrl,
                 "background": movie.artUrl,
                 "contentRating": movie.contentRating,
@@ -800,7 +811,9 @@ class PlexService:
                     return {
                         'title': movie['title'], 'poster': movie['poster'],
                         'contentRating': movie.get('contentRating', ''), 'videoFormat': movie.get('videoFormat', ''),
-                        'audioFormat': movie.get('audioFormat', ''), 'year': movie.get('year', '')
+                        'audioFormat': movie.get('audioFormat', ''), 'year': movie.get('year', ''),
+                        'directors': movie.get('directors', []), 'description': movie.get('description', ''),
+                        'tagline': movie.get('tagline', ''), 'actors': movie.get('actors', [])
                     }
                 else:
                     logger.warning("Cache manager returned no ALL movies, falling back to unwatched cache if available.")
@@ -813,7 +826,9 @@ class PlexService:
                 return {
                     'title': movie['title'], 'poster': movie['poster'],
                     'contentRating': movie.get('contentRating', ''), 'videoFormat': movie.get('videoFormat', ''),
-                    'audioFormat': movie.get('audioFormat', ''), 'year': movie.get('year', '')
+                    'audioFormat': movie.get('audioFormat', ''), 'year': movie.get('year', ''),
+                    'directors': movie.get('directors', []), 'description': movie.get('description', ''),
+                    'tagline': movie.get('tagline', ''), 'actors': movie.get('actors', [])
                 }
 
             logger.warning("No movies available for screensaver (both all-movies and unwatched are empty).")

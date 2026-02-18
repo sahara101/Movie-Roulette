@@ -89,7 +89,14 @@ class DefaultPosterManager:
                         if random_movie:
                             # Emit initial movie
                             self.socketio.emit('update_screensaver', {
-                                'poster': random_movie.get('poster')
+                                'poster': random_movie.get('poster'),
+                                'directors': random_movie.get('directors', []),
+                                'description': random_movie.get('description', ''),
+                                'tagline': random_movie.get('tagline', ''),
+                                'actors': random_movie.get('actors', [])[:5],
+                                'contentRating': random_movie.get('contentRating', ''),
+                                'videoFormat': random_movie.get('videoFormat', ''),
+                                'audioFormat': random_movie.get('audioFormat', '')
                             }, namespace='/poster')
                         self.start_screensaver()
                     except Exception as e:
@@ -140,7 +147,14 @@ class DefaultPosterManager:
                 if random_movie:
                     logger.info(f"Found initial movie for screensaver: {random_movie.get('title', 'Unknown')}")
                     self.socketio.emit('update_screensaver', {
-                        'poster': random_movie.get('poster')
+                        'poster': random_movie.get('poster'),
+                        'directors': random_movie.get('directors', []),
+                        'description': random_movie.get('description', ''),
+                        'tagline': random_movie.get('tagline', ''),
+                        'actors': random_movie.get('actors', [])[:5],
+                        'contentRating': random_movie.get('contentRating', ''),
+                        'videoFormat': random_movie.get('videoFormat', ''),
+                        'audioFormat': random_movie.get('audioFormat', '')
                     }, namespace='/poster')
                     self.start_screensaver()
                 else:
@@ -199,7 +213,14 @@ class DefaultPosterManager:
                         # Only emit if we're still the current instance
                         if self.screensaver_event == current_instance:
                             self.socketio.emit('update_screensaver', {
-                                'poster': random_movie.get('poster')
+                                'poster': random_movie.get('poster'),
+                                'directors': random_movie.get('directors', []),
+                                'description': random_movie.get('description', ''),
+                                'tagline': random_movie.get('tagline', ''),
+                                'actors': random_movie.get('actors', [])[:5],
+                                'contentRating': random_movie.get('contentRating', ''),
+                                'videoFormat': random_movie.get('videoFormat', ''),
+                                'audioFormat': random_movie.get('audioFormat', '')
                             }, namespace='/poster')
                             current_time = time.strftime('%H:%M:%S')
                             logger.info(f"[{current_time}] Successfully emitted screensaver update")

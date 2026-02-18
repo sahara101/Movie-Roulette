@@ -551,6 +551,8 @@ class CollectionService:
 
             logger.info(f"Starting differential cache update for {len(collections)} collections for user {user['internal_username'] if user else 'default'}.")
 
+            if cache_manager and hasattr(cache_manager.get_all_plex_movies, 'cache_clear'):
+                cache_manager.get_all_plex_movies.cache_clear()
             all_movies = cache_manager.get_all_plex_movies() if cache_manager else []
             movie_status_map = {str(movie.get('tmdb_id')): movie for movie in all_movies}
 

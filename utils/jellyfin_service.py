@@ -142,7 +142,7 @@ class JellyfinService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating',
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines',
                 'IsPlayed': 'false'
             }
             response = requests.get(movies_url, headers=headers, params=params)
@@ -165,7 +165,7 @@ class JellyfinService:
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SortBy': 'Random',
-                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating',
+                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines',
             }
 
             if not get_all:
@@ -189,7 +189,10 @@ class JellyfinService:
 
             logger.debug(f"Jellyfin API request params: {params}")
 
-            response = requests.get(movies_url, headers=headers, params=params)
+            if get_all:
+                return self._fetch_all_movies_paginated(movies_url, headers, params, target_user_id, api_key)
+
+            response = requests.get(movies_url, headers=headers, params=params, timeout=30)
             response.raise_for_status()
             movies = response.json().get('Items', [])
 
@@ -198,15 +201,42 @@ class JellyfinService:
             if not movies:
                 logger.warning("No unwatched movies found matching the criteria")
                 return None
-            
-            if get_all:
-                return [self.get_movie_data(movie, user_id=target_user_id, api_key=api_key) for movie in movies]
 
             chosen_movie = random.choice(movies)
             return self.get_movie_data(chosen_movie, user_id=target_user_id, api_key=api_key)
         except Exception as e:
             logger.error(f"Error filtering movies: {str(e)}")
             return None
+
+    def _fetch_all_movies_paginated(self, movies_url, headers, params, user_id, api_key):
+        """Fetch all movies from Jellyfin using pagination to avoid timeouts"""
+        batch_size = 500
+        start_index = 0
+        all_items = []
+        params['SortBy'] = 'SortName'
+
+        while True:
+            params['StartIndex'] = str(start_index)
+            params['Limit'] = str(batch_size)
+
+            response = requests.get(movies_url, headers=headers, params=params, timeout=60)
+            response.raise_for_status()
+            data = response.json()
+            items = data.get('Items', [])
+            total = data.get('TotalRecordCount', 0)
+
+            all_items.extend(items)
+            logger.debug(f"Jellyfin paginated fetch: got {len(items)} items (total: {len(all_items)}/{total})")
+
+            if len(all_items) >= total or not items:
+                break
+            start_index += batch_size
+
+        if not all_items:
+            logger.warning("No movies found matching the criteria")
+            return None
+
+        return [self.get_movie_data(movie, user_id=user_id, api_key=api_key) for movie in all_items]
 
     def get_random_movies(self, count=9, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None):
         """Get a list of random movies based on criteria"""
@@ -359,6 +389,7 @@ class JellyfinService:
             "duration_hours": hours,
             "duration_minutes": minutes,
             "description": movie.get('Overview', ''),
+            "tagline": (movie.get('Taglines') or [''])[0],
             "genres": movie.get('Genres', []),
             "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={target_api_key}", 
             "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={target_api_key}" if movie.get('BackdropImageTags') else None, 
@@ -550,36 +581,58 @@ class JellyfinService:
             target_user_id, _, headers = self._get_request_details(user_id, api_key)
             item_url = f"{self.server_url}/Users/{target_user_id}/Items/{movie_id}"
             params = {
-                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating'
+                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines'
             }
             response = requests.get(item_url, headers=headers, params=params)
-            
+
             if response.status_code == 200:
                 movie = response.json()
                 return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
-            elif response.status_code == 404:
-                logger.warning(f"Movie with Jellyfin ID {movie_id} not found. Checking if it's a TMDB ID.")
+
+            if response.status_code in (400, 404):
+                logger.warning(f"Movie with ID {movie_id} not found (HTTP {response.status_code}). Checking if it's a TMDB ID.")
+
+                # Primary fallback: fast cache lookup
                 if os.path.exists(self.cache_path):
                     with open(self.cache_path, 'r') as f:
                         all_movies = json.load(f)
-                    
+
                     for movie_info in all_movies:
                         if str(movie_info.get('tmdb_id')) == str(movie_id):
                             jellyfin_id = movie_info.get('jellyfin_id')
-                            logger.info(f"Found matching Jellyfin ID {jellyfin_id} for TMDB ID {movie_id}. Refetching.")
+                            logger.info(f"Resolved TMDB ID {movie_id} to Jellyfin ID {jellyfin_id} via cache")
                             item_url = f"{self.server_url}/Users/{target_user_id}/Items/{jellyfin_id}"
                             response = requests.get(item_url, headers=headers, params=params)
                             response.raise_for_status()
                             movie = response.json()
                             return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
-                
-                response.raise_for_status()
+
+                # Secondary fallback: API search by TMDB provider ID (cache miss or not built yet)
+                logger.info(f"Cache miss for TMDB ID {movie_id}, searching Jellyfin API with AnyProviderIdEquals")
+                search_url = f"{self.server_url}/Users/{target_user_id}/Items"
+                search_params = {
+                    'IncludeItemTypes': 'Movie',
+                    'Recursive': 'true',
+                    'AnyProviderIdEquals': f'tmdb.{movie_id}',
+                    'Fields': params['Fields'],
+                    'Limit': 1
+                }
+                search_response = requests.get(search_url, headers=headers, params=search_params)
+                search_response.raise_for_status()
+                items = search_response.json().get('Items', [])
+                if items:
+                    jellyfin_id = items[0].get('Id')
+                    logger.info(f"Found matching Jellyfin ID {jellyfin_id} for TMDB ID {movie_id} via API search")
+                    return self.get_movie_data(items[0], user_id=target_user_id, api_key=api_key)
+
+                logger.warning(f"Could not resolve ID {movie_id} as either Jellyfin ID or TMDB ID")
+                return None
 
             response.raise_for_status()
             movie = response.json()
             return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
         except Exception as e:
-            logger.error(f"Error fetching movie by ID: {e}")
+            logger.error(f"Error fetching movie by ID {movie_id}: {e}")
             return None
 
     def get_current_playback(self):
@@ -715,7 +768,7 @@ class JellyfinService:
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SearchTerm': query,
-                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear',
+                'Fields': 'Overview,People,Genres,MediaSources,MediaStreams,RunTimeTicks,ProviderIds,UserData,OfficialRating,ProductionYear,Taglines',
                 'SearchFields': 'Name',
                 'EnableTotalRecordCount': True,
                 'Limit': 50,

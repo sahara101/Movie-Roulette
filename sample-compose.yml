@@ -73,6 +73,8 @@ services:
       POSTER_MODE: "default"              # Options: default, screensaver
       POSTER_DISPLAY_MODE: "first_active" # Options: first_active, preferred_user
       SCREENSAVER_INTERVAL: "300"         # Update interval in seconds
+      POSTER_CINEMA_OVERLAY: "true"       # Show director/tagline/cast overlay in screensaver
+      USE_GRID_VIEW: "true"               # Show grid view button on main page
 
       # User Monitoring Configuration
       PLEX_POSTER_USERS: "user1,user2"     # Plex users to monitor
