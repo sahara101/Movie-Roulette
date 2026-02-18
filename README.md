@@ -237,6 +237,7 @@ Movie Roulette offers two ways to configure the application:
 | `USE_FILTER` | Show filter button | TRUE | ✅ Settings |
 | `USE_WATCH_BUTTON` | Show Watch button | TRUE | ✅ Settings |
 | `USE_NEXT_BUTTON` | Show next button | TRUE | ✅ Settings |
+| `USE_GRID_VIEW` | Show grid view button on main page | true | ✅ Settings |
 | `ENABLE_MOBILE_TRUNCATION` | Choose if descriptions are truncated on mobile | FALSE | ✅ Settings |
 
 ### Request Service (Optional)
@@ -274,7 +275,6 @@ Movie Roulette offers two ways to configure the application:
 | `POSTER_DISPLAY_MODE` | When playing a movie, what to show first | first_active| ✅ Settings |
 | `SCREENSAVER_INTERVAL` | How often to update the screensaver | 300 | ✅ Settings |
 | `POSTER_CINEMA_OVERLAY` | Show director/tagline/cast overlay in screensaver | true | ✅ Settings |
-| `USE_GRID_VIEW` | Show grid view button on main page | true | ✅ Settings |
 | `PREFERRED_POSTER_USER` | Define an user that should always be visible | - | ✅ User selector |
 | `PREFERRED_POSTER_SERVICE` | To which service te above user belongs to | - | ❌ Automatic |
 > Note: `POSTER_MODE` options: `default` or `screensaver` ; 
