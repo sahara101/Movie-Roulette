@@ -31,16 +31,17 @@ services:
       EMBY_USER_ID: "your-emby-user-id"
 
       # Optional Features
-      LOGIN_BACKDROP_ENABLED: TRUE   # Show random movie backdrops on the login page.
-      HOMEPAGE_MODE: "FALSE"         # Homepage widget mode
-      TMDB_API_KEY: "your-tmdb-key"  # Custom TMDb key (optional)
-      USE_LINKS: "TRUE"              # Show links buttons
-      USE_FILTER: "TRUE"             # Show filter button
-      USE_WATCH_BUTTON: "TRUE"       # Show Watch button
-      USE_NEXT_BUTTON: "TRUE"        # Show next button
+      LOGIN_BACKDROP_ENABLED: TRUE       # Show random movie backdrops on the login page.
+      HOMEPAGE_MODE: "FALSE"             # Homepage widget mode
+      TMDB_API_KEY: "your-tmdb-key"      # Custom TMDb key (optional)
+      USE_LINKS: "TRUE"                  # Show links buttons
+      USE_FILTER: "TRUE"                 # Show filter button
+      USE_WATCH_BUTTON: "TRUE"           # Show Watch button
+      USE_NEXT_BUTTON: "TRUE"            # Show next button
+      USE_GRID_VIEW: "true"              # Show grid view button on main page
       ENABLE_MOBILE_TRUNCATION: "FALSE"  # Truncate descriptions on mobile
-      ENABLE_MOVIE_LOGOS: "TRUE"     # Show movie titles as logos
-      LOAD_MOVIE_ON_START: "FALSE"   # Adds a button to get a random movie
+      ENABLE_MOVIE_LOGOS: "TRUE"         # Show movie titles as logos
+      LOAD_MOVIE_ON_START: "FALSE"       # Adds a button to get a random movie
 
       # Request Service Configuration (Optional)
       # Service URLs and API Keys
@@ -73,8 +74,7 @@ services:
       POSTER_MODE: "default"              # Options: default, screensaver
       POSTER_DISPLAY_MODE: "first_active" # Options: first_active, preferred_user
       SCREENSAVER_INTERVAL: "300"         # Update interval in seconds
-      POSTER_CINEMA_OVERLAY: "true"       # Show director/tagline/cast overlay in screensaver
-      USE_GRID_VIEW: "true"               # Show grid view button on main page
+      POSTER_CINEMA_OVERLAY: "true"       # Show director/tagline/cast overlay in screensave
 
       # User Monitoring Configuration
       PLEX_POSTER_USERS: "user1,user2"     # Plex users to monitor
