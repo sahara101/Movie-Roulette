@@ -55,7 +55,7 @@ app.secret_key = flask_secret
 
 csrf = CSRFProtect() 
 csrf.init_app(app) 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", manage_session=False)
 init_socket(socketio)
 collection_service = CollectionService(app=app, socketio=socketio)
 
