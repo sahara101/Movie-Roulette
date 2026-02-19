@@ -9,9 +9,8 @@ import threading
 import time
 import requests
 from datetime import datetime, timedelta
-from plexapi.myplex import MyPlexPinLogin
-from plexapi.exceptions import Unauthorized 
-from plexapi.server import PlexServer 
+from plexapi.exceptions import Unauthorized
+from plexapi.server import PlexServer
 import uuid
 import pytz
 import asyncio
@@ -2635,18 +2634,26 @@ def get_plex_token():
             'X-Plex-Device': 'Web',
             'X-Plex-Device-Name': 'Movie Roulette Web Client',
             'X-Plex-Platform': 'Web',
-            'X-Plex-Platform-Version': '1.0'
+            'X-Plex-Platform-Version': '1.0',
+            'Accept': 'application/json'
         }
 
-        pin_login = MyPlexPinLogin(headers=headers)
+        response = requests.post('https://plex.tv/api/v2/pins', headers=headers)
+        if response.status_code not in (200, 201):
+            logger.error(f"Failed to get PIN from Plex: {response.status_code}")
+            return jsonify({"error": "Failed to get PIN from Plex"}), 500
 
-        _plex_pin_logins[client_id] = pin_login
+        data = response.json()
+        pin_id = data.get('id')
+        pin_code = data.get('code')
+
+        _plex_pin_logins[client_id] = {'pin_id': pin_id, 'headers': headers}
 
         logger.info("Plex auth initiated with PIN: ****")
 
         return jsonify({
             "auth_url": "https://plex.tv/link",
-            "pin": pin_login.pin,
+            "pin": pin_code,
             "client_id": client_id
         })
     except Exception as e:
@@ -2657,17 +2664,27 @@ def get_plex_token():
 @app.route('/api/plex/check_auth/<client_id>')
 def check_plex_auth(client_id):
     try:
-        pin_login = _plex_pin_logins.get(client_id)
+        pin_data = _plex_pin_logins.get(client_id)
 
-        if not pin_login:
+        if not pin_data:
             logger.warning("No PIN login instance found for this client")
             return jsonify({"token": None})
 
-        if pin_login.checkLogin():
-            token = pin_login.token
+        pin_id = pin_data['pin_id']
+        headers = pin_data['headers']
+
+        response = requests.get(f'https://plex.tv/api/v2/pins/{pin_id}', headers=headers)
+        if response.status_code != 200:
+            logger.error(f"Failed to check PIN status: {response.status_code}")
+            return jsonify({"token": None})
+
+        data = response.json()
+        auth_token = data.get('authToken')
+
+        if auth_token:
             logger.info("Successfully retrieved Plex token")
             del _plex_pin_logins[client_id]
-            return jsonify({"token": token})
+            return jsonify({"token": auth_token})
 
         return jsonify({"token": None})
 
