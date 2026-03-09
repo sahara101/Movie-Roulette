@@ -10,26 +10,25 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 
 ## Main Interface
 <div align="center">
-  <a href=".github/screenshots/main-interface.png">
-    <img src=".github/screenshots/main-interface.png" width="800" alt="Main Interface">
+  <a href=".github/screenshots/main-interface-new.png">
+    <img src=".github/screenshots/main-interface-new.png" width="800" alt="Main Interface">
   </a>
 </div>
 
 ## Additional Views
 - [Cinema Poster Mode](.github/screenshots/poster-mode.png)
-- [Collections Page](.github/screenshots/collections-page.png)
+- [Collections Page](.github/screenshots/collections-page-new.png)
+- [Collections Page Details](.github/screenshots/collections-page-details-new.png)
+- [Collections View](.github/screenshots/collections-view-new.png)
 - [Homepage Widget](.github/screenshots/homepage-mode-iframe.png)
-- [PWA on Mobile](.github/screenshots/pwa-interface-mobile.png)
-- [Login Page](.github/screenshots/login-page.png)
-- [Login Page with backdrop and Passkeys](.github/screenshots/login-page-new.png)
-- [Cache Admin](.github/screenshots/cache-admin.png)
-- [Test Theme](.github/screenshots/test-theme.png)
+- [PWA on Mobile](.github/screenshots/pwa-interface-mobile-new.png)
+- [Login Page](.github/screenshots/login-page-new.png)
 
 ## Rich Information
-- [Cast & Crew Details](.github/screenshots/cast-example.png)
-- [Movie Details](.github/screenshots/movie-details-example.png)
-- [Filmography View](.github/screenshots/filmography-example.png)
-- [Collection View](.github/screenshots/collection-view.png)
+- [Cast & Crew Details](.github/screenshots/cast-example-new.png)
+- [Movie Details](.github/screenshots/movie-details-example-new.png)
+- [Filmography View](.github/screenshots/filmography-example-new.png)
+- [Collection View](.github/screenshots/collections-view-new.png)
 
 ## Star History
 
