@@ -346,7 +346,7 @@ function updateCinemaOverlays() {
 
         var hasCast = movieActors && movieActors.length > 0;
         if (hasCast && cinemaCast) {
-            cinemaCast.textContent = movieActors.slice(0, 4).join('  \u2022  ').toUpperCase();
+            cinemaCast.textContent = movieActors.slice(0, 3).join('  \u2022  ').toUpperCase();
             cinemaOverlayBottom.classList.add('has-cast');
         } else if (cinemaCast) {
             cinemaCast.textContent = '';
