@@ -75,17 +75,41 @@ def settings_page():
 
     no_services = not (plex_configured or jellyfin_configured)
 
+    heroui_theme = settings.get('features', {}).get('heroui_theme', False)
+
     return render_template(
         'settings.html',
         settings_disabled=settings_disabled,
         no_services_configured=no_services,
-        version=VERSION
+        version=VERSION,
+        heroui_theme=heroui_theme
     )
 
 from flask import session 
 
+SENSITIVE_SETTINGS_FIELDS = {
+    'plex': ['token'],
+    'jellyfin': ['api_key', 'user_id'],
+    'emby': ['api_key', 'user_id'],
+    'trakt': ['access_token', 'refresh_token', 'client_id', 'client_secret'],
+    'seerr': ['api_key'],
+    'ombi': ['api_key'],
+    'tmdb': ['api_key'],
+}
+
+def _strip_sensitive_fields(all_settings):
+    """Replace sensitive credential fields with a sentinel before sending to client.
+    Non-empty values become '***' so the UI can show the field is configured
+    without exposing the actual secret.
+    """
+    for category, fields in SENSITIVE_SETTINGS_FIELDS.items():
+        if category in all_settings:
+            for field in fields:
+                if all_settings[category].get(field):
+                    all_settings[category][field] = '***'
+
 @settings_bp.route('/api/settings', methods=['GET'])
-@auth_manager.require_auth 
+@auth_manager.require_auth
 def get_settings():
     """Get all settings, merging user-specific overrides and marking ENV controls"""
     disabled_check = check_settings_enabled()
@@ -93,29 +117,32 @@ def get_settings():
         return disabled_check
 
     try:
-        all_settings = settings.get_all()
+        from copy import deepcopy
+        all_settings = deepcopy(settings.get_all())
         env_overrides = settings.get_env_overrides()
 
-        username = session.get('username')
-        if username:
-            user_data = auth_manager.db.get_user(username)
-            if user_data:
-                trakt_env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
-                                     settings.is_field_env_controlled('trakt.client_id') or \
-                                     settings.is_field_env_controlled('trakt.client_secret') or \
-                                     settings.is_field_env_controlled('trakt.access_token') or \
-                                     settings.is_field_env_controlled('trakt.refresh_token')
+        if auth_manager.auth_enabled:
+            username = session.get('username')
+            if username:
+                user_data = auth_manager.db.get_user(username)
+                if user_data:
+                    trakt_env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
+                                         settings.is_field_env_controlled('trakt.client_id') or \
+                                         settings.is_field_env_controlled('trakt.client_secret') or \
+                                         settings.is_field_env_controlled('trakt.access_token') or \
+                                         settings.is_field_env_controlled('trakt.refresh_token')
 
-                if not trakt_env_controlled and 'trakt_enabled' in user_data:
-                    if 'trakt' not in all_settings:
-                        all_settings['trakt'] = {} 
-                    user_trakt_enabled = user_data.get('trakt_enabled')
-                    if user_trakt_enabled is not None:
-                         logger.debug(f"Applying user '{username}' specific trakt_enabled: {user_trakt_enabled}")
-                         all_settings['trakt']['enabled'] = user_trakt_enabled
-                    else:
-                         all_settings['trakt']['enabled'] = settings.get('trakt', {}).get('enabled', False)
+                    if not trakt_env_controlled and 'trakt_enabled' in user_data:
+                        if 'trakt' not in all_settings:
+                            all_settings['trakt'] = {}
+                        user_trakt_enabled = user_data.get('trakt_enabled')
+                        if user_trakt_enabled is not None:
+                            logger.debug(f"Applying user '{username}' specific trakt_enabled: {user_trakt_enabled}")
+                            all_settings['trakt']['enabled'] = user_trakt_enabled
+                        else:
+                            all_settings['trakt']['enabled'] = settings.get('trakt', {}).get('enabled', False)
 
+        _strip_sensitive_fields(all_settings)
 
         return jsonify({
             'settings': all_settings,
@@ -135,6 +162,14 @@ def update_settings(category):
 
     try:
         data = request.json
+
+        sentinel_fields = SENSITIVE_SETTINGS_FIELDS.get(category, [])
+        for field in sentinel_fields:
+            if data.get(field) == '***':
+                del data[field]
+
+        if not data:
+            return jsonify({'status': 'ok', 'message': 'No changes'})
 
         for key in data:
             field_path = f"{category}.{key}"
@@ -232,7 +267,7 @@ def update_settings(category):
                     needs_reinit = True
                     logger.info("Client settings changed, will reinitialize services")
 
-                if category in ['overseerr', 'jellyseerr', 'ombi', 'tmdb', 'trakt', 'request_services']:
+                if category in ['seerr', 'ombi', 'tmdb', 'trakt', 'request_services']:
                     needs_reinit = True
                     logger.info("Integration settings changed, will reinitialize services")
 

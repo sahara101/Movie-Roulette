@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="orientation" content="portrait">
@@ -15,9 +15,14 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" href="/static/icons/favicon.ico">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style/heroui-theme.css">
+    <link rel="stylesheet" href="/static/style/aceternity-effects.css">
+    {% endif %}
 </head>
 
-<body>
+<body{% if heroui_theme %} class="heroui-theme"{% endif %}>
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="logo-section">
@@ -49,7 +54,7 @@
                     <label for="password">Password</label>
                     <div class="input-with-icon">
                         <i class="fas fa-lock"></i>
-                        <input type="password" id="password" name="password" required>
+                        <input type="password" id="password" name="password" required minlength="8">
                     </div>
                 </div>
 
@@ -57,7 +62,7 @@
                     <label for="confirm_password">Confirm Password</label>
                     <div class="input-with-icon">
                         <i class="fas fa-lock"></i>
-                        <input type="password" id="confirm_password" name="confirm_password" required>
+                        <input type="password" id="confirm_password" name="confirm_password" required minlength="8">
                     </div>
                     <div class="password-match-indicator" id="password-match">
                         <i class="fas fa-circle-check"></i> Passwords match
@@ -104,5 +109,6 @@
             }
         });
     </script>
+    {% if heroui_theme %}<script src="/static/js/theme-effects.js"></script>{% endif %}
 </body>
 </html>

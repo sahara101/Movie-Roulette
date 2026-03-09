@@ -47,12 +47,13 @@ def login():
     login_backdrop_enabled = settings.get('features', {}).get('login_backdrop', {}).get('enabled', False)
     logger.debug(f"Login backdrop enabled: {login_backdrop_enabled}")
 
-    return render_template('login.html', 
-                          next=next_url, 
+    return render_template('login.html',
+                          next=next_url,
                           error=error,
                           services=enabled_services,
                           any_service_enabled=any_service_enabled,
-                          login_backdrop_enabled=login_backdrop_enabled)
+                          login_backdrop_enabled=login_backdrop_enabled,
+                          heroui_theme=settings.get('features', {}).get('heroui_theme', False))
 
 @auth_bp.route('/login', methods=['POST'])
 def login_post():
@@ -72,7 +73,7 @@ def login_post():
 
     if success:
         session_token = result_or_token
-        logger.info(f"Regular user {username} logged in successfully.")
+        logger.debug(f"Regular user {username} logged in successfully.")
     else:
         plex_enabled = settings.get('plex', {}).get('enabled', False)
         
@@ -81,7 +82,7 @@ def login_post():
             managed_success, managed_message, plex_user_id = auth_manager.db.verify_managed_user_password(username, password)
             
             if managed_success:
-                logger.info(f"Managed user {username} logged in successfully.")
+                logger.debug(f"Managed user {username} logged in successfully.")
                 session_token = auth_manager.db.create_session(username, user_type='plex_managed', plex_user_id=plex_user_id)
                 if not session_token:
                     logger.error(f"Failed to create session for managed user {username} after successful password verification.")
@@ -89,9 +90,13 @@ def login_post():
                 success = True
             else:
                 logger.warning(f"Both regular and managed login failed for user {username}. Last error: {managed_message}")
-                final_error_message = result_or_token
-                if "Invalid username or password" in managed_message:
+                generic = "Invalid username or password"
+                if result_or_token != generic:
+                    final_error_message = result_or_token
+                elif managed_message != generic:
                     final_error_message = managed_message
+                else:
+                    final_error_message = result_or_token
                 return redirect(url_for('auth.login', error=final_error_message, next=next_url))
         else:
             logger.warning(f"Regular login failed for user {username}: {result_or_token}. Plex not enabled for managed user fallback.")
@@ -142,7 +147,8 @@ def setup():
     if not auth_manager.is_first_run() and not auth_manager.needs_admin():
         return redirect(url_for('index'))
 
-    return render_template('setup.html')
+    return render_template('setup.html',
+                           heroui_theme=settings.get('features', {}).get('heroui_theme', False))
 
 @auth_bp.route('/setup', methods=['POST'])
 def setup_post():
@@ -150,17 +156,18 @@ def setup_post():
     username = request.form.get('username')
     password = request.form.get('password')
     confirm_password = request.form.get('confirm_password')
+    _heroui = settings.get('features', {}).get('heroui_theme', False)
 
     if not password:
-        return render_template('setup.html', error='Password is required')
+        return render_template('setup.html', error='Password is required', heroui_theme=_heroui)
 
     if password != confirm_password:
-        return render_template('setup.html', error='Passwords do not match')
+        return render_template('setup.html', error='Passwords do not match', heroui_theme=_heroui)
 
     success, message = auth_manager.create_user(username, password, is_admin=True)
 
     if not success:
-        return render_template('setup.html', error=message)
+        return render_template('setup.html', error=message, heroui_theme=_heroui)
 
     success, token = auth_manager.login(username, password)
 
@@ -325,6 +332,9 @@ def change_password():
 
     success, message = auth_manager.update_password(user_data['username'], new_password)
 
+    if success:
+        auth_manager.db.invalidate_user_sessions(user_data['username'], except_token=token)
+
     return jsonify({
         'success': success,
         'message': message
@@ -345,6 +355,12 @@ def admin_change_password(username):
 
     success, message = auth_manager.update_password(username, new_password)
 
+    if not success and message == "User not found":
+        success, message = auth_manager.db.update_managed_user_password(username, new_password)
+
+    if success:
+        auth_manager.db.invalidate_user_sessions(username)
+
     return jsonify({
         'success': success,
         'message': message
@@ -363,7 +379,8 @@ def plex_auth():
 @auth_bp.route('/plex/auth_success')
 def plex_auth_success():
     """Simple success page for Plex popup"""
-    return render_template('plex_auth_success.html')
+    return render_template('plex_auth_success.html',
+                           heroui_theme=settings.get('features', {}).get('heroui_theme', False))
 
 @auth_bp.route('/plex/callback')
 def plex_callback():
@@ -600,3 +617,47 @@ def emby_login():
     except Exception as e:
         current_app.logger.error(f"Error during Emby login: {e}")
         return jsonify({'success': False, 'message': 'An internal error occurred during authentication'}), 500
+
+
+@auth_bp.route('/api/user/preferences', methods=['GET'])
+@auth_manager.require_auth
+def get_user_preferences():
+    """Return the current user's preferences."""
+    try:
+        token = request.cookies.get('auth_token')
+        user_data = auth_manager.verify_auth(token)
+        if not user_data or not user_data.get('username'):
+            return jsonify({'error': 'Not authenticated'}), 401
+        username = user_data['username']
+        prefs = {
+            'show_now_watching_card': auth_manager.db.get_user_preference(
+                username, 'show_now_watching_card', default=True
+            )
+        }
+        return jsonify(prefs)
+    except Exception as e:
+        logger.error(f"Error getting user preferences: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@auth_bp.route('/api/user/preferences', methods=['PUT'])
+@auth_manager.require_auth
+def set_user_preferences():
+    """Update one or more of the current user's preferences."""
+    try:
+        token = request.cookies.get('auth_token')
+        user_data = auth_manager.verify_auth(token)
+        if not user_data or not user_data.get('username'):
+            return jsonify({'error': 'Not authenticated'}), 401
+        username = user_data['username']
+        data = request.get_json(silent=True) or {}
+        allowed_keys = {'show_now_watching_card'}
+        updated = {}
+        for key, val in data.items():
+            if key in allowed_keys:
+                auth_manager.db.set_user_preference(username, key, val)
+                updated[key] = val
+        return jsonify({'updated': updated})
+    except Exception as e:
+        logger.error(f"Error setting user preferences: {e}")
+        return jsonify({'error': str(e)}), 500

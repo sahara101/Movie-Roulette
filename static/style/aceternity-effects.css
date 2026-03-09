@@ -1,0 +1,186 @@
+body.heroui-theme .aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.heroui-theme .aurora-bg::before,
+body.heroui-theme .aurora-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+  animation: aurora-float 14s ease-in-out infinite;
+}
+
+body.heroui-theme .aurora-bg::before {
+  width: 700px;
+  height: 700px;
+  top: -250px;
+  left: -150px;
+  background: radial-gradient(circle, #6366f1, #7c3aed, transparent 70%);
+  animation-duration: 14s;
+}
+
+body.heroui-theme .aurora-bg::after {
+  width: 900px;
+  height: 900px;
+  bottom: -350px;
+  right: -250px;
+  background: radial-gradient(circle, #06b6d4, #6366f1, transparent 70%);
+  animation-duration: 18s;
+  animation-delay: -7s;
+}
+
+@keyframes aurora-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(70px, -90px) scale(1.08); }
+  66% { transform: translate(-50px, 70px) scale(0.94); }
+}
+
+body.heroui-theme.poster-page .aurora-bg {
+  display: none;
+}
+
+body.heroui-theme .spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    700px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(99, 102, 241, 0.05),
+    transparent 50%
+  );
+}
+
+body.heroui-theme.poster-page .spotlight-overlay {
+  display: none;
+}
+
+body.heroui-theme .magic-card {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+body.heroui-theme .magic-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--_border-angle, 0deg),
+    transparent 25%,
+    #6366f1 50%,
+    #06b6d4 65%,
+    transparent 75%
+  );
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+body.heroui-theme .magic-card:hover::before {
+  opacity: 1;
+  animation: magic-border-spin 3s linear infinite;
+}
+
+@keyframes magic-border-spin {
+  to { --_border-angle: 360deg; }
+}
+
+@property --_border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes shimmer-sweep {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+body.heroui-theme .shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--text-secondary) 20%,
+    var(--text-primary) 50%,
+    var(--text-secondary) 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer-sweep 3s linear infinite;
+}
+
+.sparkle-particle {
+  position: fixed;
+  pointer-events: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  z-index: 9999;
+  animation: sparkle-burst 600ms ease-out forwards;
+}
+
+@keyframes sparkle-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 20px), var(--dy, -20px)) scale(0);
+  }
+}
+
+body.heroui-theme .tilt-card {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: var(--shadow-sm); }
+  50% {
+    box-shadow: var(--shadow-sm),
+                0 0 20px var(--primary-glow),
+                0 0 40px rgba(99, 102, 241, 0.15);
+  }
+}
+
+body.heroui-theme .button-glow {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body.heroui-theme .fade-in-up {
+  animation: fade-in-up 0.4s ease-out forwards;
+}
+
+body.heroui-theme .stagger-item:nth-child(1)  { animation-delay: 0ms; }
+body.heroui-theme .stagger-item:nth-child(2)  { animation-delay: 55ms; }
+body.heroui-theme .stagger-item:nth-child(3)  { animation-delay: 110ms; }
+body.heroui-theme .stagger-item:nth-child(4)  { animation-delay: 165ms; }
+body.heroui-theme .stagger-item:nth-child(5)  { animation-delay: 220ms; }
+body.heroui-theme .stagger-item:nth-child(6)  { animation-delay: 275ms; }
+body.heroui-theme .stagger-item:nth-child(7)  { animation-delay: 330ms; }
+body.heroui-theme .stagger-item:nth-child(8)  { animation-delay: 385ms; }
+body.heroui-theme .stagger-item:nth-child(9)  { animation-delay: 440ms; }
+body.heroui-theme .stagger-item:nth-child(10) { animation-delay: 495ms; }
+body.heroui-theme .stagger-item:nth-child(11) { animation-delay: 550ms; }
+body.heroui-theme .stagger-item:nth-child(12) { animation-delay: 605ms; }

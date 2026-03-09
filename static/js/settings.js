@@ -2,7 +2,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsRoot = document.getElementById('settings-root');
     let currentSettings = null;
     let currentOverrides = null;
-    let traktStatus = { enabled: false, connected: false, env_controlled: false }; 
+    let traktStatus = { enabled: false, connected: false, env_controlled: false };
+    const isHeroUI = document.body.classList.contains('heroui-theme');
+
+    const HEROUI_SERVICE_LOGOS = {
+        'Plex Configuration':     { service: 'plex',     logo: '/static/logos/plex.svg' },
+        'Jellyfin Configuration': { service: 'jellyfin', logo: '/static/logos/jellyfin.svg' },
+        'Emby Configuration':     { service: 'emby',     logo: '/static/logos/emby.svg' },
+    };
+    const HEROUI_FIELD_ICONS = {
+        'plex.url':                     'fa-globe',
+        'jellyfin.url':                 'fa-globe',
+        'emby.url':                     'fa-globe',
+        'seerr.url':                    'fa-globe',
+        'seerr.api_key':                'fa-key',
+        'ombi.url':                     'fa-globe',
+        'ombi.api_key':                 'fa-key',
+        'tmdb.api_key':                 'fa-key',
+        'auth.relying_party_id':        'fa-id-card',
+        'auth.relying_party_origin':    'fa-globe',
+        'features.default_poster_text': 'fa-font',
+    };
 
     function getCsrfToken() {
         const token = document.querySelector('meta[name="csrf-token"]');
@@ -66,12 +86,23 @@ document.addEventListener('DOMContentLoaded', function() {
     function createInput(type, value, disabled, onChange, placeholder = '') {
         const input = document.createElement('input');
         input.type = type;
-        input.value = value || '';
         input.disabled = disabled;
-        input.placeholder = placeholder;
         input.className = 'setting-input';
+
+        if (value === '***') {
+            input.value = '';
+            input.placeholder = placeholder || 'Configured';
+        } else {
+            input.value = value || '';
+            input.placeholder = placeholder;
+        }
+
         if (!disabled) {
-            input.addEventListener('change', (e) => onChange(e.target.value));
+            input.addEventListener('change', (e) => {
+                const newVal = e.target.value;
+                if (newVal === '' && value === '***') return;
+                onChange(newVal);
+            });
         }
         return input;
     }
@@ -93,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return toggle;
     }
 
-    async function handleSettingChange(key, value) {
+    async function handleSettingChange(key, value, silent = false) {
     	try {
             if (currentOverrides && getNestedValue(currentOverrides, key)) {
             	showError('Cannot modify environment-controlled setting');
@@ -151,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            showSuccess('Setting updated successfully');
+            if (!silent) showSuccess('Setting updated successfully');
             setNestedValue(currentSettings, key, value);
 
             if (key === 'features.poster_display.mode') {
@@ -173,6 +204,22 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error updating setting:', error);
             showError(error.message || 'Failed to update setting');
     	}
+    }
+
+    async function saveUserPreference(key, value) {
+        try {
+            const csrfToken = getCsrfToken();
+            const response = await fetch('/api/user/preferences', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ [key]: value })
+            });
+            if (!response.ok) throw new Error('Failed to save preference');
+            if (window.userPreferences) window.userPreferences[key] = value;
+            showSuccess('Setting updated successfully');
+        } catch (error) {
+            showError(error.message || 'Failed to save preference');
+        }
     }
 
     function createTraktIntegration(container) {
@@ -451,24 +498,74 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderSettingsSection(title, settings, envOverrides, fields) {
     	const section = document.createElement('div');
     	section.className = 'settings-section';
-        if (title === 'General Features') {
-            section.classList.add('general-features-section');
+
+        if (isHeroUI) {
+            const svcData = HEROUI_SERVICE_LOGOS[title];
+            if (svcData) {
+                section.dataset.service = svcData.service;
+                const isEnabled = Boolean(getNestedValue(settings, `${svcData.service}.enabled`));
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'section-service-header';
+                const logoImg = document.createElement('img');
+                logoImg.src = svcData.logo;
+                logoImg.className = 'section-service-logo';
+                logoImg.alt = '';
+                const headerInfo = document.createElement('div');
+                headerInfo.className = 'section-header-info';
+                const h2 = document.createElement('h2');
+                h2.textContent = title.replace(' Configuration', '');
+                headerInfo.appendChild(h2);
+                const badge = document.createElement('span');
+                badge.className = `section-status-badge ${isEnabled ? 'badge-active' : 'badge-inactive'}`;
+                badge.textContent = isEnabled ? 'Active' : 'Inactive';
+                headerInfo.appendChild(badge);
+                headerDiv.appendChild(logoImg);
+                headerDiv.appendChild(headerInfo);
+                const credentialsFn = {
+                    plex:     () => ({ service: 'plex',     url: getNestedValue(currentSettings, 'plex.url'),      token:   getNestedValue(currentSettings, 'plex.token') }),
+                    jellyfin: () => ({ service: 'jellyfin', url: getNestedValue(currentSettings, 'jellyfin.url'),   api_key: getNestedValue(currentSettings, 'jellyfin.api_key') }),
+                    emby:     () => ({ service: 'emby',     url: getNestedValue(currentSettings, 'emby.url'),       api_key: getNestedValue(currentSettings, 'emby.api_key') }),
+                }[svcData.service];
+                if (credentialsFn) {
+                    headerDiv.appendChild(renderServiceTestButton(svcData.service, credentialsFn));
+                }
+                section.appendChild(headerDiv);
+            } else {
+                const h2 = document.createElement('h2');
+                h2.textContent = title;
+                section.appendChild(h2);
+            }
+        } else {
+            const titleElem = document.createElement('h2');
+            titleElem.textContent = title;
+            section.appendChild(titleElem);
         }
 
-    	const titleElem = document.createElement('h2');
-    	titleElem.textContent = title;
-    	section.appendChild(titleElem);
-
-        let fieldsParent = section;
-
-        if (title === 'General Features') {
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'fields-grid-container';
-            section.appendChild(gridContainer);
-            fieldsParent = gridContainer;
+        const fieldsBody = isHeroUI ? document.createElement('div') : null;
+        if (fieldsBody) {
+            fieldsBody.className = 'section-fields-body';
+            section.appendChild(fieldsBody);
         }
 
-    	fields.forEach(async field => { 
+        let fieldsParent = isHeroUI ? fieldsBody : section;
+        const sectionBaseParent = fieldsParent;
+        let currentGroupName = null;
+
+    	fields.forEach(async field => {
+            if (field.adminOnly && !window.isAdminUser) return;
+
+            if (title === 'General Features' && field.group && field.group !== currentGroupName) {
+                currentGroupName = field.group;
+                const groupEl = document.createElement('div');
+                groupEl.className = 'feature-group';
+                const groupTitleEl = document.createElement('div');
+                groupTitleEl.className = 'feature-group-title';
+                groupTitleEl.textContent = currentGroupName;
+                groupEl.appendChild(groupTitleEl);
+                sectionBaseParent.appendChild(groupEl);
+                fieldsParent = groupEl;
+            }
+
             const fieldContainer = document.createElement('div');
             fieldContainer.className = 'setting-field';
 
@@ -548,13 +645,15 @@ document.addEventListener('DOMContentLoaded', function() {
             	return;
             }
 
-            const value = getNestedValue(settings, field.key);
+            const prefKey = field.userPref ? field.key.split('.').pop() : null;
+            const value = (field.userPref && window.userPreferences !== null)
+                ? window.userPreferences[prefKey]
+                : getNestedValue(settings, field.key);
             let isOverridden = getNestedValue(envOverrides, field.key);
 
             const isIntegrationToggle = (
-            	field.key === 'overseerr.enabled' ||
             	field.key === 'trakt.enabled' ||
-            	field.key === 'jellyseerr.enabled' ||
+            	field.key === 'seerr.enabled' ||
             	field.key === 'ombi.enabled'
             );
 
@@ -574,13 +673,9 @@ document.addEventListener('DOMContentLoaded', function() {
             	getNestedValue(envOverrides, 'emby.user_id')
             );
             const isAppleTVEnv = getNestedValue(envOverrides, 'clients.apple_tv.id');
-            const isOverseerrEnv = Boolean(
-            	getNestedValue(envOverrides, 'overseerr.url') &&
-            	getNestedValue(envOverrides, 'overseerr.api_key')
-            );
-            const isJellyseerrEnv = Boolean(
-            	getNestedValue(envOverrides, 'jellyseerr.url') &&
-            	getNestedValue(envOverrides, 'jellyseerr.api_key')
+            const isSeerrEnv = Boolean(
+            	getNestedValue(envOverrides, 'seerr.url') &&
+            	getNestedValue(envOverrides, 'seerr.api_key')
             );
             const isOmbiEnv = Boolean(
             	getNestedValue(envOverrides, 'ombi.url') &&
@@ -615,13 +710,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     	isOverridden = isAppleTVEnv;
                     	isEnvEnabled = isAppleTVEnv;
                     	break;
-                    case 'overseerr.enabled':
-                    	isOverridden = isOverseerrEnv;
-                    	isEnvEnabled = isOverseerrEnv;
-                    	break;
-                    case 'jellyseerr.enabled':
-                    	isOverridden = isJellyseerrEnv;
-                    	isEnvEnabled = isJellyseerrEnv;
+                    case 'seerr.enabled':
+                    	isOverridden = isSeerrEnv;
+                    	isEnvEnabled = isSeerrEnv;
                     	break;
                     case 'ombi.enabled':
                     	isOverridden = isOmbiEnv;
@@ -659,52 +750,99 @@ document.addEventListener('DOMContentLoaded', function() {
             	       overrideIndicator.textContent = 'Set by environment variable';
             	       fieldContainer.appendChild(overrideIndicator);
             	   }
-            } else if (field.key === 'trakt.enabled') { 
+            } else if (field.key === 'trakt.enabled') {
                 const currentValue = traktStatus.enabled;
                 const toggle = createToggle(
                     currentValue,
-                    isOverridden, 
-                    isEnvEnabled, 
-                    handleTraktToggleChange 
+                    isOverridden,
+                    isEnvEnabled,
+                    handleTraktToggleChange
                 );
-                fieldContainer.appendChild(toggle);
+                fieldContainer.classList.add('setting-toggle-row');
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'setting-field-info';
+                const existingLabel = fieldContainer.querySelector('label');
+                const existingDesc = fieldContainer.querySelector('.setting-description');
+                if (existingLabel) infoDiv.appendChild(existingLabel);
+                if (existingDesc) infoDiv.appendChild(existingDesc);
+                const controlDiv = document.createElement('div');
+                controlDiv.className = 'setting-toggle-control';
+                controlDiv.appendChild(toggle);
+                if (isOverridden) {
+                    const overrideIndicator = document.createElement('div');
+                    overrideIndicator.className = 'env-override';
+                    overrideIndicator.textContent = 'Set by environment variable';
+                    controlDiv.appendChild(overrideIndicator);
+                }
+                fieldContainer.appendChild(infoDiv);
+                fieldContainer.appendChild(controlDiv);
+            } else if (field.type === 'switch') {
+                const onSwitchChange = (checked) => {
+                    if (field.userPref) {
+                        saveUserPreference(prefKey, checked);
+                    } else {
+                        handleSettingChange(field.key, checked);
+                    }
+                    if (isServiceToggle) {
+                        const sectionEl = fieldContainer.closest('.settings-section');
+                        const badge = sectionEl && sectionEl.querySelector('.section-status-badge');
+                        if (badge) {
+                            badge.className = `section-status-badge ${checked ? 'badge-active' : 'badge-inactive'}`;
+                            badge.textContent = checked ? 'Active' : 'Inactive';
+                        }
+                    }
+                };
+                const toggle = createToggle(
+                    value,
+                    isOverridden,
+                    isEnvEnabled,
+                    onSwitchChange
+                );
+                fieldContainer.classList.add('setting-toggle-row');
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'setting-field-info';
+                const existingLabel = fieldContainer.querySelector('label');
+                const existingDesc = fieldContainer.querySelector('.setting-description');
+                if (existingLabel) infoDiv.appendChild(existingLabel);
+                if (existingDesc) infoDiv.appendChild(existingDesc);
+                const controlDiv = document.createElement('div');
+                controlDiv.className = 'setting-toggle-control';
+                controlDiv.appendChild(toggle);
+                if (isOverridden) {
+                    const overrideIndicator = document.createElement('div');
+                    overrideIndicator.className = 'env-override';
+                    overrideIndicator.textContent = 'Set by environment variable';
+                    controlDiv.appendChild(overrideIndicator);
+                }
+                fieldContainer.appendChild(infoDiv);
+                fieldContainer.appendChild(controlDiv);
+            } else {
+                let inputType = (field.type === 'password') ? 'password' : 'text';
+                const input = createInput(
+                    inputType,
+                    value,
+                    isOverridden,
+                    (value) => handleSettingChange(field.key, value),
+                    field.placeholder
+                );
+                input.setAttribute('data-field-key', field.key);
+                if (isHeroUI && HEROUI_FIELD_ICONS[field.key]) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'field-input-wrapper';
+                    const prefixIcon = document.createElement('i');
+                    prefixIcon.className = `fas ${HEROUI_FIELD_ICONS[field.key]} field-prefix-icon`;
+                    wrapper.appendChild(prefixIcon);
+                    wrapper.appendChild(input);
+                    fieldContainer.appendChild(wrapper);
+                } else {
+                    fieldContainer.appendChild(input);
+                }
                 if (isOverridden) {
                     const overrideIndicator = document.createElement('div');
                     overrideIndicator.className = 'env-override';
                     overrideIndicator.textContent = 'Set by environment variable';
                     fieldContainer.appendChild(overrideIndicator);
                 }
-            } else if (field.type === 'switch') { 
-            	const toggle = createToggle(
-                    value, 
-                    isOverridden, 
-                    isEnvEnabled, 
-                    (checked) => handleSettingChange(field.key, checked) 
-            	);
-            	fieldContainer.appendChild(toggle);
-            	   if (isOverridden) {
-            	       const overrideIndicator = document.createElement('div');
-            	       overrideIndicator.className = 'env-override';
-            	       overrideIndicator.textContent = 'Set by environment variable';
-            	       fieldContainer.appendChild(overrideIndicator);
-            	   }
-            } else { 
-                let inputType = (field.type === 'password') ? 'password' : 'text';
-            	const input = createInput(
-                    inputType, 
-                    value,
-                    isOverridden,
-                    (value) => handleSettingChange(field.key, value),
-                    field.placeholder
-            	);
-            	   input.setAttribute('data-field-key', field.key); 
-            	   fieldContainer.appendChild(input);
-            	      if (isOverridden) {
-            	          const overrideIndicator = document.createElement('div');
-            	          overrideIndicator.className = 'env-override';
-            	          overrideIndicator.textContent = 'Set by environment variable';
-            	          fieldContainer.appendChild(overrideIndicator);
-            	      }
             }
  
             fieldsParent.appendChild(fieldContainer);
@@ -752,13 +890,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const tabs = document.createElement('div');
     tabs.className = 'settings-tabs';
-    tabs.innerHTML = `
-        <button class="tab" data-tab="media">Media Servers</button>
-        <button class="tab" data-tab="clients">Clients</button>
-        <button class="tab" data-tab="features">Features</button>
-        <button class="tab" data-tab="integrations">Integrations</button>
-	<button class="tab" data-tab="auth">Authentication</button>
-    `;
+
+    if (isHeroUI) {
+        const TAB_DEFS = [
+            { tab: 'media',        icon: 'fa-server',        label: 'Media Servers' },
+            { tab: 'clients',      icon: 'fa-display',       label: 'Clients' },
+            { tab: 'features',     icon: 'fa-sliders',       label: 'Features' },
+            { tab: 'integrations', icon: 'fa-puzzle-piece',  label: 'Integrations' },
+            { tab: 'auth',         icon: 'fa-shield-halved', label: 'Authentication' },
+            { tab: 'cache',        icon: 'fa-database',      label: 'Cache' },
+        ];
+        TAB_DEFS.forEach(({ tab, icon, label }) => {
+            const btn = document.createElement('button');
+            btn.className = 'tab';
+            btn.dataset.tab = tab;
+            btn.innerHTML = `<i class="fas ${icon}"></i><span>${label}</span>`;
+            tabs.appendChild(btn);
+        });
+    } else {
+        tabs.innerHTML = `
+            <button class="tab" data-tab="media">Media Servers</button>
+            <button class="tab" data-tab="clients">Clients</button>
+            <button class="tab" data-tab="features">Features</button>
+            <button class="tab" data-tab="integrations">Integrations</button>
+            <button class="tab" data-tab="auth">Authentication</button>
+            <button class="tab" data-tab="cache">Cache</button>
+        `;
+    }
+    tabs.style.visibility = 'hidden';
     container.appendChild(tabs);
 
     const contentContainer = document.createElement('div');
@@ -785,6 +944,54 @@ document.addEventListener('DOMContentLoaded', function() {
     	}
     }
 
+    function renderMarkdown(text) {
+        const escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        function inline(s) {
+            return s
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+                .replace(/(?<!href=")https?:\/\/[^\s<>"]+/g, '<a href="$&" target="_blank" rel="noopener noreferrer">$&</a>');
+        }
+
+        const lines = escaped.split('\n');
+        let html = '';
+        let inList = false;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                if (inList) { html += '</ul>'; inList = false; }
+                continue;
+            }
+            const h1 = trimmed.match(/^# (.+)/);
+            const h2 = trimmed.match(/^## (.+)/);
+            const h3 = trimmed.match(/^### (.+)/);
+            if (h1) {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<h1>${inline(h1[1])}</h1>`;
+            } else if (h2) {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<h2>${inline(h2[1])}</h2>`;
+            } else if (h3) {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<h3>${inline(h3[1])}</h3>`;
+            } else if (/^[-*] /.test(trimmed)) {
+                if (!inList) { html += '<ul>'; inList = true; }
+                html += `<li>${inline(trimmed.slice(2))}</li>`;
+            } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<p>${inline(trimmed)}</p>`;
+            }
+        }
+        if (inList) html += '</ul>';
+        return html;
+    }
+
     function showUpdateDialog(updateInfo) {
     	const dialog = document.createElement('div');
     	dialog.className = 'trakt-confirm-dialog';
@@ -794,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', function() {
             	<p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
             	<div class="changelog">
                     <h4>Changelog:</h4>
-                    <div class="changelog-content">${updateInfo.changelog}</div>
+                    <div class="changelog-content">${renderMarkdown(updateInfo.changelog)}</div>
             	</div>
             	<div class="dialog-buttons">
                     <button class="cancel-button">Dismiss</button>
@@ -924,32 +1131,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 {
                     title: 'General Features',
                     fields: [
-                        { key: 'features.use_links', label: 'Enable Links', type: 'switch', description: "Show external links (e.g., IMDb, TMDB) buttons." },
-                        { key: 'features.use_filter', label: 'Enable Filters', type: 'switch', description: "Show filter button." },
-                        { key: 'features.use_grid_view', label: 'Enable Grid View', type: 'switch', description: "Show grid view button for filtered movie browsing." },
-                        { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch', description: "Display a 'Watch Now' button to directly play movies (if supported by the client)." },
-                        { key: 'features.use_next_button', label: 'Enable Next Button', type: 'switch', description: "Show a 'Next Movie' button to quickly get another random movie." },
-			{ key: 'features.mobile_truncation', label: 'Enable Mobile Description Truncation', type: 'switch', description: "Shorten long movie descriptions on mobile devices for better readability." },
-			{
-            		    key: 'features.homepage_mode',
-            		    label: 'Homepage Mode',
-            		    type: 'switch',
-            		    description: 'Provides a simplified, non-interactive display format ideal for <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a> iframe integration. Removes buttons, links, and keeps movie descriptions fully expanded.'
-        		},
-   { key: 'features.enable_movie_logos', label: 'Enable Movie Title Logos', type: 'switch', description: "Display movie title logos." },
-   { 
-       key: 'features.load_movie_on_start',
-       label: 'Load Movie on Page Start',
-       type: 'switch', 
-       description: 'If enabled, a random movie is loaded automatically when the page opens. If disabled, you need to click the "Get Random Movie" button first.'
-   },
-   {
-       key: 'features.login_backdrop.enabled',
-       label: 'Enable Login Page Backdrops',
-       type: 'switch',
-       description: 'Display fullscreen random movie backdrops on the login page.'
-   }
-        		          ]
+                        { key: 'features.use_links',        label: 'Enable Links',        type: 'switch', group: 'Interface', adminOnly: true, description: "Show external links (e.g., IMDb, TMDB) buttons." },
+                        { key: 'features.use_filter',       label: 'Enable Filters',      type: 'switch', group: 'Interface', adminOnly: true, description: "Show filter button." },
+                        { key: 'features.use_grid_view',    label: 'Enable Grid View',    type: 'switch', group: 'Interface', adminOnly: true, description: "Show grid view button for filtered movie browsing." },
+                        { key: 'features.use_watch_button', label: 'Enable Watch Button', type: 'switch', group: 'Interface', adminOnly: true, description: "Display a 'Watch Now' button to directly play movies (if supported by the client)." },
+                        { key: 'features.use_next_button',  label: 'Enable Next Button',  type: 'switch', group: 'Interface', adminOnly: true, description: "Show a 'Next Movie' button to quickly get another random movie." },
+                        { key: 'features.heroui_theme',           label: 'Modern Theme',                type: 'switch', group: 'Display', adminOnly: true, description: 'Enable the modern visual theme with aurora background, frosted glass panels, and smooth animations.' },
+                        { key: 'features.show_now_watching_card', label: 'Now Watching Card', type: 'switch', group: 'Display', userPref: true, description: 'Show a live card on the main page displaying what is currently playing on your media server.' },
+                        { key: 'features.mobile_truncation',    label: 'Mobile Description Truncation', type: 'switch', group: 'Display', adminOnly: true, description: "Shorten long movie descriptions on mobile devices for better readability." },
+                        { key: 'features.enable_movie_logos',   label: 'Movie Title Logos',             type: 'switch', group: 'Display', adminOnly: true, description: "Display movie title logos." },
+                        { key: 'features.login_backdrop.enabled', label: 'Login Page Backdrops',        type: 'switch', group: 'Display', adminOnly: true, description: 'Display fullscreen random movie backdrops on the login page.' },
+                        {
+                            key: 'features.homepage_mode',
+                            label: 'Homepage Mode',
+                            type: 'switch',
+                            group: 'Display',
+                            adminOnly: true,
+                            description: 'Provides a simplified, non-interactive display format ideal for <a href="https://gethomepage.dev" target="_blank" rel="noopener noreferrer">Homepage</a> iframe integration. Removes buttons, links, and keeps movie descriptions fully expanded.'
+                        },
+                        {
+                            key: 'features.load_movie_on_start',
+                            label: 'Load Movie on Page Start',
+                            type: 'switch',
+                            group: 'Startup',
+                            adminOnly: true,
+                            description: 'If enabled, a random movie is loaded automatically when the page opens. If disabled, you need to click the "Get Random Movie" button first.'
+                        }
+                    ]
                 },
                 {
                     title: 'Poster Settings',
@@ -1037,18 +1245,48 @@ document.addEventListener('DOMContentLoaded', function() {
         integrations: {
             title: 'Integrations',
             sections: [
-		{
+                {
                     title: 'System',
                     fields: [
-                    	{
+                        {
                             key: 'version_check',
                             label: 'Version Check',
                             type: 'custom',
                             render: renderVersionCheckButton
-                    	}
-		    ]
-		},
-		{
+                        }
+                    ]
+                },
+                {
+                    title: 'Trakt',
+                    fields: [
+                        { key: 'trakt.enabled', label: 'Enable Trakt', type: 'switch', description: 'Sync watch history and ratings with your Trakt account.' },
+                        { key: 'trakt.connect', label: 'Trakt Connection', type: 'custom' }
+                    ]
+                },
+                {
+                    title: 'TMDB',
+                    fields: [
+                        { key: 'tmdb.enabled', label: 'Use Custom TMDB API Key', type: 'switch', description: 'Override the built-in TMDB API key with your own.' },
+                        { key: 'tmdb.api_key', label: 'TMDB API Key (Optional)', type: 'dynamic', placeholder: 'Using built-in API key' }
+                    ]
+                },
+                {
+                    title: 'Seerr',
+                    fields: [
+                        { key: 'seerr.enabled', label: 'Enable Seerr', type: 'switch', description: 'Connect to Jellyseerr or Overseerr to allow movie requests.' },
+                        { key: 'seerr.url', label: 'Seerr URL', type: 'text', placeholder: 'http://localhost:5055' },
+                        { key: 'seerr.api_key', label: 'API Key', type: 'password' }
+                    ]
+                },
+                {
+                    title: 'Ombi',
+                    fields: [
+                        { key: 'ombi.enabled', label: 'Enable Ombi', type: 'switch', description: 'Connect to Ombi to allow movie requests.' },
+                        { key: 'ombi.url', label: 'Ombi URL', type: 'text', placeholder: 'http://localhost:5000' },
+                        { key: 'ombi.api_key', label: 'API Key', type: 'password' }
+                    ]
+                },
+                {
                     title: 'Request Services',
                     fields: [
                         {
@@ -1057,8 +1295,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             type: 'select',
                             options: [
                                 { value: 'auto', label: 'Automatic' },
-                                { value: 'overseerr', label: 'Overseerr' },
-                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'seerr', label: 'Seerr' },
                                 { value: 'ombi', label: 'Ombi' }
                             ],
                             description: 'The default request service to use when none is specified'
@@ -1069,8 +1306,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             type: 'select',
                             options: [
                                 { value: 'auto', label: 'Use Default' },
-                                { value: 'overseerr', label: 'Overseerr' },
-                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'seerr', label: 'Seerr' },
                                 { value: 'ombi', label: 'Ombi' }
                             ]
                         },
@@ -1080,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             type: 'select',
                             options: [
                                 { value: 'auto', label: 'Use Default' },
-                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'seerr', label: 'Seerr' },
                                 { value: 'ombi', label: 'Ombi' }
                             ]
                         },
@@ -1090,69 +1326,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             type: 'select',
                             options: [
                                 { value: 'auto', label: 'Use Default' },
-                                { value: 'jellyseerr', label: 'Jellyseerr' },
+                                { value: 'seerr', label: 'Seerr' },
                                 { value: 'ombi', label: 'Ombi' }
                             ]
                         }
-                    ]
-                },
-		{
-            	    title: 'TMDB',
-            	    fields: [
-                	{
-                    	    key: 'tmdb.enabled',
-                    	    label: 'Use Custom TMDB API Key',
-                    	    type: 'switch'
-                	},
-                	{
-                    	    key: 'tmdb.api_key',
-                    	    label: 'TMDB API Key (Optional)',
-                    	    type: 'dynamic',
-                    	    placeholder: 'Using built-in API key'
-                	}
-            	    ]
-        	},
-                {
-                    title: 'Overseerr',
-                    fields: [
-                        { key: 'overseerr.enabled', label: 'Enable Overseerr', type: 'switch' },
-                        { key: 'overseerr.url', label: 'Overseerr URL', type: 'text', placeholder: 'http://localhost:5055' },
-                        { key: 'overseerr.api_key', label: 'API Key', type: 'password' },
-                    ]
-                },
-		{
-    		    title: 'Jellyseerr',
-    		    fields: [
-        		{
-            		    key: 'jellyseerr.enabled',
-            		    label: 'Enable Jellyseerr',
-            		    type: 'switch'
-        		},
-        		{
-            		    key: 'jellyseerr.url',
-            		    label: 'Jellyseerr URL', placeholder: 'http://localhost:5055',
-            		    type: 'text'
-        		},
-        		{
-            		    key: 'jellyseerr.api_key',
-            		    label: 'API Key',
-            		    type: 'password'
-        		}
-    		    ]
-		},
-		{
-                    title: 'Ombi',
-                    fields: [
-                        { key: 'ombi.enabled', label: 'Enable Ombi', type: 'switch' },
-                        { key: 'ombi.url', label: 'Ombi URL', type: 'text', placeholder: 'http://localhost:5000' },
-                        { key: 'ombi.api_key', label: 'API Key', type: 'password' }
-                    ]
-                },
-                {
-                    title: 'Trakt',
-                    fields: [
-			{ key: 'trakt.enabled', label: 'Enable Trakt', type: 'switch' },
-                        { key: 'trakt.connect', label: 'Trakt Connection', type: 'custom' }
                     ]
                 }
             ]
@@ -1187,6 +1364,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         { key: 'auth.passkey_enabled', label: 'Enable Passkey Authentication', type: 'switch', description: 'Allow users to log in with device-bound passkeys (e.g., fingerprint, security key) instead of passwords. Requires HTTPS unless RP ID is localhost.' },
                         { key: 'auth.relying_party_id', label: 'Passkey Relying Party ID', type: 'text', placeholder: 'e.g., yourdomain.com or localhost', description: 'The domain identifier for passkey operations. Must match your site\'s domain. For local testing, often "localhost".' },
                         { key: 'auth.relying_party_origin', label: 'Passkey Relying Party Origin', type: 'text', placeholder: 'e.g., https://roulette.yourdomain.com', description: 'The full base URL (including https://) where users access Movie Roulette. This must exactly match the browser\'s address bar for passkeys to work.' },
+
                         {
                             key: 'passkey_management',
                             label: 'Manage Your Passkeys',
@@ -1211,28 +1389,26 @@ document.addEventListener('DOMContentLoaded', function() {
                                 }
                             }
                         },
-                    	{ 
-                    	    key: 'auth.user_cache_admin', 
-                    	    label: 'User Cache Management',
-                    	    type: 'custom',
-                    	    render: function(container) {
-                    	        const link = document.createElement('a');
-                    	        link.href = '/user_cache_admin';
-                    	        link.className = 'discover-button admin-only'; 
-                    	        link.innerHTML = `
-                    	            <i class="fa-solid fa-database"></i>
-                    	            <span>User Cache Admin</span>
-                    	        `;
-                    	        link.style.width = 'auto'; 
-                    	        link.style.display = 'inline-flex';
-                    	        link.style.textDecoration = 'none'; 
-                    	        container.appendChild(link);
-                    	    }
-                    	}
                     ]
             	}
             ]
-    	}
+    	},
+        cache: {
+            title: 'Cache Management',
+            sections: [
+                {
+                    title: 'Cache Management',
+                    fields: [
+                        {
+                            key: 'cache_management',
+                            label: '',
+                            type: 'custom',
+                            render: renderCacheAdmin
+                        }
+                    ]
+                }
+            ]
+        }
     };
 
     function renderAppleTVConfig(container) {
@@ -1467,8 +1643,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     const data = await response.json();
                     if (data.status === 'success') {
-                        await handleSettingChange('clients.apple_tv.id', deviceId);
-                        await handleSettingChange('clients.apple_tv.enabled', true);
+                        await handleSettingChange('clients.apple_tv.id', deviceId, true);
+                        await handleSettingChange('clients.apple_tv.enabled', true, true);
                         showSuccess('Apple TV configured successfully');
                         dialog.remove();
                     } else if (data.status === 'awaiting_pin') {
@@ -2237,10 +2413,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     tabs.addEventListener('click', (e) => {
-        if (e.target.classList.contains('tab')) {
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            e.target.classList.add('active');
-            loadTabContent(e.target.dataset.tab);
+        const tab = e.target.closest('.tab');
+        if (tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            loadTabContent(tab.dataset.tab);
         }
     });
 
@@ -2289,6 +2466,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.status === 'success') {
                 showSuccess(`Trakt integration ${newState ? 'enabled' : 'disabled'}`);
                 traktStatus.enabled = newState;
+                sessionStorage.setItem('collections_force_refresh', '1');
             } else {
                  throw new Error(result.message || 'Failed to update Trakt setting');
             }
@@ -2298,6 +2476,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showError(error.message || 'Failed to update Trakt setting');
         }
     }
+
 
     async function initialize() {
     	try {
@@ -2321,6 +2500,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             currentSettings = data.settings;
             currentOverrides = data.env_overrides;
+
+            window.userPreferences = null;
+            try {
+                const prefResponse = await fetch('/api/user/preferences');
+                if (prefResponse.ok) window.userPreferences = await prefResponse.json();
+            } catch (_) {}
 
             if (currentSettings && currentSettings.trakt) {
                 traktStatus.enabled = currentSettings.trakt.enabled || false;
@@ -2350,7 +2535,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else if (isPlexManagedUser) {
                 tabsContainer.querySelectorAll('.tab').forEach(tab => {
-                    if (tab.dataset.tab !== 'integrations') {
+                    if (!['integrations', 'features'].includes(tab.dataset.tab)) {
                         tab.style.display = 'none';
                     }
                 });
@@ -2359,7 +2544,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 else console.error("Integrations tab not found for plex_managed user");
             } else if (isServiceUser) {
                 tabsContainer.querySelectorAll('.tab').forEach(tab => {
-                    if (tab.dataset.tab !== 'integrations') {
+                    if (!['integrations', 'features'].includes(tab.dataset.tab)) {
                         tab.style.display = 'none';
                     }
                 });
@@ -2376,6 +2561,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  if (featuresTab) featuresTab.click();
                  else console.error("Features tab not found for non-admin local user");
             }
+            tabsContainer.style.visibility = 'visible';
 
             const traktToggleElement = document.getElementById('trakt-enabled-toggle');
             if (traktToggleElement) {
@@ -2560,22 +2746,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 section.style.display = '';
             });
         } else if (window.isPlexManagedUser) {
-            if (currentTab === 'integrations') {
+            if (currentTab === 'features') {
                 allSections.forEach(section => {
                     const title = section.querySelector('h2')?.textContent.trim();
-                    section.style.display = (title === 'Trakt') ? '' : 'none';
+                    section.style.display = (title === 'General Features') ? '' : 'none';
+                });
+            } else if (currentTab === 'integrations') {
+                allSections.forEach(section => {
+                    const title = section.querySelector('h2')?.textContent.trim();
+                    section.style.display = (title === 'Trakt' || title === 'Now Watching') ? '' : 'none';
                 });
             } else {
                 allSections.forEach(section => section.style.display = 'none');
             }
         } else if (window.isServiceUser) {
-            if (currentTab === 'integrations') {
+            if (currentTab === 'features') {
                 allSections.forEach(section => {
                     const title = section.querySelector('h2')?.textContent.trim();
-                    section.style.display = (title === 'Trakt') ? '' : 'none';
+                    section.style.display = (title === 'General Features') ? '' : 'none';
+                });
+            } else if (currentTab === 'integrations') {
+                allSections.forEach(section => {
+                    const title = section.querySelector('h2')?.textContent.trim();
+                    section.style.display = (title === 'Trakt' || title === 'Now Watching') ? '' : 'none';
                 });
             } else {
-                 allSections.forEach(section => section.style.display = 'none');
+                allSections.forEach(section => section.style.display = 'none');
             }
         } else {
             if (currentTab === 'features') {
@@ -2586,7 +2782,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentTab === 'integrations') {
                  allSections.forEach(section => {
                     const title = section.querySelector('h2')?.textContent.trim();
-                    section.style.display = (title === 'Trakt') ? '' : 'none';
+                    section.style.display = (title === 'Trakt' || title === 'Now Watching') ? '' : 'none';
                 });
             } else if (currentTab === 'clients') {
                  allSections.forEach(section => {
@@ -2606,7 +2802,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         contentContainer.innerHTML = '';
 
-    	if (window.isAdminUser === false && ['media', 'auth'].includes(tabName)) {
+    	if (window.isAdminUser === false && ['media', 'auth', 'cache'].includes(tabName)) {
             contentContainer.innerHTML = `
             	<div class="admin-required">
                     <i class="fa-solid fa-lock"></i>
@@ -2635,6 +2831,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ));
     	}
     
+
     	if (window.isAdminUser === false) {
             handleSectionVisibility();
     	}
@@ -2649,6 +2846,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p>Enter this PIN on the Plex website:</p>
                 <div class="pin-display">
                     <span class="pin-code">${pin}</span>
+                    <button class="pin-copy-btn" title="Copy PIN"><i class="fa-solid fa-copy"></i></button>
                 </div>
                 <p class="pin-instructions">A Plex.tv tab has been opened. Enter this PIN there to link Movie Roulette.</p>
                 <div class="dialog-buttons">
@@ -2663,210 +2861,387 @@ document.addEventListener('DOMContentLoaded', function() {
             dialog.remove();
         });
 
+        dialog.querySelector('.pin-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(pin).then(() => {
+                const btn = dialog.querySelector('.pin-copy-btn');
+                btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-copy"></i>'; }, 2000);
+            });
+        });
+
         return dialog;
     }
 
-    function renderPlexTokenConfig(container) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'plex-token-wrapper';
+    function renderServiceTestButton(service, getCredentialsFn) {
+        const row = document.createElement('div');
+        row.className = 'service-test-row';
 
-        const isEnvControlled = Boolean(
-            getNestedValue(currentOverrides, 'plex.token')
-        );
+        const btn = document.createElement('button');
+        btn.className = 'service-test-button';
+        btn.innerHTML = '<i class="fa-solid fa-plug"></i> Test';
+        row.appendChild(btn);
+
+        const errorLabel = document.createElement('span');
+        errorLabel.className = 'test-error-label';
+        row.appendChild(errorLabel);
+
+        let resetTimer = null;
+
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const creds = getCredentialsFn();
+
+            const missing = service === 'plex'
+                ? (!creds.url || !creds.token)
+                : (!creds.url || !creds.api_key);
+
+            if (missing) {
+                showError('Please configure URL and credentials first');
+                return;
+            }
+
+            clearTimeout(resetTimer);
+            btn.disabled = true;
+            btn.classList.remove('test-success', 'test-error');
+            errorLabel.textContent = '';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testing...';
+
+            try {
+                const resp = await fetch('/api/media/test_connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify(creds)
+                });
+                const data = await resp.json();
+
+                if (data.ok) {
+                    btn.classList.add('test-success');
+                    btn.innerHTML = `<i class="fa-solid fa-check"></i> Connected${data.label ? ' · ' + data.label : ''}`;
+                    resetTimer = setTimeout(() => {
+                        btn.classList.remove('test-success');
+                        btn.innerHTML = '<i class="fa-solid fa-plug"></i> Test';
+                        btn.disabled = false;
+                    }, 4000);
+                } else {
+                    btn.classList.add('test-error');
+                    btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Failed';
+                    errorLabel.textContent = data.error || 'Connection failed';
+                    resetTimer = setTimeout(() => {
+                        btn.classList.remove('test-error');
+                        btn.innerHTML = '<i class="fa-solid fa-plug"></i> Test';
+                        errorLabel.textContent = '';
+                        btn.disabled = false;
+                    }, 5000);
+                }
+            } catch (err) {
+                btn.classList.add('test-error');
+                btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Failed';
+                errorLabel.textContent = err.message;
+                resetTimer = setTimeout(() => {
+                    btn.classList.remove('test-error');
+                    btn.innerHTML = '<i class="fa-solid fa-plug"></i> Test';
+                    errorLabel.textContent = '';
+                    btn.disabled = false;
+                }, 5000);
+            }
+        });
+
+        return row;
+    }
+
+    function renderPlexTokenConfig(container) {
+        const isEnvControlled = Boolean(getNestedValue(currentOverrides, 'plex.token'));
 
         if (isEnvControlled) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'plex-token-wrapper';
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
-        } else {
-            const inputGroup = document.createElement('div');
-            inputGroup.className = 'input-group';
-
-            const tokenInput = createInput(
-                'password',
-                getNestedValue(currentSettings, 'plex.token'),
-                false,
-                (value) => handleSettingChange('plex.token', value),
-                'Enter your Plex token'
-            );
-
-            const getTokenButton = document.createElement('button');
-            getTokenButton.className = 'discover-button';
-            getTokenButton.innerHTML = '<i class="fa-solid fa-key"></i> Get Token';
-
-            getTokenButton.addEventListener('click', async () => {
-                try {
-                    const plexUrl = getNestedValue(currentSettings, 'plex.url');
-                    if (!plexUrl) {
-                        showError('Please enter Plex URL first');
-                        return;
-                    }
-
-                    getTokenButton.disabled = true;
-                    getTokenButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Getting token...';
-
-                    const response = await fetch('/api/plex/get_token', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken() 
-                        }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to initiate Plex authentication');
-                    }
-
-                    const data = await response.json();
-
-                    const authWindow = window.open(
-                        data.auth_url,
-                        'PlexAuth',
-			'width=800,height=600,location=yes,status=yes,scrollbars=yes'
-                    );
-
-                    if (!authWindow) {
-                        throw new Error('Popup was blocked. Please allow popups for this site.');
-                    }
-
-        	    const pinDialog = showPinDialog(data.pin);
-
-		    let attempts = 0;
-        	    const maxAttempts = 60;
-
-                    const checkAuth = setInterval(async () => {
-                        try {
-			    if (attempts >= maxAttempts) {
-				clearInterval(checkAuth);
-                    		authWindow.close();
-                    		throw new Error('Authentication timed out');
-			    }
-
-			    attempts++;
-
-			    const statusResponse = await fetch(`/api/plex/check_auth/${data.client_id}`);
-                            const statusData = await statusResponse.json();
-
-			    console.log("Auth status check completed");
-
-                            if (statusData.token) {
-                                clearInterval(checkAuth);
-                                authWindow.close();
-                                await handleSettingChange('plex.token', statusData.token);
-                                tokenInput.value = statusData.token;
-                                showSuccess('Successfully got Plex token');
-                            }
-                        } catch (error) {
-                            console.error('Auth check error:', error);
-			    if (error.message !== 'Authentication timed out') {
-                    		clearInterval(checkAuth);
-                    		showError(error.message);
-			    }
-                        }
-                    }, 2000);
-
-                    const windowCheck = setInterval(() => {
-                        if (authWindow.closed) {
-                            clearInterval(checkAuth);
-                            clearInterval(windowCheck);
-			    pinDialog.remove();
-                            getTokenButton.disabled = false;
-                            getTokenButton.innerHTML = '<i class="fa-solid fa-key"></i> Get Token';
-                        }
-                    }, 1000);
-
-                } catch (error) {
-                    showError(error.message);
-                } finally {
-                    getTokenButton.disabled = false;
-                    getTokenButton.innerHTML = '<i class="fa-solid fa-key"></i> Get Token';
-                }
-            });
-
-            inputGroup.appendChild(tokenInput);
-            wrapper.appendChild(inputGroup);
-            wrapper.appendChild(getTokenButton);
+            container.appendChild(wrapper);
+            return;
         }
 
+        const savedToken = getNestedValue(currentSettings, 'plex.token') || '';
+        const isConfigured = savedToken === '***';
+
+        const doPlexPinFlow = async (getTokenBtn, onSuccess) => {
+            try {
+                const plexUrl = getNestedValue(currentSettings, 'plex.url');
+                if (!plexUrl) { showError('Please enter Plex URL first'); return; }
+                getTokenBtn.disabled = true;
+                getTokenBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Getting token...';
+                const response = await fetch('/api/plex/get_token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() }
+                });
+                if (!response.ok) throw new Error('Failed to initiate Plex authentication');
+                const data = await response.json();
+                const authWindow = window.open(data.auth_url, 'PlexAuth', 'width=800,height=600,location=yes,status=yes,scrollbars=yes');
+                if (!authWindow) throw new Error('Popup was blocked. Please allow popups for this site.');
+                const pinDialog = showPinDialog(data.pin);
+                let attempts = 0;
+                const maxAttempts = 60;
+                const checkAuth = setInterval(async () => {
+                    try {
+                        if (attempts >= maxAttempts) {
+                            clearInterval(checkAuth);
+                            authWindow.close();
+                            throw new Error('Authentication timed out');
+                        }
+                        attempts++;
+                        const statusResponse = await fetch(`/api/plex/check_auth/${data.client_id}`);
+                        const statusData = await statusResponse.json();
+                        if (statusData.token) {
+                            clearInterval(checkAuth);
+                            authWindow.close();
+                            await handleSettingChange('plex.token', statusData.token);
+                            if (onSuccess) onSuccess();
+                        }
+                    } catch (err) {
+                        if (err.message !== 'Authentication timed out') {
+                            clearInterval(checkAuth);
+                            showError(err.message);
+                        }
+                    }
+                }, 2000);
+                const windowCheck = setInterval(() => {
+                    if (authWindow.closed) {
+                        clearInterval(checkAuth);
+                        clearInterval(windowCheck);
+                        pinDialog.remove();
+                        getTokenBtn.disabled = false;
+                        getTokenBtn.innerHTML = '<i class="fa-solid fa-key"></i> Get Token via Plex.tv';
+                    }
+                }, 1000);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                getTokenBtn.disabled = false;
+                getTokenBtn.innerHTML = '<i class="fa-solid fa-key"></i> Get Token via Plex.tv';
+            }
+        };
+
+        if (isHeroUI) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'auth-config-wrapper';
+
+            const configuredCard = document.createElement('div');
+            configuredCard.className = 'credentials-configured-card';
+            if (!isConfigured) configuredCard.classList.add('hidden');
+
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'credentials-configured-header';
+            cardHeader.innerHTML = '<i class="fa-solid fa-circle-check"></i> Token Configured';
+            configuredCard.appendChild(cardHeader);
+
+            const credList = document.createElement('div');
+            credList.className = 'credentials-list';
+            credList.innerHTML = `
+                <div class="credential-row">
+                    <span class="credential-label">Token</span>
+                    <span class="credential-dots">••••••••••••</span>
+                </div>`;
+            configuredCard.appendChild(credList);
+
+            const reconnectBtn = document.createElement('button');
+            reconnectBtn.className = 'auth-reconnect-btn';
+            reconnectBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Reconnect';
+            configuredCard.appendChild(reconnectBtn);
+            wrapper.appendChild(configuredCard);
+
+            const loginForm = document.createElement('div');
+            loginForm.className = 'auth-login-form';
+            if (isConfigured) loginForm.classList.add('hidden');
+
+            const getTokenBtn = document.createElement('button');
+            getTokenBtn.className = 'discover-button';
+            getTokenBtn.innerHTML = '<i class="fa-solid fa-key"></i> Get Token via Plex.tv';
+            loginForm.appendChild(getTokenBtn);
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'auth-cancel-btn';
+            cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancel';
+            cancelBtn.style.display = isConfigured ? '' : 'none';
+            loginForm.appendChild(cancelBtn);
+
+            wrapper.appendChild(loginForm);
+            container.appendChild(wrapper);
+
+            const showConfigured = () => {
+                configuredCard.classList.remove('hidden');
+                loginForm.classList.add('hidden');
+            };
+            const showLogin = () => {
+                configuredCard.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+            };
+
+            reconnectBtn.addEventListener('click', showLogin);
+            cancelBtn.addEventListener('click', showConfigured);
+            getTokenBtn.addEventListener('click', () => doPlexPinFlow(getTokenBtn, () => {
+                setNestedValue(currentSettings, 'plex.token', '***');
+                cancelBtn.style.display = '';
+                showConfigured();
+            }));
+            return;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'plex-token-wrapper';
+        const getTokenButton = document.createElement('button');
+        getTokenButton.className = 'discover-button';
+        getTokenButton.innerHTML = '<i class="fa-solid fa-key"></i> Get Token via Plex.tv';
+        getTokenButton.addEventListener('click', () => doPlexPinFlow(getTokenButton, null));
+        wrapper.appendChild(getTokenButton);
         container.appendChild(wrapper);
     }
 
     function renderPlexLibrariesConfig(container) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'plex-libraries-wrapper';
-
-        const isEnvControlled = Boolean(
-            getNestedValue(currentOverrides, 'plex.movie_libraries')
-        );
+        const isEnvControlled = Boolean(getNestedValue(currentOverrides, 'plex.movie_libraries'));
 
         if (isEnvControlled) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'plex-libraries-wrapper';
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
-        } else {
-            const inputGroup = document.createElement('div');
-            inputGroup.className = 'input-group';
+            container.appendChild(wrapper);
+            return;
+        }
 
-            const librariesInput = createInput(
-                'text',
-                getNestedValue(currentSettings, 'plex.movie_libraries'),
-                false,
-                (value) => handleSettingChange('plex.movie_libraries', value),
-                'Comma-separated library names'
-            );
+        const savedLibsRaw = getNestedValue(currentSettings, 'plex.movie_libraries') || '';
+        const savedLibs = savedLibsRaw.split(',').map(l => l.trim()).filter(Boolean);
 
-            const fetchButton = document.createElement('button');
-            fetchButton.className = 'discover-button';
-            fetchButton.innerHTML = '<i class="fa-solid fa-sync"></i> Fetch Libraries';
+        if (isHeroUI) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'plex-libraries-heroui';
 
-            fetchButton.addEventListener('click', async () => {
+            const pillRow = document.createElement('div');
+            pillRow.className = 'libraries-pill-row';
+            if (!savedLibs.length) pillRow.classList.add('hidden');
+
+            const renderPills = (libs) => {
+                pillRow.innerHTML = '';
+                libs.forEach(lib => {
+                    const pill = document.createElement('span');
+                    pill.className = 'lib-pill';
+                    pill.textContent = lib;
+                    pillRow.appendChild(pill);
+                });
+                const editBtn = document.createElement('button');
+                editBtn.className = 'lib-edit-btn';
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => {
+                    pillRow.classList.add('hidden');
+                    editRow.classList.remove('hidden');
+                });
+                pillRow.appendChild(editBtn);
+            };
+            renderPills(savedLibs);
+            wrapper.appendChild(pillRow);
+
+            const editRow = document.createElement('div');
+            editRow.className = 'libraries-edit-row';
+            if (savedLibs.length) editRow.classList.add('hidden');
+
+            const librariesInput = createInput('text', savedLibsRaw, false, null, 'Comma-separated library names');
+            editRow.appendChild(librariesInput);
+
+            const fetchBtn = document.createElement('button');
+            fetchBtn.className = 'discover-button';
+            fetchBtn.innerHTML = '<i class="fa-solid fa-sync"></i> Fetch Libraries';
+            fetchBtn.addEventListener('click', async () => {
                 try {
                     const plexUrl = getNestedValue(currentSettings, 'plex.url');
                     const plexToken = getNestedValue(currentSettings, 'plex.token');
-
-                    if (!plexUrl || !plexToken) {
-                        showError('Please configure Plex URL and token first');
-                        return;
-                    }
-
-                    fetchButton.disabled = true;
-                    fetchButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching...';
-
+                    if (!plexUrl || !plexToken) { showError('Please configure Plex URL and token first'); return; }
+                    fetchBtn.disabled = true;
+                    fetchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching...';
                     const response = await fetch('/api/plex/libraries', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken() 
-                        },
-                        body: JSON.stringify({
-                            plex_url: plexUrl,
-                            plex_token: plexToken
-                        })
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                        body: JSON.stringify({ plex_url: plexUrl, plex_token: plexToken })
                     });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch libraries');
-                    }
-
+                    if (!response.ok) throw new Error('Failed to fetch libraries');
                     const data = await response.json();
-
                     showLibraryDialog(data.libraries, librariesInput);
-
                 } catch (error) {
                     showError(error.message);
                 } finally {
-                    fetchButton.disabled = false;
-                    fetchButton.innerHTML = '<i class="fa-solid fa-sync"></i> Fetch Libraries';
+                    fetchBtn.disabled = false;
+                    fetchBtn.innerHTML = '<i class="fa-solid fa-sync"></i> Fetch Libraries';
                 }
             });
+            editRow.appendChild(fetchBtn);
 
-            inputGroup.appendChild(librariesInput);
-            wrapper.appendChild(inputGroup);
-            wrapper.appendChild(fetchButton);
+            const doneBtn = document.createElement('button');
+            doneBtn.className = 'lib-edit-btn';
+            doneBtn.textContent = 'Done';
+            doneBtn.addEventListener('click', async () => {
+                const val = librariesInput.value.trim();
+                await handleSettingChange('plex.movie_libraries', val);
+                const newLibs = val.split(',').map(l => l.trim()).filter(Boolean);
+                renderPills(newLibs);
+                if (newLibs.length) {
+                    pillRow.classList.remove('hidden');
+                    editRow.classList.add('hidden');
+                }
+            });
+            editRow.appendChild(doneBtn);
+            wrapper.appendChild(editRow);
+            container.appendChild(wrapper);
+            return;
         }
 
+        const wrapper = document.createElement('div');
+        wrapper.className = 'plex-libraries-wrapper';
+        const inputGroup = document.createElement('div');
+        inputGroup.className = 'input-group';
+
+        const librariesInput = createInput(
+            'text',
+            savedLibsRaw,
+            false,
+            (value) => handleSettingChange('plex.movie_libraries', value),
+            'Comma-separated library names'
+        );
+
+        const fetchButton = document.createElement('button');
+        fetchButton.className = 'discover-button';
+        fetchButton.innerHTML = '<i class="fa-solid fa-sync"></i> Fetch Libraries';
+
+        fetchButton.addEventListener('click', async () => {
+            try {
+                const plexUrl = getNestedValue(currentSettings, 'plex.url');
+                const plexToken = getNestedValue(currentSettings, 'plex.token');
+                if (!plexUrl || !plexToken) { showError('Please configure Plex URL and token first'); return; }
+                fetchButton.disabled = true;
+                fetchButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching...';
+                const response = await fetch('/api/plex/libraries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                    body: JSON.stringify({ plex_url: plexUrl, plex_token: plexToken })
+                });
+                if (!response.ok) throw new Error('Failed to fetch libraries');
+                const data = await response.json();
+                showLibraryDialog(data.libraries, librariesInput);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                fetchButton.disabled = false;
+                fetchButton.innerHTML = '<i class="fa-solid fa-sync"></i> Fetch Libraries';
+            }
+        });
+
+        inputGroup.appendChild(librariesInput);
+        wrapper.appendChild(inputGroup);
+        wrapper.appendChild(fetchButton);
         container.appendChild(wrapper);
     }
 
@@ -2912,205 +3287,267 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderJellyfinAuthConfig(container) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'jellyfin-auth-wrapper';
-
         const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'jellyfin.api_key') ||
             getNestedValue(currentOverrides, 'jellyfin.user_id')
         );
 
         if (isEnvControlled) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'jellyfin-auth-wrapper';
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
-        } else {
-            const apiKeyInput = createInput(
-                'password',
-                getNestedValue(currentSettings, 'jellyfin.api_key'),
-                false,
-                (value) => handleSettingChange('jellyfin.api_key', value),
-                'API Key'
-            );
-
-            const userIdInput = createInput(
-                'text',
-                getNestedValue(currentSettings, 'jellyfin.user_id'),
-                false,
-                (value) => handleSettingChange('jellyfin.user_id', value),
-                'User ID'
-            );
-
-            const autoGroup = document.createElement('div');
-            autoGroup.className = 'input-group';
-
-            const usernameInput = createInput(
-                'text',
-                '',
-                false,
-                null,
-                'Jellyfin username'
-            );
-            const passwordInput = createInput(
-                'password',
-                '',
-                false,
-                null,
-                'Jellyfin password'
-            );
-
-            const loginButton = document.createElement('button');
-            loginButton.className = 'discover-button';
-            loginButton.innerHTML = '<i class="fa-solid fa-key"></i> Get API Key & User ID';
-            
-            loginButton.addEventListener('click', async () => {
-                try {
-                    const jellyfinUrl = getNestedValue(currentSettings, 'jellyfin.url');
-                    if (!jellyfinUrl) {
-                        showError('Please enter Jellyfin URL first');
-                        return;
-                    }
-
-                    const username = usernameInput.value;
-                    const password = passwordInput.value;
-
-                    if (!username || !password) {
-                        showError('Please enter both username and password');
-                        return;
-                    }
-
-                    loginButton.disabled = true;
-                    loginButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authenticating...';
-
-                    const response = await fetch('/api/jellyfin/auth', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken() 
-                        },
-                        body: JSON.stringify({
-                            server_url: jellyfinUrl,
-                            username: username,
-                            password: password
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Failed to authenticate');
-                    }
-
-                    apiKeyInput.value = data.api_key;
-                    userIdInput.value = data.user_id;
-                    await handleSettingChange('jellyfin.api_key', data.api_key);
-                    await handleSettingChange('jellyfin.user_id', data.user_id);
-
-                    usernameInput.value = '';
-                    passwordInput.value = '';
-
-                    showSuccess('Successfully retrieved Jellyfin credentials');
-
-                } catch (error) {
-                    showError(error.message);
-                } finally {
-                    loginButton.disabled = false;
-                    loginButton.innerHTML = '<i class="fa-solid fa-key"></i> Get API Key & User ID';
-                }
-            });
-
-            autoGroup.appendChild(createLabel('Username (for automatic setup)'));
-            autoGroup.appendChild(usernameInput);
-            autoGroup.appendChild(createLabel('Password (for automatic setup)'));
-            autoGroup.appendChild(passwordInput);
-            autoGroup.appendChild(loginButton);
-            
-            const separator = document.createElement('div');
-            separator.className = 'dialog-separator';
-            separator.innerHTML = '<span>or enter manually</span>';
-
-            const manualGroup = document.createElement('div'); 
-            manualGroup.className = 'input-group';
-
-            manualGroup.appendChild(createLabel('API Key (manual entry)'));
-            manualGroup.appendChild(apiKeyInput); 
-            manualGroup.appendChild(createLabel('User ID (manual entry)'));
-            manualGroup.appendChild(userIdInput); 
-
-            wrapper.appendChild(autoGroup);
-            wrapper.appendChild(separator);
-            wrapper.appendChild(manualGroup);
+            container.appendChild(wrapper);
+            return;
         }
 
+        const savedApiKey = getNestedValue(currentSettings, 'jellyfin.api_key') || '';
+        const savedUserId = getNestedValue(currentSettings, 'jellyfin.user_id') || '';
+        const isConfigured = savedApiKey === '***' || savedUserId === '***';
+
+        const doLogin = async (usernameInput, passwordInput, loginButton, onSuccess) => {
+            try {
+                const jellyfinUrl = getNestedValue(currentSettings, 'jellyfin.url');
+                if (!jellyfinUrl) { showError('Please enter Jellyfin URL first'); return; }
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value;
+                if (!username || !password) { showError('Please enter both username and password'); return; }
+                loginButton.disabled = true;
+                loginButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authenticating...';
+                const response = await fetch('/api/jellyfin/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                    body: JSON.stringify({ server_url: jellyfinUrl, username, password })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to authenticate');
+                await handleSettingChange('jellyfin.api_key', data.api_key, true);
+                await handleSettingChange('jellyfin.user_id', data.user_id, true);
+                usernameInput.value = '';
+                passwordInput.value = '';
+                showSuccess('Successfully retrieved Jellyfin credentials');
+                if (onSuccess) onSuccess();
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loginButton.disabled = false;
+                loginButton.innerHTML = '<i class="fa-solid fa-key"></i> Connect';
+            }
+        };
+
+        if (isHeroUI) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'auth-config-wrapper';
+
+            const configuredCard = document.createElement('div');
+            configuredCard.className = 'credentials-configured-card';
+            if (!isConfigured) configuredCard.classList.add('hidden');
+
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'credentials-configured-header';
+            cardHeader.innerHTML = '<i class="fa-solid fa-circle-check"></i> Credentials Configured';
+            configuredCard.appendChild(cardHeader);
+
+            const credList = document.createElement('div');
+            credList.className = 'credentials-list';
+            credList.innerHTML = `
+                <div class="credential-row">
+                    <span class="credential-label">API Key</span>
+                    <span class="credential-dots">••••••••••••</span>
+                </div>
+                <div class="credential-row">
+                    <span class="credential-label">User ID</span>
+                    <span class="credential-dots">••••••••••••</span>
+                </div>`;
+            configuredCard.appendChild(credList);
+
+            const reconnectBtn = document.createElement('button');
+            reconnectBtn.className = 'auth-reconnect-btn';
+            reconnectBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Reconnect';
+            configuredCard.appendChild(reconnectBtn);
+            wrapper.appendChild(configuredCard);
+
+            const loginForm = document.createElement('div');
+            loginForm.className = 'auth-login-form';
+            if (isConfigured) loginForm.classList.add('hidden');
+
+            const usernameInput = createInput('text', '', false, null, 'Jellyfin username');
+            const passwordInput = createInput('password', '', false, null, 'Password');
+            const loginButton = document.createElement('button');
+            loginButton.className = 'discover-button';
+            loginButton.innerHTML = '<i class="fa-solid fa-key"></i> Connect';
+
+            loginForm.appendChild(createLabel('Username'));
+            loginForm.appendChild(usernameInput);
+            loginForm.appendChild(createLabel('Password'));
+            loginForm.appendChild(passwordInput);
+            loginForm.appendChild(loginButton);
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'auth-cancel-btn';
+            cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancel';
+            cancelBtn.style.display = isConfigured ? '' : 'none';
+            loginForm.appendChild(cancelBtn);
+
+            wrapper.appendChild(loginForm);
+            container.appendChild(wrapper);
+
+            const showConfigured = () => {
+                configuredCard.classList.remove('hidden');
+                loginForm.classList.add('hidden');
+            };
+            const showLogin = () => {
+                configuredCard.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+            };
+
+            reconnectBtn.addEventListener('click', showLogin);
+            cancelBtn.addEventListener('click', showConfigured);
+            loginButton.addEventListener('click', () => doLogin(usernameInput, passwordInput, loginButton, () => {
+                setNestedValue(currentSettings, 'jellyfin.api_key', '***');
+                setNestedValue(currentSettings, 'jellyfin.user_id', '***');
+                cancelBtn.style.display = '';
+                showConfigured();
+            }));
+            return;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'jellyfin-auth-wrapper';
+        const usernameInput = createInput('text', '', false, null, 'Jellyfin username');
+        const passwordInput = createInput('password', '', false, null, 'Password');
+        const loginButton = document.createElement('button');
+        loginButton.className = 'discover-button';
+        loginButton.innerHTML = '<i class="fa-solid fa-key"></i> Connect';
+        loginButton.addEventListener('click', () => doLogin(usernameInput, passwordInput, loginButton, null));
+
+        wrapper.appendChild(createLabel('Username'));
+        wrapper.appendChild(usernameInput);
+        wrapper.appendChild(createLabel('Password'));
+        wrapper.appendChild(passwordInput);
+        wrapper.appendChild(loginButton);
         container.appendChild(wrapper);
     }
 
     function renderEmbyAuthConfig(container) {
-    	const wrapper = document.createElement('div');
-    	wrapper.className = 'emby-auth-wrapper';
-
-    	const isEnvControlled = Boolean(
+        const isEnvControlled = Boolean(
             getNestedValue(currentOverrides, 'emby.api_key') ||
             getNestedValue(currentOverrides, 'emby.user_id')
-    	);
+        );
 
-    	if (isEnvControlled) {
+        if (isEnvControlled) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'emby-auth-wrapper';
             const overrideIndicator = document.createElement('div');
             overrideIndicator.className = 'env-override';
             overrideIndicator.textContent = 'Set by environment variable';
             wrapper.appendChild(overrideIndicator);
-    	} else {
-            const authGroup = document.createElement('div');
-            authGroup.className = 'auth-buttons-group';
+            container.appendChild(wrapper);
+            return;
+        }
+
+        const savedApiKey = getNestedValue(currentSettings, 'emby.api_key') || '';
+        const savedUserId = getNestedValue(currentSettings, 'emby.user_id') || '';
+        const isConfigured = savedApiKey === '***' || savedUserId === '***';
+
+        if (isHeroUI) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'auth-config-wrapper';
+
+            const configuredCard = document.createElement('div');
+            configuredCard.className = 'credentials-configured-card';
+            if (!isConfigured) configuredCard.classList.add('hidden');
+
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'credentials-configured-header';
+            cardHeader.innerHTML = '<i class="fa-solid fa-circle-check"></i> Credentials Configured';
+            configuredCard.appendChild(cardHeader);
+
+            const credList = document.createElement('div');
+            credList.className = 'credentials-list';
+            credList.innerHTML = `
+                <div class="credential-row">
+                    <span class="credential-label">API Key</span>
+                    <span class="credential-dots">••••••••••••</span>
+                </div>
+                <div class="credential-row">
+                    <span class="credential-label">User ID</span>
+                    <span class="credential-dots">••••••••••••</span>
+                </div>`;
+            configuredCard.appendChild(credList);
+
+            const reconnectBtn = document.createElement('button');
+            reconnectBtn.className = 'auth-reconnect-btn';
+            reconnectBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Reconnect';
+            configuredCard.appendChild(reconnectBtn);
+            wrapper.appendChild(configuredCard);
+
+            const loginForm = document.createElement('div');
+            loginForm.className = 'auth-login-form';
+            if (isConfigured) loginForm.classList.add('hidden');
+
+            const loginMethods = document.createElement('div');
+            loginMethods.className = 'emby-login-methods';
 
             const connectButton = document.createElement('button');
             connectButton.className = 'discover-button';
             connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Emby Connect';
-            connectButton.addEventListener('click', () => showEmbyConnectDialog()); 
+            connectButton.addEventListener('click', () => showEmbyConnectDialog());
 
             const localButton = document.createElement('button');
             localButton.className = 'discover-button';
-            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login'; 
-            localButton.addEventListener('click', () => showEmbyLocalLoginDialog()); 
+            localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login';
+            localButton.addEventListener('click', () => showEmbyLocalLoginDialog());
 
-            authGroup.appendChild(connectButton); 
-            authGroup.appendChild(localButton);
+            loginMethods.appendChild(connectButton);
+            loginMethods.appendChild(localButton);
+            loginForm.appendChild(loginMethods);
 
-            const separator = document.createElement('div');
-            separator.className = 'dialog-separator';
-            separator.innerHTML = '<span>or enter manually</span>';
-            
-            const manualGroup = document.createElement('div');
-            manualGroup.className = 'input-group';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'auth-cancel-btn';
+            cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancel';
+            cancelBtn.style.display = isConfigured ? '' : 'none';
+            loginForm.appendChild(cancelBtn);
 
-            const apiKeyInput = createInput(
-            	'password',
-            	getNestedValue(currentSettings, 'emby.api_key'),
-            	false,
-            	(value) => handleSettingChange('emby.api_key', value),
-            	'API Key'
-            );
+            wrapper.appendChild(loginForm);
+            container.appendChild(wrapper);
 
-            const userIdInput = createInput(
-            	'text',
-            	getNestedValue(currentSettings, 'emby.user_id'),
-            	false,
-            	(value) => handleSettingChange('emby.user_id', value),
-            	'User ID'
-            );
+            const showConfigured = () => {
+                configuredCard.classList.remove('hidden');
+                loginForm.classList.add('hidden');
+            };
+            const showLogin = () => {
+                configuredCard.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+            };
 
-            manualGroup.appendChild(createLabel('API Key (manual entry)'));
-            manualGroup.appendChild(apiKeyInput);
-            manualGroup.appendChild(createLabel('User ID (manual entry)'));
-            manualGroup.appendChild(userIdInput);
-            
-            wrapper.appendChild(authGroup);
-            wrapper.appendChild(separator);
-            wrapper.appendChild(manualGroup);
-   	}
+            reconnectBtn.addEventListener('click', showLogin);
+            cancelBtn.addEventListener('click', showConfigured);
+            return;
+        }
 
-    	container.appendChild(wrapper);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'emby-auth-wrapper';
+
+        const authGroup = document.createElement('div');
+        authGroup.className = 'auth-buttons-group';
+
+        const connectButton = document.createElement('button');
+        connectButton.className = 'discover-button';
+        connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Emby Connect';
+        connectButton.addEventListener('click', () => showEmbyConnectDialog());
+
+        const localButton = document.createElement('button');
+        localButton.className = 'discover-button';
+        localButton.innerHTML = '<i class="fa-solid fa-user"></i> Local Login';
+        localButton.addEventListener('click', () => showEmbyLocalLoginDialog());
+
+        authGroup.appendChild(connectButton);
+        authGroup.appendChild(localButton);
+        wrapper.appendChild(authGroup);
+        container.appendChild(wrapper);
     }
 
     function showEmbyServerSelectionDialog(servers, connectUserId) {
@@ -3284,12 +3721,6 @@ document.addEventListener('DOMContentLoaded', function() {
             	<h3><i class="fa-solid fa-user"></i> Local Login</h3>
             	<form id="emby-local-form">
                     <div class="input-group">
-                    	<label>Server URL</label>
-                    	<input type="text" class="setting-input" id="emby-server-url"
-                               value="${getNestedValue(currentSettings, 'emby.url') || ''}"
-                               placeholder="http://your-server:8096" required>
-                    </div>
-                    <div class="input-group">
                     	<label>Username</label>
                     	<input type="text" class="setting-input" id="emby-local-username" required>
                     </div>
@@ -3315,20 +3746,17 @@ document.addEventListener('DOMContentLoaded', function() {
     	       submitButton.disabled = true;
     	       submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging in...';
 
-    	       const serverUrl = form.querySelector('#emby-server-url').value;
-    	       const username = form.querySelector('#emby-local-username').value; 
-    	       const password = form.querySelector('#emby-local-password').value; 
+    	       const serverUrl = getNestedValue(currentSettings, 'emby.url') || '';
 
     	       try {
-    	           console.log(">>> DEBUG: Attempting fetch to /api/settings/emby/authenticate"); 
-    	       	const response = await fetch('/api/settings/emby/authenticate', { 
+    	       	const response = await fetch('/api/settings/emby/authenticate', {
             	       method: 'POST',
             	       headers: {
             	       	'Content-Type': 'application/json',
-            	           'X-CSRFToken': getCsrfToken() 
+            	           'X-CSRFToken': getCsrfToken()
             	       },
             	       body: JSON.stringify({
-            	       	url: serverUrl, 
+            	       	url: serverUrl,
             	       	username: form.querySelector('#emby-local-username').value,
             	       	password: form.querySelector('#emby-local-password').value
             	       })
@@ -3397,13 +3825,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateEmbyFields(url, apiKey, userId) {
     	Promise.all([
-            handleSettingChange('emby.url', url),
-            handleSettingChange('emby.api_key', apiKey),
-            handleSettingChange('emby.user_id', userId)
+            handleSettingChange('emby.url', url, true),
+            handleSettingChange('emby.api_key', apiKey, true),
+            handleSettingChange('emby.user_id', userId, true)
     	]).then(() => {
             setNestedValue(currentSettings, 'emby.url', url);
-            setNestedValue(currentSettings, 'emby.api_key', apiKey);
-            setNestedValue(currentSettings, 'emby.user_id', userId);
+            setNestedValue(currentSettings, 'emby.api_key', '***');
+            setNestedValue(currentSettings, 'emby.user_id', '***');
 
             const currentTab = document.querySelector('.tab.active');
             if (currentTab) {
@@ -4055,7 +4483,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const userActions = document.createElement('div');
             userActions.className = 'user-actions';
 
-            if (userType === 'regular' && serviceType === 'local') {
+            if ((userType === 'regular' && serviceType === 'local') || userType === 'managed') {
                 const resetPasswordButton = document.createElement('button');
                 resetPasswordButton.className = 'user-action';
                 resetPasswordButton.innerHTML = '<i class="fa-solid fa-key"></i>';
@@ -4116,12 +4544,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                     <div class="input-group">
                     	<label for="reset-password">New Password</label>
-                    	<input type="password" id="reset-password" class="setting-input" required> <!-- Add setting-input class -->
+                    	<input type="password" id="reset-password" class="setting-input" required minlength="8">
                     </div>
-                
+
                     <div class="input-group">
                     	<label for="confirm-reset-password">Confirm New Password</label>
-                    	<input type="password" id="confirm-reset-password" class="setting-input" required> <!-- Add setting-input class -->
+                    	<input type="password" id="confirm-reset-password" class="setting-input" required minlength="8"> <!-- Add setting-input class -->
                     </div>
                 
                     <div class="dialog-buttons">
@@ -4355,5 +4783,238 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('User list container not found when managedUserAdded event was caught (Auth tab likely not active).');
         }
     });
+
+    function renderCacheAdmin(container) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'cache-admin-wrapper';
+
+        async function loadCacheData() {
+            wrapper.innerHTML = '<div class="loading-users" style="text-align:center;padding:20px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading cache stats...</div>';
+            try {
+                const resp = await fetch('/api/user_cache/stats');
+                if (!resp.ok) throw new Error('Failed to load cache stats');
+                const data = await resp.json();
+                renderCacheData(data);
+            } catch (err) {
+                wrapper.innerHTML = `<div class="error-message">${err.message}</div>`;
+            }
+        }
+
+        function renderCacheData(data) {
+            wrapper.innerHTML = '';
+
+            const globalSection = document.createElement('div');
+            globalSection.className = 'cache-admin-section';
+            const globalTitle = document.createElement('h4');
+            globalTitle.className = 'cache-section-title';
+            globalTitle.textContent = 'Global Caches';
+            globalSection.appendChild(globalTitle);
+
+            const globalStats = data.global_cache ? data.global_cache.stats : null;
+            const services = globalStats ? Object.keys(globalStats).filter(k => k !== 'username') : [];
+
+            if (services.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'setting-description';
+                empty.textContent = 'No global cache data found.';
+                globalSection.appendChild(empty);
+            } else {
+                const grid = document.createElement('div');
+                grid.className = 'cache-service-grid';
+                for (const service of services) {
+                    grid.appendChild(createGlobalServiceCard(service, globalStats[service]));
+                }
+                globalSection.appendChild(grid);
+
+                const globalActions = document.createElement('div');
+                globalActions.className = 'cache-admin-actions';
+
+                const refreshAllBtn = document.createElement('button');
+                refreshAllBtn.className = 'discover-button';
+                refreshAllBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh All';
+                refreshAllBtn.addEventListener('click', () => doRefreshGlobal(services));
+
+                globalActions.appendChild(refreshAllBtn);
+                globalSection.appendChild(globalActions);
+            }
+
+            wrapper.appendChild(globalSection);
+
+            const userSection = document.createElement('div');
+            userSection.className = 'cache-admin-section';
+            const userTitle = document.createElement('h4');
+            userTitle.className = 'cache-section-title';
+            userTitle.textContent = 'User Caches';
+            userSection.appendChild(userTitle);
+            const userNote = document.createElement('p');
+            userNote.className = 'setting-description';
+            userNote.style.marginBottom = '12px';
+            userNote.textContent = 'Per-user caches are Plex-only. Emby and Jellyfin users share the global cache shown above.';
+            userSection.appendChild(userNote);
+
+            const users = data.users || [];
+            const knownServices = ['plex', 'jellyfin', 'emby'];
+            const usersWithCache = users.filter(u =>
+                knownServices.some(s => u.stats[s] && u.stats[s].cache_exists)
+            );
+
+            if (usersWithCache.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'setting-description';
+                empty.textContent = 'No user-specific caches found.';
+                userSection.appendChild(empty);
+            } else {
+                const grid = document.createElement('div');
+                grid.className = 'cache-service-grid';
+                for (const user of usersWithCache) {
+                    grid.appendChild(createUserCacheCard(user, knownServices));
+                }
+                userSection.appendChild(grid);
+            }
+
+            wrapper.appendChild(userSection);
+        }
+
+        function createGlobalServiceCard(service, stats) {
+            const card = document.createElement('div');
+            card.className = 'cache-service-card';
+
+            const cacheExistsHtml = stats.cache_exists
+                ? '<span class="cache-stat-yes"><i class="fa-solid fa-check"></i> Yes</span>'
+                : '<span class="cache-stat-no"><i class="fa-solid fa-xmark"></i> No</span>';
+
+            const unwatchedHtml = (service === 'plex')
+                ? `<span>${stats.unwatched_count}</span>`
+                : stats.unwatched_count !== null && stats.unwatched_count !== undefined
+                    ? `<span>${stats.unwatched_count}</span>`
+                    : '<span class="cache-stat-na" title="Service unavailable">—</span>';
+
+            const refreshNote = (service !== 'plex')
+                ? `<div class="cache-stat-row cache-stat-note"><span class="cache-stat-label">Refresh rebuilds:</span><span class="cache-stat-na">All Movies only</span></div>`
+                : '';
+
+            card.innerHTML = `
+                <div class="cache-card-name">${service}</div>
+                <div class="cache-stat-row"><span class="cache-stat-label">Unwatched:</span>${unwatchedHtml}</div>
+                <div class="cache-stat-row"><span class="cache-stat-label">All Movies:</span><span>${stats.all_count}</span></div>
+                <div class="cache-stat-row"><span class="cache-stat-label">Cache Exists:</span>${cacheExistsHtml}</div>
+                ${refreshNote}
+            `;
+
+            const actions = document.createElement('div');
+            actions.className = 'user-actions';
+
+            const refreshTitle = (service !== 'plex')
+                ? 'Refresh (rebuilds All Movies cache only)'
+                : 'Refresh';
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'user-action';
+            refreshBtn.title = refreshTitle;
+            refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+            refreshBtn.addEventListener('click', () => doRefreshGlobalService(service));
+            actions.appendChild(refreshBtn);
+
+            card.appendChild(actions);
+            return card;
+        }
+
+        function createUserCacheCard(user, knownServices) {
+            const card = document.createElement('div');
+            card.className = 'cache-service-card';
+
+            const activeServices = knownServices.filter(s => user.stats[s] && user.stats[s].cache_exists);
+            const iconsHtml = activeServices.map(s =>
+                `<img src="/static/logos/${s}.svg" class="cache-service-icon" title="${s}" alt="${s}">`
+            ).join('');
+
+            let statsHtml = '';
+            for (const s of activeServices) {
+                const st = user.stats[s];
+                if (s === 'plex') {
+                    statsHtml += `<div class="cache-stat-row"><span class="cache-stat-label">Unwatched:</span><span>${st.unwatched_count}</span></div>`;
+                    statsHtml += `<div class="cache-stat-row"><span class="cache-stat-label">All Movies:</span><span>${st.all_count}</span></div>`;
+                } else {
+                    statsHtml += `<div class="cache-stat-row"><span class="cache-stat-label">All Movies:</span><span>${st.all_count}</span></div>`;
+                }
+            }
+
+            card.innerHTML = `
+                <div class="cache-card-name">
+                    <span>${user.display_username}</span>
+                    <span class="cache-service-icons">${iconsHtml}</span>
+                </div>
+                ${statsHtml}
+            `;
+
+            const actions = document.createElement('div');
+            actions.className = 'user-actions';
+
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'user-action';
+            refreshBtn.title = 'Refresh';
+            refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+            refreshBtn.addEventListener('click', () => doRefreshUserCache(user.internal_username));
+            actions.appendChild(refreshBtn);
+
+            card.appendChild(actions);
+            return card;
+        }
+
+        async function doRefreshGlobal(services) {
+            try {
+                const csrf = getCsrfToken();
+                await Promise.all(services.map(s =>
+                    fetch('/api/refresh_global_cache', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                        body: JSON.stringify({ service: s })
+                    })
+                ));
+                showSuccess('Global cache refresh started for all services!');
+                setTimeout(loadCacheData, 1500);
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function doRefreshGlobalService(service) {
+            try {
+                const resp = await fetch('/api/refresh_global_cache', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                    body: JSON.stringify({ service })
+                });
+                if (!resp.ok) {
+                    const d = await resp.json();
+                    throw new Error(d.message || `Failed to refresh ${service} cache`);
+                }
+                showSuccess(`Global ${service} cache refresh started!`);
+                setTimeout(loadCacheData, 1000);
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function doRefreshUserCache(username) {
+            try {
+                const resp = await fetch(`/api/user_cache/build/${username}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() }
+                });
+                if (!resp.ok) {
+                    const d = await resp.json();
+                    throw new Error(d.message || `Failed to refresh cache for ${username}`);
+                }
+                showSuccess(`Cache refresh started for ${username}!`);
+                setTimeout(loadCacheData, 1000);
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        loadCacheData();
+        container.appendChild(wrapper);
+    }
+
     initialize();
 });

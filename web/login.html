@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="orientation" content="portrait">
@@ -14,9 +14,15 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" href="/static/icons/favicon.ico">
-    <meta name="csrf-token" content="{{ csrf_token() }}"> 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style/heroui-theme.css">
+    <link rel="stylesheet" href="/static/style/aceternity-effects.css">
+    {% endif %}
 </head>
-<body class="{{ 'has-backdrop' if login_backdrop_enabled else '' }}">
+{% set _login_cls = ('has-backdrop' if login_backdrop_enabled else '') + (' heroui-theme' if heroui_theme else '') %}
+<body{% if _login_cls.strip() %} class="{{ _login_cls.strip() }}"{% endif %}>
     {% if login_backdrop_enabled %}
     <div id="backdrop-container"></div>
     {% endif %}
@@ -330,5 +336,6 @@
 
         });
     </script>
+    {% if heroui_theme %}<script src="/static/js/theme-effects.js"></script>{% endif %}
 </body>
 </html>

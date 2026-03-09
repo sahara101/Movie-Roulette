@@ -77,10 +77,12 @@ def get_user_cache_stats():
                 'cache_exists': False
             },
             'jellyfin': {
+                'unwatched_count': None,
                 'all_count': 0,
                 'cache_exists': False
             },
             'emby': {
+                'unwatched_count': None,
                 'all_count': 0,
                 'cache_exists': False
             }
@@ -111,6 +113,12 @@ def get_user_cache_stats():
                     global_stats['jellyfin']['all_count'] = len(data)
             except Exception as e:
                 logger.error(f"Error reading global Jellyfin cache: {e}")
+            jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
+            if jellyfin_service:
+                try:
+                    global_stats['jellyfin']['unwatched_count'] = jellyfin_service.get_unwatched_count()
+                except Exception as e:
+                    logger.error(f"Error getting Jellyfin unwatched count: {e}")
 
         if os.path.exists('/app/data/emby_all_movies.json'):
             global_stats['emby']['cache_exists'] = True
@@ -120,6 +128,12 @@ def get_user_cache_stats():
                     global_stats['emby']['all_count'] = len(data)
             except Exception as e:
                 logger.error(f"Error reading global Emby cache: {e}")
+            emby_service = current_app.config.get('EMBY_SERVICE')
+            if emby_service:
+                try:
+                    global_stats['emby']['unwatched_count'] = emby_service.get_unwatched_count()
+                except Exception as e:
+                    logger.error(f"Error getting Emby unwatched count: {e}")
         
         global_display_name = get_display_username_from_internal('global', all_managed_users_details)
         global_stats_entry = {

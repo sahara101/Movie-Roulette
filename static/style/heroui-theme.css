@@ -1,0 +1,2916 @@
+body.heroui-theme {
+  --bg: #09090b;
+  --bg-2: #111113;
+  --bg-3: #18181b;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
+
+  --primary: #6366f1;
+  --primary-hover: #818cf8;
+  --primary-glow: rgba(99, 102, 241, 0.4);
+  --secondary: #7c3aed;
+  --accent: #06b6d4;
+  --accent-glow: rgba(6, 182, 212, 0.3);
+
+  --brand-gold: #e5a00d;
+  --brand-gold-hover: #f8d68b;
+  --brand-gold-glow: rgba(229, 160, 13, 0.4);
+
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+
+  --error: #f43f5e;
+  --success: #10b981;
+  --warning: #f59e0b;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow-primary: 0 0 20px var(--primary-glow), 0 0 40px rgba(99, 102, 241, 0.2);
+  --shadow-glow-gold: 0 0 20px var(--brand-gold-glow), 0 0 40px rgba(229, 160, 13, 0.2);
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* --- Base --- */
+body.heroui-theme {
+  background-color: var(--bg);
+  color: var(--text-primary);
+}
+
+body.heroui-theme::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body.heroui-theme.poster-page::before {
+  display: none;
+}
+
+/* --- Navigation --- */
+body.heroui-theme .main-nav {
+  background: rgba(9, 9, 11, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+
+body.heroui-theme .main-nav a,
+body.heroui-theme .main-nav button,
+body.heroui-theme .nav-link {
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+  font-size: 0.875rem;
+}
+
+body.heroui-theme .main-nav a:hover,
+body.heroui-theme .main-nav button:hover,
+body.heroui-theme .nav-link:hover {
+  color: var(--text-primary);
+}
+
+body.heroui-theme .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .media-dropdown,
+body.heroui-theme .user-dropdown,
+body.heroui-theme .account-dropdown {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+body.heroui-theme .dropdown-item:hover,
+body.heroui-theme .account-dropdown a:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* --- Primary Buttons --- */
+body.heroui-theme .button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+body.heroui-theme .button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transition: left var(--transition-slow);
+}
+
+body.heroui-theme .button:hover::after {
+  left: 100%;
+}
+
+body.heroui-theme .button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+}
+
+body.heroui-theme .button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- Cards --- */
+body.heroui-theme .settings-section,
+body.heroui-theme .collection-card,
+body.heroui-theme .filter-dropdown,
+body.heroui-theme #container_list_of_clients,
+body.heroui-theme #collection_info {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+body.heroui-theme .settings-section:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-lg);
+}
+
+/* --- Movie Grid Cards --- */
+body.heroui-theme .movie-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-md);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+body.heroui-theme .movie-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: var(--shadow-lg), 0 0 30px rgba(99, 102, 241, 0.15);
+}
+
+body.heroui-theme .watch-button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: all var(--transition-base);
+}
+
+body.heroui-theme .watch-button:hover {
+  box-shadow: var(--shadow-glow-primary);
+  transform: translateY(-1px);
+}
+
+/* --- Inputs & Form Fields --- */
+body.heroui-theme input[type="text"],
+body.heroui-theme input[type="password"],
+body.heroui-theme input[type="email"],
+body.heroui-theme input[type="url"],
+body.heroui-theme input[type="number"],
+body.heroui-theme select,
+body.heroui-theme textarea {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+body.heroui-theme input:focus,
+body.heroui-theme select:focus,
+body.heroui-theme textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* --- Settings Tabs --- */
+body.heroui-theme .settings-tabs {
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+
+body.heroui-theme .tab {
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+body.heroui-theme .tab.active {
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+  border-bottom-color: var(--primary);
+}
+
+/* --- Modals & Overlays --- */
+body.heroui-theme #client_prompt,
+body.heroui-theme #device_prompt,
+body.heroui-theme .modal {
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+body.heroui-theme .modal-content,
+body.heroui-theme #container_list_of_clients {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(99, 102, 241, 0.08);
+}
+
+body.heroui-theme .client,
+body.heroui-theme .device {
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+body.heroui-theme .client:hover,
+body.heroui-theme .device:hover {
+  background: var(--surface-hover);
+  transform: translateX(4px);
+}
+
+body.heroui-theme .no-clients-message {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: rgba(250, 250, 250, 0.4);
+  padding: 24px 20px;
+  margin: 8px 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+}
+
+/* Overlay panels (person details, collections, trailers) */
+body.heroui-theme #person_details_overlay,
+body.heroui-theme #collection_info,
+body.heroui-theme #trailer_popup {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+/* --- Login & Setup Cards --- */
+body.heroui-theme .login-card,
+body.heroui-theme .setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(99, 102, 241, 0.12);
+}
+
+body.heroui-theme .login-button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border: none;
+  border-radius: var(--radius-md);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+body.heroui-theme .login-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transition: left var(--transition-slow);
+}
+
+body.heroui-theme .login-button:hover::after {
+  left: 100%;
+}
+
+body.heroui-theme .login-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+}
+
+body.heroui-theme .input-with-icon input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+body.heroui-theme .media-server-dropdown .dropdown-toggle,
+body.heroui-theme .media-server-dropdown .dropdown-menu {
+  background: var(--bg-3);
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+}
+
+body.heroui-theme .media-server-dropdown .dropdown-item:hover {
+  background: var(--surface-hover);
+}
+
+/* --- Filter System --- */
+body.heroui-theme .filter-container .button,
+body.heroui-theme .filter-button,
+body.heroui-theme .search-button,
+body.heroui-theme .grid-view-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .filter-container .button:hover,
+body.heroui-theme .filter-button:hover,
+body.heroui-theme .search-button:hover,
+body.heroui-theme .grid-view-button:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+  transform: none;
+  box-shadow: none;
+}
+
+body.heroui-theme .filter-dropdown {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* --- Collections --- */
+body.heroui-theme .collection-card {
+  border-radius: var(--radius-md);
+  transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+body.heroui-theme .collection-grid .collection-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.15), var(--shadow-lg);
+  transform: translateY(-4px);
+}
+
+/* --- Badges & Indicators --- */
+body.heroui-theme .badge {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border-radius: var(--radius-xs);
+  font-weight: 600;
+}
+
+body.heroui-theme .error-message {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-sm);
+  color: #fda4af;
+}
+
+/* --- Loading Progress --- */
+body.heroui-theme #loading-progress {
+  background: linear-gradient(90deg, var(--primary), var(--accent), var(--primary));
+  background-size: 200% 100%;
+  animation: heroui-progress-shimmer 2s linear infinite;
+}
+
+@keyframes heroui-progress-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+body.heroui-theme.poster-page .info-bar {
+  background: rgba(9, 9, 11, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+body.heroui-theme.poster-page #progress-bar {
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+/* --- Scrollbar --- */
+body.heroui-theme ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+body.heroui-theme ::-webkit-scrollbar-track {
+  background: var(--bg-2);
+}
+
+body.heroui-theme ::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 99px;
+}
+
+body.heroui-theme ::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+body.heroui-theme .gradient-text {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* --- Flash messages --- */
+body.heroui-theme .flash-message.error {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #fda4af;
+  border-radius: var(--radius-sm);
+}
+
+body.heroui-theme .flash-message.success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+  border-radius: var(--radius-sm);
+}
+
+body.heroui-theme .settings-container {
+  max-width: 980px;
+  margin: 32px auto;
+  padding: 36px 40px;
+  background: rgba(17, 17, 19, 0.94);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 64px rgba(0, 0, 0, 0.65),
+    0 0 120px rgba(99, 102, 241, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Header ── */
+body.heroui-theme .settings-header {
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+body.heroui-theme .settings-header h1 {
+  margin: 0;
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--text-primary) 30%, var(--primary-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.heroui-theme .back-button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+  border: none;
+}
+
+body.heroui-theme .back-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  transform: translateX(-100%);
+  transition: transform var(--transition-slow);
+}
+
+body.heroui-theme .back-button:hover::after {
+  transform: translateX(100%);
+}
+
+body.heroui-theme .back-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+}
+
+body.heroui-theme .donate-button {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: all var(--transition-base);
+}
+
+body.heroui-theme .donate-button:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .dropdown-content {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+body.heroui-theme .dropdown-content a {
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .dropdown-content a:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .settings-tabs {
+  display: flex;
+  gap: 3px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 4px;
+  margin-bottom: 28px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+body.heroui-theme .settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+body.heroui-theme .tab {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-bottom: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 20px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.875rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  margin-bottom: 0;
+}
+
+body.heroui-theme .tab:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .tab.active {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  font-weight: 600;
+  border-bottom: none;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
+}
+
+body.heroui-theme .settings-section {
+  background: rgba(24, 24, 27, 0.7);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  margin-bottom: 16px;
+  overflow: hidden;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  transition: border-color var(--transition-base);
+}
+
+body.heroui-theme .settings-section:last-child {
+  margin-bottom: 0;
+}
+
+body.heroui-theme .settings-section:hover {
+  border-color: var(--border-hover);
+  box-shadow: none;
+}
+
+body.heroui-theme .settings-section > h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 18px 24px 14px;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body.heroui-theme .settings-section > h2::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  background: linear-gradient(180deg, var(--primary), var(--secondary));
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+/* ── Field layout ── */
+body.heroui-theme .setting-field {
+  margin-bottom: 0;
+}
+
+body.heroui-theme .section-fields-body {
+  padding: 0 24px 8px;
+}
+
+body.heroui-theme .section-fields-body > .setting-field {
+  padding: 14px 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+body.heroui-theme .section-fields-body > .setting-field:first-child {
+  padding-top: 12px;
+}
+
+body.heroui-theme .section-fields-body > .setting-field:last-child {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+/* --- Setting Labels & Descriptions --- */
+body.heroui-theme .setting-field label {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+body.heroui-theme .setting-description {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+body.heroui-theme .setting-description a {
+  color: var(--primary);
+  transition: color var(--transition-fast);
+}
+
+body.heroui-theme .setting-description a:hover {
+  color: var(--primary-hover);
+}
+
+body.heroui-theme .toggle {
+  width: 44px;
+  height: 22px;
+  background: var(--bg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+body.heroui-theme .toggle::after {
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 2px;
+  transform: translateY(-50%);
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: transform var(--transition-base), background var(--transition-base);
+}
+
+body.heroui-theme .toggle.active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+body.heroui-theme .toggle.active::after {
+  background: #fff;
+  transform: translateX(22px) translateY(-50%);
+}
+
+body.heroui-theme .toggle:not(.disabled):hover {
+  border-color: var(--border-hover);
+}
+
+body.heroui-theme .toggle.active:not(.disabled):hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+/* --- Action Buttons (Discover / Plex Auth / Fetch Libraries) --- */
+body.heroui-theme .discover-button,
+body.heroui-theme .plex-auth-button,
+body.heroui-theme .fetch-libraries-button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+body.heroui-theme .discover-button::after,
+body.heroui-theme .plex-auth-button::after,
+body.heroui-theme .fetch-libraries-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  transform: translateX(-100%);
+  transition: transform var(--transition-slow);
+}
+
+body.heroui-theme .discover-button:hover::after,
+body.heroui-theme .plex-auth-button:hover::after,
+body.heroui-theme .fetch-libraries-button:hover::after {
+  transform: translateX(100%);
+}
+
+body.heroui-theme .discover-button:hover,
+body.heroui-theme .plex-auth-button:hover,
+body.heroui-theme .fetch-libraries-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+}
+
+body.heroui-theme .discover-button:disabled,
+body.heroui-theme .plex-auth-button:disabled,
+body.heroui-theme .fetch-libraries-button:disabled {
+  opacity: 0.4;
+  transform: none;
+  box-shadow: none;
+}
+
+/* --- Dialog Overlays --- */
+body.heroui-theme .trakt-confirm-dialog,
+body.heroui-theme .appletv-dialog,
+body.heroui-theme .custom-modal-overlay,
+body.heroui-main .trakt-confirm-dialog {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* --- Dialog / Modal Content --- */
+body.heroui-theme .dialog-content,
+body.heroui-theme .custom-modal-content,
+body.heroui-main .dialog-content {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(99, 102, 241, 0.1);
+}
+
+body.heroui-theme .dialog-content h3,
+body.heroui-theme .custom-modal-content h3,
+body.heroui-main .dialog-content h3 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+body.heroui-theme .dialog-content p,
+body.heroui-theme .custom-modal-content p,
+body.heroui-main .dialog-content p {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .dialog-separator {
+  color: var(--text-muted);
+}
+
+body.heroui-theme .dialog-separator::before,
+body.heroui-theme .dialog-separator::after {
+  border-bottom-color: var(--border);
+}
+
+body.heroui-theme .dialog-steps .step {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .dialog-steps .step.current {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+body.heroui-theme .trakt-confirm-dialog .dialog-note {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .trakt-confirm-dialog .dialog-note i {
+  color: var(--accent);
+}
+
+body.heroui-theme .trakt-confirm-dialog .dialog-content,
+body.heroui-main .trakt-confirm-dialog .dialog-content {
+  animation: fade-in-up 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+body.heroui-theme .trakt-confirm-dialog .dialog-content > h3,
+body.heroui-main .trakt-confirm-dialog .dialog-content > h3 {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  font-size: 1.25em;
+  letter-spacing: -0.01em;
+}
+
+body.heroui-theme .trakt-confirm-dialog .changelog,
+body.heroui-main .trakt-confirm-dialog .changelog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+body.heroui-theme .trakt-confirm-dialog .changelog h4,
+body.heroui-main .trakt-confirm-dialog .changelog h4 {
+  color: var(--text-secondary);
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.heroui-theme .trakt-confirm-dialog .changelog-content h1,
+body.heroui-theme .trakt-confirm-dialog .changelog-content h2,
+body.heroui-theme .trakt-confirm-dialog .changelog-content h3,
+body.heroui-main .trakt-confirm-dialog .changelog-content h1,
+body.heroui-main .trakt-confirm-dialog .changelog-content h2,
+body.heroui-main .trakt-confirm-dialog .changelog-content h3 {
+  color: var(--primary);
+}
+
+body.heroui-theme .trakt-confirm-dialog .changelog-content a,
+body.heroui-main .trakt-confirm-dialog .changelog-content a {
+  color: var(--accent);
+}
+
+body.heroui-theme .trakt-confirm-dialog .changelog-content a:hover,
+body.heroui-main .trakt-confirm-dialog .changelog-content a:hover {
+  color: var(--primary-hover);
+}
+
+body.heroui-theme .trakt-confirm-dialog .changelog-content p,
+body.heroui-theme .trakt-confirm-dialog .changelog-content li,
+body.heroui-main .trakt-confirm-dialog .changelog-content p,
+body.heroui-main .trakt-confirm-dialog .changelog-content li {
+  color: var(--text-secondary);
+}
+
+/* --- Dialog Buttons --- */
+body.heroui-theme .submit-button,
+body.heroui-main .trakt-confirm-dialog .submit-button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: all var(--transition-base);
+}
+
+body.heroui-theme .submit-button:hover,
+body.heroui-main .trakt-confirm-dialog .submit-button:hover {
+  box-shadow: var(--shadow-glow-primary);
+  transform: translateY(-1px);
+}
+
+body.heroui-theme .submit-button:disabled {
+  opacity: 0.4;
+  transform: none;
+  box-shadow: none;
+}
+
+body.heroui-theme .cancel-button,
+body.heroui-main .trakt-confirm-dialog .cancel-button {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .cancel-button:hover,
+body.heroui-main .trakt-confirm-dialog .cancel-button:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .manual-button {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .manual-button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+body.heroui-theme .disconnect-button {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .disconnect-button:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.5);
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.2);
+}
+
+body.heroui-theme .custom-modal-button.primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: all var(--transition-base);
+}
+
+body.heroui-theme .custom-modal-button.primary:hover {
+  box-shadow: var(--shadow-glow-primary);
+  transform: translateY(-1px);
+}
+
+body.heroui-theme .custom-modal-button.secondary {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .custom-modal-button.secondary:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .custom-modal-button.danger {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .custom-modal-button.danger:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.5);
+}
+
+/* --- Custom Modal Input --- */
+body.heroui-theme .custom-modal-input {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+body.heroui-theme .custom-modal-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  outline: none;
+}
+
+body.heroui-theme .custom-modal-input-group label {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .env-override {
+  background: rgba(6, 182, 212, 0.08);
+  border-left-color: var(--accent);
+  color: var(--accent);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+
+/* ── Setting input ── */
+body.heroui-theme .setting-input {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+body.heroui-theme .setting-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+body.heroui-theme .setting-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Device / TV Options --- */
+body.heroui-theme .device-option,
+body.heroui-theme .tv-option {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .device-option:hover,
+body.heroui-theme .tv-option:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.1);
+}
+
+body.heroui-theme .device-option i,
+body.heroui-theme .tv-option i {
+  color: var(--primary);
+}
+
+body.heroui-theme .device-name,
+body.heroui-theme .tv-name {
+  color: var(--text-primary);
+}
+
+body.heroui-theme .device-info,
+body.heroui-theme .tv-info,
+body.heroui-theme .device-model {
+  color: var(--text-secondary);
+}
+
+/* --- Library & User Selects --- */
+body.heroui-theme .library-select,
+body.heroui-theme .user-select {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+body.heroui-theme .library-option:hover,
+body.heroui-theme .user-option:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+body.heroui-theme .library-option input[type="checkbox"],
+body.heroui-theme .user-option input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+
+body.heroui-theme .user-option span {
+  color: var(--text-primary);
+}
+
+/* --- Current Config Display --- */
+body.heroui-theme .current-config {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+body.heroui-theme .config-item {
+  color: var(--text-secondary);
+}
+
+/* --- Setup Message --- */
+body.heroui-theme .setup-message {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+body.heroui-theme .setup-message i {
+  color: var(--primary);
+}
+
+body.heroui-theme .setup-message p {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .setup-message ul {
+  color: var(--text-secondary);
+}
+
+/* --- Pin Display --- */
+body.heroui-theme .pin-display {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+body.heroui-theme .pin-code {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--primary);
+  border-radius: var(--radius-sm);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: 0.3em;
+}
+
+body.heroui-theme .pin-instructions {
+  color: var(--text-secondary);
+}
+
+/* --- Toast Notifications --- */
+body.heroui-theme .success-message {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+body.heroui-theme .error-message {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #fda4af;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+body.heroui-theme .info-message {
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  color: #67e8f9;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+/* --- Trakt Connect Button --- */
+body.heroui-theme .trakt-connect-button {
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+body.heroui-theme .trakt-connect-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  transform: translateX(-100%);
+  transition: transform var(--transition-slow);
+}
+
+body.heroui-theme .trakt-connect-button:hover::after {
+  transform: translateX(100%);
+}
+
+body.heroui-theme .trakt-connect-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(237, 28, 36, 0.35);
+}
+
+body.heroui-theme .trakt-connect-button.connected:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+/* --- Timezone Dialog --- */
+body.heroui-theme .timezone-list {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+body.heroui-theme .timezone-option {
+  color: var(--text-primary);
+  border-radius: var(--radius-xs);
+  transition: background var(--transition-fast);
+}
+
+body.heroui-theme .timezone-option:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+body.heroui-theme .timezone-option.selected {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* --- Settings Disabled Page --- */
+body.heroui-theme .settings-disabled-heroui-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+body.heroui-theme .settings-disabled {
+  min-height: unset;
+  justify-content: unset;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(99, 102, 241, 0.12);
+  padding: 40px;
+  max-width: 700px;
+  width: 100%;
+  color: var(--text-primary);
+}
+
+body.heroui-theme .settings-disabled h1 {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.heroui-theme .settings-disabled p {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .settings-disabled .back-button {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border-radius: var(--radius-md);
+}
+
+body.heroui-theme .settings-disabled .back-button:hover {
+  box-shadow: var(--shadow-glow-primary);
+  transform: translateY(-2px);
+}
+
+body.heroui-theme .config-help {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+body.heroui-theme .config-help p {
+  color: var(--primary);
+}
+
+body.heroui-theme .config-help pre {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+/* ── Version badge ── */
+body.heroui-theme .bottom-links {
+  position: fixed;
+  bottom: 16px;
+  right: 20px;
+  z-index: 3;
+}
+
+body.heroui-theme .bottom-links .version-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(17, 17, 19, 0.85);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme .bottom-links .version-label:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-hover);
+}
+
+/* --- Version Check Button (in features tab) --- */
+body.heroui-theme .version-check-wrapper .discover-button {
+  width: auto;
+  min-width: 12rem;
+}
+
+body.heroui-theme .section-service-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+body.heroui-theme .settings-section[data-service="plex"] .section-service-header {
+  background: linear-gradient(135deg, rgba(229, 160, 13, 0.1) 0%, rgba(229, 160, 13, 0.03) 100%);
+  border-bottom-color: rgba(229, 160, 13, 0.2);
+}
+
+body.heroui-theme .settings-section[data-service="jellyfin"] .section-service-header {
+  background: linear-gradient(135deg, rgba(0, 164, 220, 0.1) 0%, rgba(0, 164, 220, 0.03) 100%);
+  border-bottom-color: rgba(0, 164, 220, 0.2);
+}
+
+body.heroui-theme .settings-section[data-service="emby"] .section-service-header {
+  background: linear-gradient(135deg, rgba(82, 181, 75, 0.1) 0%, rgba(82, 181, 75, 0.03) 100%);
+  border-bottom-color: rgba(82, 181, 75, 0.2);
+}
+
+/* Service logo */
+body.heroui-theme .section-service-logo {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.heroui-theme .settings-section[data-service="plex"] .section-service-logo {
+  background: #1f2023;
+  border-color: rgba(229, 160, 13, 0.3);
+}
+
+/* Section header info (title + badge, side by side) */
+body.heroui-theme .section-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+body.heroui-theme .section-header-info h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  border: none;
+  letter-spacing: 0.01em;
+}
+
+body.heroui-theme .section-header-info h2::before {
+  display: none;
+}
+
+/* Status badges */
+body.heroui-theme .section-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+body.heroui-theme .section-status-badge.badge-active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+body.heroui-theme .section-status-badge.badge-inactive {
+  background: rgba(113, 113, 122, 0.12);
+  color: var(--text-secondary);
+  border-color: rgba(113, 113, 122, 0.2);
+}
+
+body.heroui-theme .section-fields-body > .setting-field:not(.setting-toggle-row) > label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: block;
+}
+
+body.heroui-theme .section-fields-body > .setting-field.setting-toggle-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+body.heroui-theme .setting-field-info {
+  flex: 1;
+  min-width: 0;
+}
+
+body.heroui-theme .setting-field-info label {
+  display: block;
+  margin-bottom: 0;
+  font-size: 0.9375rem;
+}
+
+body.heroui-theme .setting-field-info .setting-description {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+body.heroui-theme .setting-toggle-control {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+body.heroui-theme .setting-toggle-control .toggle {
+  margin-top: 0;
+}
+
+body.heroui-theme .feature-group-title {
+  color: var(--primary);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+body.heroui-theme .feature-group > .setting-field {
+  border-bottom-color: rgba(255,255,255,0.05);
+}
+
+body.heroui-theme .settings-container {
+  max-width: 1120px;
+  padding: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 192px 1fr;
+  overflow: hidden;
+  min-height: 600px;
+}
+
+body.heroui-theme .settings-header {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  padding: 22px 32px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+body.heroui-theme .settings-tabs {
+  grid-row: 2;
+  grid-column: 1;
+  flex-direction: column;
+  align-items: stretch;
+  background: rgba(9, 9, 11, 0.55);
+  border-right: 1px solid var(--border);
+  border-radius: 0 0 0 var(--radius-xl);
+  padding: 12px 8px;
+  gap: 2px;
+  margin-bottom: 0;
+  overflow-x: visible;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* Content panel */
+body.heroui-theme .settings-content {
+  grid-row: 2;
+  grid-column: 2;
+  padding: 28px 32px;
+  overflow-y: auto;
+  max-height: 78vh;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+}
+
+/* Sidebar tab items */
+body.heroui-theme .tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  justify-content: flex-start;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  width: 100%;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  border-bottom: none;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+body.heroui-theme .tab i {
+  font-size: 0.8125rem;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+body.heroui-theme .tab span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.heroui-theme .tab:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .tab:hover i {
+  opacity: 1;
+}
+
+body.heroui-theme .tab.active {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+}
+
+body.heroui-theme .tab.active i {
+  opacity: 1;
+}
+
+body.heroui-theme .field-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+body.heroui-theme .field-prefix-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  pointer-events: none;
+  opacity: 0.55;
+  z-index: 1;
+}
+
+body.heroui-theme .field-input-wrapper .setting-input {
+  padding-left: 34px;
+  width: 100%;
+}
+
+body.heroui-theme .user-management-wrapper {
+  margin-top: 8px;
+}
+
+body.heroui-theme .users-container {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+body.heroui-theme .user-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+body.heroui-theme .user-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--border-hover);
+}
+
+body.heroui-theme .user-name {
+  color: var(--text-primary);
+}
+
+body.heroui-theme .user-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+body.heroui-theme .user-action {
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+body.heroui-theme .user-action:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+body.heroui-theme .user-action.delete:hover {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Role badges */
+body.heroui-theme .role-badge {
+  border-radius: 999px;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+}
+
+body.heroui-theme .role-badge.admin {
+  background: rgba(220, 38, 38, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+}
+
+body.heroui-theme .role-badge.user {
+  background: rgba(113, 113, 122, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid rgba(113, 113, 122, 0.2);
+}
+
+body.heroui-theme .role-badge.managed-user {
+  background: rgba(3, 105, 161, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(3, 105, 161, 0.3);
+}
+
+/* Service type badges */
+body.heroui-theme .service-type-badge {
+  border-radius: 999px;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+}
+
+body.heroui-theme .service-type-badge.local {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--primary-light);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+body.heroui-theme .service-type-badge.plex {
+  background: rgba(229, 160, 13, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(229, 160, 13, 0.2);
+}
+
+body.heroui-theme .service-type-badge.jellyfin {
+  background: rgba(0, 164, 220, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(0, 164, 220, 0.2);
+}
+
+body.heroui-theme .service-type-badge.emby {
+  background: rgba(82, 181, 75, 0.12);
+  color: #86efac;
+  border: 1px solid rgba(82, 181, 75, 0.2);
+}
+
+/* Passkey management sub-heading */
+body.heroui-theme .passkey-management-wrapper h2 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 16px 0 8px;
+  padding: 0;
+  border: none;
+}
+
+body.heroui-theme .passkey-management-wrapper h2::before {
+  display: none;
+}
+
+body.heroui-theme .passkey-management-wrapper .passkey-list {
+  padding-left: 0;
+  gap: 8px;
+}
+
+/* ── Connection test button ─────────────────────────────────── */
+body.heroui-theme .service-test-row {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+body.heroui-theme .service-test-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+body.heroui-theme .service-test-button:hover:not(:disabled) {
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .service-test-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+body.heroui-theme .service-test-button.test-success {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+body.heroui-theme .service-test-button.test-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+body.heroui-theme .test-error-label {
+  font-size: 0.72rem;
+  color: #f87171;
+  max-width: 200px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Auth tab strip ─────────────────────────────────────────── */
+body.heroui-theme .auth-tabs-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+body.heroui-theme .auth-tab-strip {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+body.heroui-theme .auth-tab {
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+body.heroui-theme .auth-tab.active {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+body.heroui-theme .auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body.heroui-theme .auth-panel.hidden {
+  display: none;
+}
+
+body.heroui-theme .emby-login-methods {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+/* ── Plex token masked state ────────────────────────────────── */
+body.heroui-theme .plex-token-heroui,
+body.heroui-theme .plex-libraries-heroui {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body.heroui-theme .token-masked-row,
+body.heroui-theme .libraries-pill-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+body.heroui-theme .token-masked-row.hidden,
+body.heroui-theme .libraries-pill-row.hidden {
+  display: none;
+}
+
+body.heroui-theme .token-masked-value {
+  font-family: monospace;
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .token-change-btn,
+body.heroui-theme .lib-edit-btn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+body.heroui-theme .token-change-btn:hover,
+body.heroui-theme .lib-edit-btn:hover {
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .token-edit-row,
+body.heroui-theme .libraries-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body.heroui-theme .token-edit-row.hidden,
+body.heroui-theme .libraries-edit-row.hidden {
+  display: none;
+}
+
+/* ── Auth config (Jellyfin / Emby) ──────────────────────────── */
+body.heroui-theme .auth-config-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+body.heroui-theme .credentials-configured-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(34, 197, 94, 0.06);
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  border-radius: 10px;
+}
+
+body.heroui-theme .credentials-configured-card.hidden {
+  display: none;
+}
+
+body.heroui-theme .credentials-configured-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #22c55e;
+  letter-spacing: 0.03em;
+}
+
+body.heroui-theme .credentials-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+body.heroui-theme .credential-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body.heroui-theme .credential-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  min-width: 52px;
+}
+
+body.heroui-theme .credential-dots {
+  font-family: monospace;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+body.heroui-theme .auth-reconnect-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+body.heroui-theme .auth-reconnect-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+body.heroui-theme .auth-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body.heroui-theme .auth-login-form.hidden {
+  display: none;
+}
+
+body.heroui-theme .auth-cancel-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+
+body.heroui-theme .auth-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+body.heroui-theme .token-action-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Library pills ──────────────────────────────────────────── */
+body.heroui-theme .lib-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+/* ── Loading overlay ─────────────────────────────────────── */
+body.heroui-theme #loading-overlay {
+  background: rgba(9, 9, 11, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+body.heroui-theme #loading-content {
+  background: rgba(14, 14, 17, 0.97);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 36px 40px;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 32px 80px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  max-width: 420px;
+  width: 90%;
+}
+
+body.heroui-theme #loading-content h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+body.heroui-theme .loading-text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+body.heroui-theme #loading-bar-container {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+/* ── Collections toolbar ─────────────────────────────────── */
+body.heroui-theme .search-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body.heroui-theme #search-collections {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  flex: 1;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+body.heroui-theme #search-collections::placeholder {
+  color: var(--text-muted);
+}
+
+body.heroui-theme #search-collections:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+body.heroui-theme .clear-search {
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+  right: auto;
+  position: static;
+  transform: none;
+  font-size: 1rem;
+  padding: 0 4px;
+}
+
+body.heroui-theme .clear-search:hover {
+  color: var(--text-primary);
+}
+
+body.heroui-theme #random-collection-btn {
+  font-size: 0.82rem;
+  font-weight: 600;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  line-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  margin: 0;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border: none;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+body.heroui-theme #random-collection-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+  transform: translateX(-100%);
+  transition: transform var(--transition-slow);
+}
+
+body.heroui-theme #random-collection-btn:hover::after {
+  transform: translateX(100%);
+}
+
+body.heroui-theme #random-collection-btn:hover {
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+  transform: translateY(-1px);
+}
+
+body.heroui-theme .card_right {
+  font-family: inherit;
+}
+
+body.heroui-theme .collection-grid .card_right h1 {
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .card_right h1 {
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+body.heroui-theme .card_right__review p {
+  color: var(--text-secondary);
+}
+
+body.heroui-theme .read-more-link {
+  color: var(--primary);
+  font-family: inherit;
+}
+
+body.heroui-theme .read-more-link:hover {
+  color: var(--primary-hover);
+}
+
+/* ── Collection modal ────────────────────────────────────── */
+body.heroui-theme #collection_modal {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background: rgba(0, 0, 0, 0.55);
+}
+
+body.heroui-theme .collection-modal-content {
+  background: rgba(10, 10, 14, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 40px 100px rgba(0, 0, 0, 0.88);
+  color: var(--text-primary);
+  padding: 32px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+body.heroui-theme .collection-modal-content::-webkit-scrollbar { width: 4px; }
+body.heroui-theme .collection-modal-content::-webkit-scrollbar-track { background: transparent; }
+body.heroui-theme .collection-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+body.heroui-theme .close-button {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 50% !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+  padding: 0 !important;
+}
+
+body.heroui-theme .close-button:hover {
+  background: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+}
+
+body.heroui-theme .close-button svg {
+  width: 12px !important;
+  height: 12px !important;
+  fill: rgba(250, 250, 250, 0.55) !important;
+  transition: fill 0.15s !important;
+}
+
+body.heroui-theme .close-button:hover svg {
+  fill: #f43f5e !important;
+}
+
+body.heroui-theme .collection-modal-content .close-button {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+}
+
+body.heroui-theme .collection-info-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0 0 24px;
+  padding: 0 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+body.heroui-theme .heroui-collection-label {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: rgba(99, 102, 241, 0.75);
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+body.heroui-theme .collection-info-header h3 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  text-align: left;
+}
+
+/* Section labels */
+body.heroui-theme #collection_modal .unwatched-movies > p {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(250, 250, 250, 0.3);
+  margin: 0 0 10px;
+}
+
+body.heroui-theme #collection_modal .other-movies {
+  margin-top: 20px;
+}
+
+body.heroui-theme #collection_modal .other-movies h4 {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(250, 250, 250, 0.25);
+  margin: 0 0 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 16px;
+}
+
+/* Movie list rows */
+body.heroui-theme #collection_modal .movie-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+body.heroui-theme #collection_modal .movie-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: none;
+  border-radius: 10px;
+  gap: 12px;
+  font-size: 0.875rem;
+  transition: background var(--transition-fast);
+}
+
+body.heroui-theme #collection_modal .movie-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.heroui-theme #collection_modal .movie-title-link {
+  color: rgba(250, 250, 250, 0.82);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+}
+
+body.heroui-theme #collection_modal .movie-title-link:hover {
+  color: #a5b4fc;
+}
+
+body.heroui-theme #collection_modal .movie-title {
+  color: rgba(250, 250, 250, 0.82);
+  font-weight: 500;
+}
+
+body.heroui-theme #collection_modal .status-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+body.heroui-theme #collection_modal .movie-status {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  border: none;
+}
+
+body.heroui-theme #collection_modal .status-in-library {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+}
+
+body.heroui-theme #collection_modal .status-requested {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+}
+
+body.heroui-theme #collection_modal .status-not-in-library {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+body.heroui-theme #collection_modal .status-watched,
+body.heroui-theme #collection_modal .movie-item .status-watched {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(250, 250, 250, 0.3);
+}
+
+body.heroui-theme #collection_modal .request-icon {
+  fill: #e5a00d;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+body.heroui-theme #collection_modal .request-icon:hover { opacity: 0.75; }
+
+/* Action buttons */
+body.heroui-theme #collection_modal .action-buttons {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 24px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+
+body.heroui-theme #collection_modal .action-button {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 40px !important;
+  max-height: none !important;
+  padding: 0 20px !important;
+  border-radius: 12px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  transition: all var(--transition-base) !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  line-height: 40px !important;
+  box-shadow: none !important;
+}
+
+body.heroui-theme #collection_modal .action-button.watch-button {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: rgba(250, 250, 250, 0.82) !important;
+  border: 1px solid rgba(255, 255, 255, 0.11) !important;
+}
+
+body.heroui-theme #collection_modal .action-button.watch-button:hover {
+  background: rgba(255, 255, 255, 0.13) !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.heroui-theme #collection_modal .action-button.request-button {
+  background: rgba(229, 160, 13, 0.13) !important;
+  color: #e5a00d !important;
+  border: 1px solid rgba(229, 160, 13, 0.32) !important;
+}
+
+body.heroui-theme #collection_modal .action-button.request-button:hover:not(:disabled) {
+  background: rgba(229, 160, 13, 0.22) !important;
+  box-shadow: 0 0 22px rgba(229, 160, 13, 0.16), 0 4px 12px rgba(229, 160, 13, 0.12) !important;
+  transform: translateY(-1px) !important;
+}
+
+body.heroui-theme #collection_modal .action-button.request-button.disabled,
+body.heroui-theme #collection_modal .action-button.request-button:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+body.heroui-theme #collection_modal .action-button.dismiss-button {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(250, 250, 250, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  margin-left: auto !important;
+}
+
+body.heroui-theme #collection_modal .action-button.dismiss-button:hover {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card {
+  background: rgba(17, 17, 20, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-base);
+}
+
+body.heroui-theme #collection_modal .modal-movie-card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: none;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .card_left {
+  aspect-ratio: 2 / 3;
+  align-self: flex-start;
+  min-height: 120px;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions > * {
+  flex: 0 0 auto !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  line-height: 26px !important;
+  padding: 0 11px !important;
+  border-radius: 13px !important;
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  letter-spacing: 0.03em !important;
+}
+
+/* Watch / Watch Again */
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .action-button.watch-button {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(250, 250, 250, 0.82) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .action-button.watch-button:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Request */
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .action-button.request-button {
+  background: rgba(229, 160, 13, 0.15) !important;
+  color: #e5a00d !important;
+  border: 1px solid rgba(229, 160, 13, 0.35) !important;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .action-button.request-button:hover:not(:disabled) {
+  background: rgba(229, 160, 13, 0.26) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .movie-status.status-watched {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .movie-status.status-requested {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.28) !important;
+}
+
+/* ── Client prompt close button ──────────────────────────── */
+body.heroui-theme #client_prompt_close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2700;
+  transition: all var(--transition-fast);
+}
+
+body.heroui-theme #client_prompt_close:hover {
+  background: rgba(244, 63, 94, 0.14);
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+body.heroui-theme #client_prompt_close svg {
+  width: 14px;
+  height: 14px;
+  fill: rgba(250, 250, 250, 0.6);
+}
+
+body.heroui-theme #client_prompt_close:hover svg {
+  fill: #f43f5e;
+}
+
+/* ── Loading overlay ─────────────────────────────────────── */
+body.heroui-theme #loading-overlay {
+  background: rgba(9, 9, 11, 0.92) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+body.heroui-theme #loading-content {
+  text-align: center;
+  max-width: 420px;
+}
+
+body.heroui-theme #loading-content h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary) !important;
+}
+
+body.heroui-theme .loading-text {
+  font-size: 0.875rem;
+  color: rgba(250, 250, 250, 0.45) !important;
+}
+
+body.heroui-theme #loading-bar-container {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 2px !important;
+  overflow: hidden;
+}
+
+body.heroui-theme #loading-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #06b6d4, #6366f1) !important;
+  background-size: 200% 100% !important;
+  animation: heroui-progress-shimmer 1.6s linear infinite !important;
+}
+
+body.heroui-theme .custom-loading {
+  background: rgba(14, 14, 18, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 2rem !important;
+}
+
+body.heroui-theme .custom-loading h3 {
+  color: #fafafa !important;
+  font-size: 1rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+body.heroui-theme .heroui-loading-dots {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin: 1rem 0 !important;
+}
+
+body.heroui-theme .heroui-loading-dots span {
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #6366f1 !important;
+  animation: heroui-dot-pulse 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+}
+
+body.heroui-theme .heroui-loading-dots span:nth-child(2) {
+  animation-delay: 0.15s !important;
+}
+
+body.heroui-theme .heroui-loading-dots span:nth-child(3) {
+  animation-delay: 0.3s !important;
+}
+
+body.heroui-theme .loading-status {
+  color: rgba(250, 250, 250, 0.4) !important;
+  font-size: 0.8rem !important;
+}
+
+body.heroui-theme .progress-ring {
+  width: 56px !important;
+  height: 56px !important;
+  margin: 16px auto !important;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.3)) !important;
+}
+
+body.heroui-theme .progress-ring circle {
+  stroke: #6366f1 !important;
+  stroke-width: 3 !important;
+}
+
+@keyframes heroui-dot-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+  40%            { opacity: 1;    transform: scale(1.1); box-shadow: 0 0 12px rgba(99, 102, 241, 0.5); }
+}
+
+/* ── Movie data overlay ──────────────────────────────────── */
+body.heroui-theme #movies_overlay,
+body.heroui-theme #movie_data_overlay {
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+body.heroui-theme #movie_data_overlay_content {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+}
+
+body.heroui-theme .md-hero {
+  background: #09090b !important;
+  border-radius: 20px 20px 0 0 !important;
+}
+
+body.heroui-theme .md-backdrop-placeholder {
+  background: #09090b !important;
+}
+
+body.heroui-theme .md-hero::after {
+  background: linear-gradient(to bottom, transparent 0%, rgba(14, 14, 17, 0.98) 100%) !important;
+}
+
+body.heroui-theme .md-title {
+  color: #fafafa !important;
+}
+
+body.heroui-theme .md-meta {
+  color: rgba(250, 250, 250, 0.45) !important;
+}
+
+body.heroui-theme .md-rating-badge {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #fafafa !important;
+}
+
+body.heroui-theme .md-rating-service {
+  color: rgba(250, 250, 250, 0.4) !important;
+  opacity: 1 !important;
+}
+
+body.heroui-theme .md-genre-pill {
+  background: rgba(99, 102, 241, 0.1) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+body.heroui-theme .md-credit {
+  color: rgba(250, 250, 250, 0.7) !important;
+}
+
+body.heroui-theme .md-credit-label {
+  color: #a5b4fc !important;
+}
+
+body.heroui-theme .md-description {
+  color: rgba(250, 250, 250, 0.5) !important;
+}
+
+body.heroui-theme .md-action-btn {
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  color: #fff !important;
+}
+
+body.heroui-theme .md-action-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+}
+
+body.heroui-theme .md-action-btn:disabled {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(250, 250, 250, 0.3) !important;
+}
+
+body.heroui-theme .md-link-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+body.heroui-theme .md-link-btn:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+@media (max-width: 520px) {
+  body.heroui-theme #movie_data_overlay_content {
+    border-radius: 14px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  body.heroui-theme .movie-grid .movie-card {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+@media screen and (orientation: landscape) and (max-height: 600px) {
+  body.heroui-theme:not(.in-iframe)::before {
+    content: "Please rotate your device to portrait mode";
+    position: fixed;
+    inset: 0;
+    background: #09090b;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #EAEAEC;
+    font-size: 1.2em;
+    padding: 20px;
+    text-align: center;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  body.heroui-theme .settings-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+    overflow: visible;
+    min-height: 100dvh;
+  }
+
+  body.heroui-theme .settings-header {
+    grid-column: 1;
+    padding: 14px 16px;
+    margin-bottom: 0;
+    padding-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  body.heroui-theme .settings-tabs {
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 8px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+  }
+
+  body.heroui-theme .settings-content {
+    grid-column: 1;
+    grid-row: 3;
+    padding: 16px;
+    max-height: none;
+  }
+
+  body.heroui-theme .tab {
+    width: auto;
+    flex-shrink: 0;
+    justify-content: center;
+    padding: 7px 12px;
+    font-size: 0.8rem;
+  }
+
+  body.heroui-theme .settings-header .header-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  body.heroui-theme .service-test-row {
+    min-width: 0;
+    max-width: 55%;
+    overflow: hidden;
+  }
+
+  body.heroui-theme .service-test-button {
+    max-width: 100%;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.heroui-theme .test-error-label {
+    max-width: 100%;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 767px) {
+  body.heroui-theme #collection_modal .modal-movie-card .card_left {
+    position: relative !important;
+  }
+  body.heroui-theme #collection_modal .modal-movie-card .card_left img {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  body.heroui-theme #collection_modal .modal-movie-card .card_right {
+    box-sizing: border-box !important;
+  }
+
+  body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions {
+    align-items: stretch !important;
+  }
+  body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions > * {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+    font-size: 0.68rem !important;
+    padding: 0 6px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    max-height: 26px !important;
+    line-height: 26px !important;
+    box-sizing: border-box !important;
+  }
+}

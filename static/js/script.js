@@ -9,7 +9,7 @@ const SORT_OPTIONS = {
 let currentSort = SORT_OPTIONS.YEAR_DESC;
 
 let lastTraktSync = 0;
-let plexFilterMode = 'all'; // 'all', 'inPlex', or 'notInPlex'
+let plexFilterMode = 'all';
 const TRAKT_FRONTEND_SYNC_MIN_INTERVAL = 30 * 1000;
 
 let currentFilters = {
@@ -29,6 +29,42 @@ let socket = io({
 
 let cacheInitialized = false;
 let initialMovieLoaded = false;
+
+let _bodyScrollLockDepth = 0;
+
+function _handleWindowScrollForTapToTop() {
+    if (window.scrollY > 0) return;
+    const overlay = document.getElementById('movies_overlay');
+    const movieDataOverlay = document.getElementById('movie_data_overlay');
+    const castDialog = document.querySelector('.cast-dialog');
+    if (movieDataOverlay && !movieDataOverlay.classList.contains('hidden')) {
+        document.getElementById('movie_data_overlay_content').scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (overlay && !overlay.classList.contains('hidden')) {
+        overlay.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (castDialog) {
+        castDialog.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    requestAnimationFrame(() => window.scrollTo(0, 1));
+}
+
+function lockBodyScroll() {
+    if (window.innerWidth > 768) return;
+    if (++_bodyScrollLockDepth === 1) {
+        document.documentElement.style.minHeight = 'calc(100dvh + 2px)';
+        window.scrollTo(0, 1);
+        window.addEventListener('scroll', _handleWindowScrollForTapToTop, { passive: true });
+    }
+}
+
+function unlockBodyScroll() {
+    if (window.innerWidth > 768) return;
+    if (_bodyScrollLockDepth === 0) return;
+    if (--_bodyScrollLockDepth === 0) {
+        document.documentElement.style.minHeight = '';
+        window.removeEventListener('scroll', _handleWindowScrollForTapToTop);
+        window.scrollTo(0, 0);
+    }
+}
 
 function getCsrfToken() {
     const token = document.querySelector('meta[name="csrf-token"]');
@@ -90,35 +126,33 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
     }
-    // setupEventListeners();
     checkAndLoadCache();
     try {
         const response = await fetch('/devices');
         const devices = await response.json();
         const powerButton = document.getElementById("btn_power");
         const nextButton = document.getElementById("btn_next_movie");
-        if (powerButton && nextButton) {
+        if (powerButton) {
             if (devices.length > 0) {
                 powerButton.style.display = 'flex';
-                nextButton.style.flex = '';
+                if (nextButton) nextButton.style.flex = '';
             } else {
                 powerButton.style.display = 'none';
-                if (window.matchMedia('(max-width: 767px)').matches) {
+                if (nextButton && window.matchMedia('(max-width: 767px)').matches) {
                     nextButton.style.flex = '0 0 100%';
                     nextButton.style.marginRight = '0';
                 }
             }
         }
     } catch (error) {
-        console.error("Error checking devices:", error);
         const powerButton = document.getElementById("btn_power");
-        const nextButton = document.getElementById("btn_next_movie");
-        if (powerButton && nextButton) {
+        if (powerButton) {
             powerButton.style.display = 'none';
-            if (window.matchMedia('(max-width: 767px)').matches) {
-                nextButton.style.flex = '0 0 100%';
-                nextButton.style.marginRight = '0';
-            }
+        }
+        const nextButton = document.getElementById("btn_next_movie");
+        if (nextButton && window.matchMedia('(max-width: 767px)').matches) {
+            nextButton.style.flex = '0 0 100%';
+            nextButton.style.marginRight = '0';
         }
     }
     await syncTraktWatched(false);
@@ -145,7 +179,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     }
-    console.log("Running final setupEventListeners on DOMContentLoaded");
     setupEventListeners();
 });
 
@@ -155,7 +188,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-document.getElementById('movies_overlay_close').addEventListener('click', closeMoviesOverlay);
+document.getElementById('movies_overlay_close')?.addEventListener('click', closeMoviesOverlay);
 
 function showLoadingOverlay() {
     document.getElementById('loading-overlay').classList.remove('hidden');
@@ -226,7 +259,6 @@ socket.on('loading_complete', async function() {
                     console.warn('Reinit trigger failed, attempting direct filter load as fallback after loading_complete.');
                     await loadFilterOptions();
                     await updateFilteredMovieCount();
-                    // setupFilterEventListeners();
                 }
             }
         } catch (error) {
@@ -235,7 +267,6 @@ socket.on('loading_complete', async function() {
                  console.warn('Reinit API call failed, attempting direct filter load as fallback after loading_complete.');
                  await loadFilterOptions();
                  await updateFilteredMovieCount();
-                 // setupFilterEventListeners();
              }
         }
         
@@ -413,10 +444,13 @@ function closeSearchModal() {
     document.getElementById('search_modal').classList.add('hidden');
     document.getElementById('movie_search').value = '';
     document.getElementById('search_results').innerHTML = '';
+    const logoContainer = document.getElementById('movie-logo-container');
+    if (logoContainer) logoContainer.style.visibility = '';
 }
 
 function setupEventListeners() {
     const isMobileForButtonListener = window.matchMedia('(max-width: 767px)').matches;
+
     if (!window.LOAD_MOVIE_ON_START && !isMobileForButtonListener) { 
         let getMovieButton = document.getElementById("btn_get_movie");
         if (getMovieButton) {
@@ -506,21 +540,6 @@ function setupEventListeners() {
             switchServiceButton = newSwitchServiceButton;
         }
 
-	let clientPromptClose = document.getElementById('client_prompt_close');
-	   	if (clientPromptClose) {
-	           const newClientPromptClose = clientPromptClose.cloneNode(true);
-	           clientPromptClose.parentNode.replaceChild(newClientPromptClose, clientPromptClose);
-	           newClientPromptClose.addEventListener('click', closeClientPrompt);
-	           clientPromptClose = newClientPromptClose;
-	   	}
-
-    	let devicePromptClose = document.getElementById('device_prompt_close');
-    	if (devicePromptClose) {
-    	       const newDevicePromptClose = devicePromptClose.cloneNode(true);
-    	       devicePromptClose.parentNode.replaceChild(newDevicePromptClose, devicePromptClose);
-    	       newDevicePromptClose.addEventListener('click', closeDevicePrompt);
-    	       devicePromptClose = newDevicePromptClose;
-    	}
     }
 
     document.body.addEventListener('click', async (event) => {
@@ -566,21 +585,28 @@ function setupEventListeners() {
     let searchButton = document.getElementById('searchButton');
     const searchModal = document.getElementById('search_modal');
     const searchInput = document.getElementById('movie_search');
-    let closeSearchBtn = document.getElementById('search_modal_close');
 
-    if (searchButton && searchModal && searchInput && closeSearchBtn) {
+    if (searchButton && searchModal && searchInput) {
+        if (document.body.classList.contains('heroui-main') && !searchModal.dataset.movedToBody) {
+            document.body.appendChild(searchModal);
+            searchModal.dataset.movedToBody = '1';
+        }
+
         const newSearchButton = searchButton.cloneNode(true);
         searchButton.parentNode.replaceChild(newSearchButton, searchButton);
         newSearchButton.addEventListener('click', () => {
             searchModal.classList.remove('hidden');
+            const logoContainer = document.getElementById('movie-logo-container');
+            if (logoContainer) logoContainer.style.visibility = 'hidden';
             searchInput.focus();
         });
         searchButton = newSearchButton;
 
-        const newCloseSearchBtn = closeSearchBtn.cloneNode(true);
-        closeSearchBtn.parentNode.replaceChild(newCloseSearchBtn, closeSearchBtn);
-        newCloseSearchBtn.addEventListener('click', closeSearchModal);
-        closeSearchBtn = newCloseSearchBtn;
+        searchModal.addEventListener('click', (e) => {
+            if (e.target === searchModal) {
+                closeSearchModal();
+            }
+        });
 
     	let searchTimeout;
     	searchInput.addEventListener('input', () => {
@@ -658,22 +684,22 @@ async function performSearch(query) {
             }
             posterLink.appendChild(poster);
 
-            const title = document.createElement('p');
-            title.textContent = movie.title;
-            if (movie.year) {
-                title.textContent += ` (${movie.year})`;
-            }
-
+            const hoverOverlay = document.createElement('div');
+            hoverOverlay.className = 'movie-card-hover';
             const watchButton = document.createElement('button');
-            watchButton.className = 'request-button';
+            watchButton.className = 'watch-button';
             watchButton.textContent = 'Watch';
-	    watchButton.addEventListener('click', () => {
-	        showClientsForSelected(movie);
-	    });
+            watchButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showClientsForSelected(movie);
+            });
+            hoverOverlay.appendChild(watchButton);
+            posterLink.appendChild(hoverOverlay);
 
             posterLink.addEventListener('click', (e) => {
                 e.preventDefault();
-		currentMovie = {
+                currentMovie = {
                     ...movie,
                     actors_enriched: movie.actors_enriched,
                     directors_enriched: movie.directors_enriched,
@@ -688,8 +714,12 @@ async function performSearch(query) {
             });
 
             movieCard.appendChild(posterLink);
-            movieCard.appendChild(title);
-            movieCard.appendChild(watchButton);
+
+            const captionDiv = document.createElement('div');
+            captionDiv.className = 'search-card-caption';
+            captionDiv.textContent = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+            movieCard.appendChild(captionDiv);
+
             searchResults.appendChild(movieCard);
         });
     } catch (error) {
@@ -781,18 +811,60 @@ function setupFilterEventListeners() {
             });
         }
 
+        const isHeroui = document.body.classList.contains('heroui-main');
+        const isMobileHeroui = isHeroui && (window.innerWidth <= 768 || window.navigator.standalone);
+        let filterBackdrop = document.querySelector('.filter-backdrop');
+
+        if (isHeroui && !filterDropdown.dataset.movedToBody) {
+            document.body.appendChild(filterDropdown);
+            filterDropdown.dataset.movedToBody = '1';
+        }
+
+        if (!filterBackdrop && isMobileHeroui) {
+            filterBackdrop = document.createElement('div');
+            filterBackdrop.className = 'filter-backdrop';
+            document.body.appendChild(filterBackdrop);
+        }
+
+        function closeFilterDropdown() {
+            filterDropdown.classList.remove('show');
+            if (filterBackdrop) filterBackdrop.classList.remove('show');
+        }
+
+        function openFilterDropdown() {
+            if (isHeroui && !isMobileHeroui) {
+                const btnRect = newFilterButton.getBoundingClientRect();
+                const ddWidth = 220;
+                const margin = 8;
+                let left = btnRect.right - ddWidth;
+                left = Math.max(margin, Math.min(left, window.innerWidth - ddWidth - margin));
+                filterDropdown.style.top = (btnRect.bottom + margin) + 'px';
+                filterDropdown.style.left = left + 'px';
+            }
+            filterDropdown.classList.add('show');
+            if (filterBackdrop) filterBackdrop.classList.add('show');
+        }
+
+        if (filterBackdrop) {
+            filterBackdrop.addEventListener('click', closeFilterDropdown);
+        }
+
         const newFilterButton = filterButton.cloneNode(true);
         filterButton.parentNode.replaceChild(newFilterButton, filterButton);
 
         newFilterButton.addEventListener('click', function(event) {
-            console.log('Filter button clicked');
             event.stopPropagation();
-            filterDropdown.classList.toggle("show");
+            if (filterDropdown.classList.contains('show')) {
+                closeFilterDropdown();
+            } else {
+                openFilterDropdown();
+            }
         });
 
         document.addEventListener('click', function(event) {
-            if (!event.target.matches('.filter-button') && !filterDropdown.contains(event.target)) {
-                filterDropdown.classList.remove("show");
+            if (window.innerWidth <= 768 && isHeroui) return;
+            if (!event.target.closest('.filter-button') && !filterDropdown.contains(event.target)) {
+                closeFilterDropdown();
             }
         });
 
@@ -838,8 +910,14 @@ async function applyFilter() {
     console.log("Applying filters:", currentFilters);
 
     await fetchFilteredMovies();
-    const filterDropdown = document.getElementById("filterDropdown");
-    if (filterDropdown) filterDropdown.classList.remove("show");
+    hideFilterDropdown();
+}
+
+function hideFilterDropdown() {
+    const dd = document.getElementById("filterDropdown");
+    if (dd) dd.classList.remove("show");
+    const bd = document.querySelector('.filter-backdrop');
+    if (bd) bd.classList.remove("show");
 }
 
 async function fetchFilteredMovies() {
@@ -865,7 +943,7 @@ async function fetchFilteredMovies() {
         console.log("Filtered movie from service:", data.service);
         currentMovie = data.movie;
         updateMovieDisplay(currentMovie);
-        document.getElementById("filterDropdown").classList.remove("show");
+        hideFilterDropdown();
 
         if (currentMovie && currentMovie.tmdb_id) {
             fetchMovieDetailsAsync(currentMovie.tmdb_id);
@@ -901,10 +979,9 @@ function clearFilter() {
         applyFilterButton.textContent = 'Apply Filter';
     }
 
-
-    const filterDropdown = document.getElementById("filterDropdown");
-    if (filterDropdown) filterDropdown.classList.remove("show");
-
+    hideFilterDropdown();
+    hideMessage();
+    loadRandomMovie();
 }
 
 async function updateFilteredMovieCount() {
@@ -951,7 +1028,7 @@ async function updateFilteredMovieCount() {
             try {
                 const errorData = await response.json();
                 if (errorData && errorData.error) errorMsg = errorData.error;
-            } catch (jsonError) { /* Ignore */ }
+            } catch (jsonError) {  }
             throw new Error(errorMsg);
         }
         const data = await response.json();
@@ -1030,16 +1107,37 @@ async function loadNextMovie() {
 function showMessage() {
     document.getElementById("movieContent").classList.add("hidden");
     document.getElementById("messageContainer").classList.remove("hidden");
+    if (!document.body.classList.contains('heroui-main')) {
+        const fc = document.querySelector('.filter-container');
+        if (fc) fc.style.display = 'none';
+    }
 }
 
 function hideMessage() {
     document.getElementById("movieContent").classList.remove("hidden");
     document.getElementById("messageContainer").classList.add("hidden");
+    if (!document.body.classList.contains('heroui-main')) {
+        const fc = document.querySelector('.filter-container');
+        if (fc) fc.style.display = '';
+    }
 }
 
 function showNoMoviesMessage() {
     const messageContainer = document.getElementById("messageContainer");
-    messageContainer.innerHTML = `
+    const isHeroUI = document.body.classList.contains('heroui-main');
+    messageContainer.innerHTML = isHeroUI ? `
+        <div class="no-movies-message">
+            <div class="no-movies-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                    <line x1="2" y1="2" x2="22" y2="22"></line>
+                </svg>
+            </div>
+            <h2>No Movies Found</h2>
+            <p>No movies match your current filters. Try adjusting or clearing them.</p>
+            <button onclick="clearFilter()" class="button">Clear Filters</button>
+        </div>
+    ` : `
         <div class="no-movies-message">
             <h2>No Movies Found</h2>
             <p>Sorry, we couldn't find any movies matching your current filters.</p>
@@ -1051,7 +1149,21 @@ function showNoMoviesMessage() {
 
 function showErrorMessage(message) {
     const messageContainer = document.getElementById("messageContainer");
-    messageContainer.innerHTML = `
+    const isHeroUI = document.body.classList.contains('heroui-main');
+    messageContainer.innerHTML = isHeroUI ? `
+        <div class="error-message">
+            <div class="no-movies-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <h2>Something Went Wrong</h2>
+            <p>${message}</p>
+            <button onclick="clearFilter()" class="button">Clear Filters and Try Again</button>
+        </div>
+    ` : `
         <div class="error-message">
             <h2>Oops! Something went wrong</h2>
             <p>${message}</p>
@@ -1061,13 +1173,39 @@ function showErrorMessage(message) {
     showMessage();
 }
 
+function calcMobileMax(el, prefix, people) {
+    if (window.innerWidth > 768 || window.HOMEPAGE_MODE) return 3;
+    const containerWidth = el.clientWidth;
+    if (!containerWidth) return 2;
+
+    const cs = getComputedStyle(el);
+    const probe = document.createElement('div');
+    probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;` +
+        `font-size:${cs.fontSize};font-family:${cs.fontFamily};` +
+        `font-weight:${cs.fontWeight};letter-spacing:${cs.letterSpacing};` +
+        `padding:0;margin:0;border:0`;
+    document.body.appendChild(probe);
+
+    let best = 1;
+    for (let n = people.length; n >= 1; n--) {
+        const remaining = people.length - n;
+        const names = people.slice(0, n).map(p => p.name).join(', ');
+        probe.textContent = prefix + names + (remaining > 0 ? ` and ${remaining} more` : '');
+        if (probe.scrollWidth <= containerWidth) {
+            best = n;
+            break;
+        }
+    }
+
+    document.body.removeChild(probe);
+    return best;
+}
+
 function updateMovieDisplay(movieData) {
     if (!movieData) {
         console.error("No movie data to display");
         return;
     }
-
-//    console.log('Movie data received:', movieData);
 
     hideMessage();
 
@@ -1127,8 +1265,9 @@ function updateMovieDisplay(movieData) {
 
             case "directors":
                 if (movieData.directors_enriched && movieData.directors_enriched.length > 0) {
-                    const mainDirectors = movieData.directors_enriched.slice(0, 3);
-                    const remainingCount = movieData.directors_enriched.length - 3;
+                    const maxDirectors = calcMobileMax(element, 'Directing: ', movieData.directors_enriched);
+                    const mainDirectors = movieData.directors_enriched.slice(0, maxDirectors);
+                    const remainingCount = movieData.directors_enriched.length - maxDirectors;
 
         	    const directorLinks = mainDirectors.map(director => {
             		if (window.HOMEPAGE_MODE) {
@@ -1164,8 +1303,9 @@ function updateMovieDisplay(movieData) {
 
             case "writers":
                 if (movieData.writers_enriched && movieData.writers_enriched.length > 0) {
-                    const mainWriters = movieData.writers_enriched.slice(0, 3);
-                    const remainingCount = movieData.writers_enriched.length - 3;
+                    const maxWriters = calcMobileMax(element, 'Writing: ', movieData.writers_enriched);
+                    const mainWriters = movieData.writers_enriched.slice(0, maxWriters);
+                    const remainingCount = movieData.writers_enriched.length - maxWriters;
 
         	    const writerLinks = mainWriters.map(writer => {
             	    	if (window.HOMEPAGE_MODE) {
@@ -1201,12 +1341,9 @@ function updateMovieDisplay(movieData) {
 
             case "actors":
                 if (movieData.actors_enriched && movieData.actors_enriched.length > 0) {
-                    const mainActors = movieData.actors_enriched.slice(0, 3);
-                    const remainingCount = movieData.actors_enriched.length - 3;
-
-                    console.log('Total actors:', movieData.actors_enriched.length);
-                    console.log('Main actors:', mainActors);
-                    console.log('Remaining count:', remainingCount);
+                    const maxActors = calcMobileMax(element, 'Cast: ', movieData.actors_enriched);
+                    const mainActors = movieData.actors_enriched.slice(0, maxActors);
+                    const remainingCount = movieData.actors_enriched.length - maxActors;
 
 		    const actorLinks = mainActors.map(actor => {
 			if (window.HOMEPAGE_MODE) {
@@ -1350,8 +1487,9 @@ function handleAsyncMovieDetails(details, error = null) {
                 .map(p => ({ name: p.name, id: p.id, type: 'director', job: p.job, jobs: [p.job], is_primary: p.job === 'Director' }));
 
             if (directors_enriched.length > 0) {
-                const mainDirectors = directors_enriched.slice(0, 3);
-                const remainingCount = directors_enriched.length - 3;
+                const maxDirectors = calcMobileMax(directorsEl, 'Directing: ', directors_enriched);
+                const mainDirectors = directors_enriched.slice(0, maxDirectors);
+                const remainingCount = directors_enriched.length - maxDirectors;
 
                 const directorLinks = mainDirectors.map(director => {
                     if (window.HOMEPAGE_MODE) {
@@ -1393,8 +1531,9 @@ function handleAsyncMovieDetails(details, error = null) {
                 .map(p => ({ name: p.name, id: p.id, type: 'writer', job: p.job, jobs: [p.job], is_primary: ['Writer', 'Screenplay'].includes(p.job) }));
 
             if (writers_enriched.length > 0) {
-                const mainWriters = writers_enriched.slice(0, 3);
-                const remainingCount = writers_enriched.length - 3;
+                const maxWriters = calcMobileMax(writersEl, 'Writing: ', writers_enriched);
+                const mainWriters = writers_enriched.slice(0, maxWriters);
+                const remainingCount = writers_enriched.length - maxWriters;
 
                 const writerLinks = mainWriters.map(writer => {
                     if (window.HOMEPAGE_MODE) {
@@ -1434,8 +1573,9 @@ function handleAsyncMovieDetails(details, error = null) {
             const actors_enriched = details.credits.cast.map(a => ({ name: a.name, id: a.id, type: 'actor', character: a.character }));
 
             if (actors_enriched.length > 0) {
-                const mainActors = actors_enriched.slice(0, 3);
-                const remainingCount = actors_enriched.length - 3;
+                const maxActors = calcMobileMax(actorsEl, 'Cast: ', actors_enriched);
+                const mainActors = actors_enriched.slice(0, maxActors);
+                const remainingCount = actors_enriched.length - maxActors;
 
                 const actorLinks = mainActors.map(actor => {
                     if (window.HOMEPAGE_MODE) {
@@ -1469,7 +1609,6 @@ function handleAsyncMovieDetails(details, error = null) {
             actorsEl.textContent = 'Cast: Not available';
         }
     }
-
 
     if (window.USE_LINKS) {
         if (tmdbLink && details.tmdb_url) { tmdbLink.href = details.tmdb_url; tmdbLink.style.display = 'inline-block'; } else if (tmdbLink) { tmdbLink.style.display = 'none'; }
@@ -1512,12 +1651,9 @@ function handleAsyncTrailer(trailerUrl, error = null) {
      }
 }
 
-function handleCollectionWarning(movieData) {
+async function handleCollectionWarning(movieData) {
     const collectionButton = document.getElementById('collectionButton');
     if (!collectionButton) return;
-
-    console.log("handleCollectionWarning called. Movie Data:", movieData);
-    console.log("Collection Info received:", movieData.collection_info);
 
     const existingWarning = document.querySelector('.collection-warning');
     if (existingWarning) {
@@ -1525,39 +1661,49 @@ function handleCollectionWarning(movieData) {
     }
 
     if (!movieData.collection_info || !movieData.collection_info.is_in_collection) {
-	console.log("Hiding button: No collection info or not in collection.");
         collectionButton.classList.add('hidden');
         return;
-    }
-
-    if (movieData.collection_info.has_future_unowned_unrequested_movie) {
-        console.log("Flag set: Collection has future unowned/unrequested movie.");
     }
 
     const previousMovies = movieData.collection_info.previous_movies || [];
     const otherMovies = movieData.collection_info.other_movies || [];
 
     const unwatchedMovies = previousMovies.filter(movie => !movie.is_watched);
-
     const requestableOtherMovies = otherMovies.filter(movie => !movie.in_library);
 
-    console.log("Previous Movies:", previousMovies);
-    console.log("Other Movies:", otherMovies);
-    console.log("Unwatched Previous Count:", unwatchedMovies.length);
-    console.log("Requestable Other Count:", requestableOtherMovies.length);
-
     if (unwatchedMovies.length === 0 && requestableOtherMovies.length === 0) {
-	console.log("Hiding button: Conditions not met (unwatched=0 && requestable=0).");
         collectionButton.classList.add('hidden');
         return;
     }
 
-    console.log("Showing collection button.");
+    const candidateIds = [
+        ...unwatchedMovies.map(m => m.id),
+        ...requestableOtherMovies.map(m => m.id)
+    ];
+    const traktData = await fetchTraktWatchedStatus(candidateIds);
+
+    if (traktData.enabled) {
+        const watchedSet = new Set(traktData.watched_tmdb_ids);
+        unwatchedMovies.forEach(m => { m.is_watched_on_trakt = watchedSet.has(m.id); });
+        otherMovies.forEach(m => { m.is_watched_on_trakt = watchedSet.has(m.id); });
+
+        const allHandled =
+            unwatchedMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested) &&
+            otherMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested);
+
+        if (allHandled) {
+            collectionButton.classList.add('hidden');
+            return;
+        }
+    }
+
     collectionButton.classList.remove('hidden');
 
     const badge = collectionButton.querySelector('.badge');
     if (badge) {
-        badge.textContent = unwatchedMovies.length + requestableOtherMovies.length;
+        const unseenCount = unwatchedMovies.filter(m => !m.is_watched_on_trakt).length;
+        const missingOtherCount = requestableOtherMovies.filter(m => !m.is_watched_on_trakt).length;
+        badge.textContent = unseenCount + missingOtherCount;
     }
 
     collectionButton.dataset.collectionName = movieData.collection_info.collection_name;
@@ -1591,6 +1737,15 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                 movie.is_watched_on_trakt = watchedSet.has(movie.id);
             });
         }
+
+        const allMoviesHandled =
+            unwatchedMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested) &&
+            (!otherMovies || otherMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested));
+
+        if (allMoviesHandled) {
+            document.getElementById('collectionButton')?.classList.add('hidden');
+            return;
+        }
     }
 
     const isRequestServiceAvailable = requestServiceStatus.available;
@@ -1598,11 +1753,8 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     let requestServiceName = "";
     if (isRequestServiceAvailable) {
         switch(requestServiceStatus.service) {
-            case 'overseerr':
-                requestServiceName = "Overseerr";
-                break;
-            case 'jellyseerr':
-                requestServiceName = "Jellyseerr";
+            case 'seerr':
+                requestServiceName = "Seerr";
                 break;
             case 'ombi':
                 requestServiceName = "Ombi";
@@ -1646,15 +1798,12 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                                      (movie.is_watched_on_trakt ? 'Watched on Trakt' :
                                      (movie.is_requested ? 'Requested' : 'Not in library'));
                     const requestIconHTML = createRequestIcon(movie);
-                    const movieTitleHTML = !movie.in_library ?
-                        `<a href="https://www.themoviedb.org/movie/${movie.id}" target="_blank" rel="noopener noreferrer" class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></a>` :
-                        `<span class="movie-title">${movie.title}${year}</span>`;
                     return `
                         <li class="movie-item">
-                            ${movieTitleHTML}
+                            <span class="movie-title-link" data-movie-id="${movie.id}"><span class="movie-title">${movie.title}${year}</span></span>
                             <div class="status-container">
-                                ${requestIconHTML}
                                 <span class="movie-status ${statusClass}">${statusText}</span>
+                                ${requestIconHTML}
                             </div>
                         </li>
                     `;
@@ -1674,15 +1823,12 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
                                          (movie.is_watched_on_trakt ? 'Watched on Trakt' :
                                          (movie.is_requested ? 'Requested' : 'Not in library'));
                         const requestIconHTML = createRequestIcon(movie);
-                        const movieTitleHTML = !movie.in_library ?
-                            `<a href="https://www.themoviedb.org/movie/${movie.id}" target="_blank" rel="noopener noreferrer" class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></a>` :
-                            `<span class="movie-title">${movie.title}${year}</span>`;
                         return `
                             <li class="movie-item">
-                                ${movieTitleHTML}
+                                <span class="movie-title-link" data-movie-id="${movie.id}"><span class="movie-title">${movie.title}${year}</span></span>
                                 <div class="status-container">
-                                    ${requestIconHTML}
                                     <span class="movie-status ${statusClass}">${statusText}</span>
+                                    ${requestIconHTML}
                                 </div>
                             </li>
                         `;
@@ -1716,6 +1862,20 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
             modalContainer.classList.add('hidden');
         });
     }
+
+    infoContainer.querySelectorAll('.movie-title-link[data-movie-id]').forEach(link => {
+        link.addEventListener('click', async () => {
+            const movieId = link.dataset.movieId;
+            modalContainer.classList.add('hidden');
+            showContextLoadingOverlay('movie');
+            try {
+                await openMovieDataOverlay(movieId);
+            } catch (error) {
+                console.error('Error opening movie details:', error);
+                hideLoadingOverlay();
+            }
+        });
+    });
 
     const watchButton = document.getElementById('watch_collection_movie');
     if (watchButton) {
@@ -1871,12 +2031,8 @@ async function requestPreviousMovies(movies) {
 
 async function checkRequestServiceAvailability() {
     try {
-        const response = await fetch('/api/overseerr/status');
+        const response = await fetch('/api/requests/status');
         const data = await response.json();
-
-        if (data.service === 'overseerr' && currentService !== 'plex') {
-            return { available: false, service: null };
-        }
 
         return {
             available: data.available,
@@ -1945,15 +2101,20 @@ function showAllActors(actors) {
             const enrichedCast = data.credits.cast;
             const dialog = document.createElement('div');
             dialog.className = 'cast-dialog';
+            const isHeroUI = document.body.classList.contains('heroui-main') || document.body.classList.contains('heroui-theme');
+            const fallbackColor = isHeroUI ? '%234f46e5' : '%23E5A00D';
 
             dialog.innerHTML = `
                 <div class="cast-dialog-content">
-                    <button class="close-button" aria-label="Close dialog">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                            <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                        </svg>
-                    </button>
-                    <h3>Cast</h3>
+                    <div class="cast-dialog-header">
+                        <h3>Cast</h3>
+                        ${isHeroUI ? `<span class="cast-count">${enrichedCast.length}</span>` : ''}
+                        <button class="close-button" aria-label="Close dialog">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                            </svg>
+                        </button>
+                    </div>
                     <input type="text"
                            class="cast-search"
                            placeholder="Search by actor name or character...">
@@ -1965,10 +2126,11 @@ function showAllActors(actors) {
                                  data-person-id="${actor.id}"
                                  data-person-type="actor"
                                  data-person-name="${actor.name}">
-                                <img src="https://image.tmdb.org/t/p/w185${actor.profile_path}"
+                                <img src="${actor.profile_path
+                                     ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
+                                     : `data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='40' r='20' fill='${fallbackColor}'/%3E%3Cpath d='M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z' fill='${fallbackColor}'/%3E%3C/svg%3E`}"
                                      alt="${actor.name}"
-                                     class="actor-image"
-                                     onerror="this.onerror=null; this.src='data:image/svg+xml;charset=utf-8,<svg viewBox=\\'0 0 100 100\\' xmlns=\\'http://www.w3.org/2000/svg\\'%3E%3Ccircle cx=\\'50\\' cy=\\'40\\' r=\\'20\\' fill=\\'%23E5A00D\\'/%3E%3Cpath d=\\'M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z\\' fill=\\'%23E5A00D\\'/%3E%3C/svg%3E';">
+                                     class="actor-image">
                                 <div class="actor-info">
                                     <div class="actor-name">${actor.name}</div>
                                     ${actor.character ?
@@ -2001,9 +2163,11 @@ function showAllActors(actors) {
                 }
             };
 
+            lockBodyScroll();
             document.body.appendChild(dialog);
 
             dialog.querySelector('.close-button').addEventListener('click', () => {
+                unlockBodyScroll();
                 dialog.remove();
             });
 
@@ -2049,15 +2213,20 @@ function showAllDirectors(directors) {
            const uniqueDirectors = Array.from(directorsMap.values());
            const dialog = document.createElement('div');
            dialog.className = 'cast-dialog';
+           const isHeroUI = document.body.classList.contains('heroui-main');
+           const fallbackColor = isHeroUI ? '%234f46e5' : '%23E5A00D';
 
            dialog.innerHTML = `
                <div class="cast-dialog-content">
-                   <button class="close-button" aria-label="Close dialog">
-                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                           <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                       </svg>
-                   </button>
-                   <h3>Directing</h3>
+                   <div class="cast-dialog-header">
+                       <h3>Directing</h3>
+                       ${isHeroUI ? `<span class="cast-count">${uniqueDirectors.length}</span>` : ''}
+                       <button class="close-button" aria-label="Close dialog">
+                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                               <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                           </svg>
+                       </button>
+                   </div>
                    <input type="text"
                           class="cast-search"
                           placeholder="Search directors...">
@@ -2070,10 +2239,10 @@ function showAllDirectors(directors) {
                                 data-person-name="${director.name}">
                                <img src="${director.profile_path ?
                                    `https://image.tmdb.org/t/p/w185${director.profile_path}` :
-                                   "data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='40' r='20' fill='%23E5A00D'/%3E%3Cpath d='M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z' fill='%23E5A00D'/%3E%3C/svg%3E"}"
+                                   `data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='40' r='20' fill='${fallbackColor}'/%3E%3Cpath d='M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z' fill='${fallbackColor}'/%3E%3C/svg%3E`}"
                                     alt="${director.name}"
                                     class="actor-image"
-                                    onerror="this.onerror=null; this.src='data:image/svg+xml;charset=utf-8,%3Csvg viewBox=\\'0 0 100 100\\' xmlns=\\'http://www.w3.org/2000/svg\\'%3E%3Ccircle cx=\\'50\\' cy=\\'40\\' r=\\'20\\' fill=\\'%23E5A00D\\'/%3E%3Cpath d=\\'M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z\\' fill=\\'%23E5A00D\\'/%3E%3C/svg%3E'">
+                                    onerror="this.onerror=null; this.src='data:image/svg+xml;charset=utf-8,%3Csvg viewBox=\\'0 0 100 100\\' xmlns=\\'http://www.w3.org/2000/svg\\'%3E%3Ccircle cx=\\'50\\' cy=\\'40\\' r=\\'20\\' fill=\\'${fallbackColor}\\'/%3E%3Cpath d=\\'M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z\\' fill=\\'${fallbackColor}\\'/%3E%3C/svg%3E'">
                                <div class="actor-info">
                                    <div class="actor-name">${director.name}</div>
                                    <div class="actor-character">${director.jobs.join(', ')}</div>
@@ -2104,9 +2273,11 @@ function showAllDirectors(directors) {
                }
            };
 
+           lockBodyScroll();
            document.body.appendChild(dialog);
 
            dialog.querySelector('.close-button').addEventListener('click', () => {
+               unlockBodyScroll();
                dialog.remove();
            });
 
@@ -2153,15 +2324,20 @@ function showAllWriters(writers) {
            const uniqueWriters = Array.from(writersMap.values());
            const dialog = document.createElement('div');
            dialog.className = 'cast-dialog';
+           const isHeroUI = document.body.classList.contains('heroui-main');
+           const fallbackColor = isHeroUI ? '%234f46e5' : '%23E5A00D';
 
            dialog.innerHTML = `
                <div class="cast-dialog-content">
-                   <button class="close-button" aria-label="Close dialog">
-                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                           <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                       </svg>
-                   </button>
-                   <h3>Writing</h3>
+                   <div class="cast-dialog-header">
+                       <h3>Writing</h3>
+                       ${isHeroUI ? `<span class="cast-count">${uniqueWriters.length}</span>` : ''}
+                       <button class="close-button" aria-label="Close dialog">
+                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                               <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                           </svg>
+                       </button>
+                   </div>
                    <input type="text"
                           class="cast-search"
                           placeholder="Search writers...">
@@ -2174,10 +2350,10 @@ function showAllWriters(writers) {
                                 data-person-name="${writer.name}">
                                <img src="${writer.profile_path ?
                                    `https://image.tmdb.org/t/p/w185${writer.profile_path}` :
-                                   "data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='40' r='20' fill='%23E5A00D'/%3E%3Cpath d='M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z' fill='%23E5A00D'/%3E%3C/svg%3E"}"
+                                   `data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='40' r='20' fill='${fallbackColor}'/%3E%3Cpath d='M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z' fill='${fallbackColor}'/%3E%3C/svg%3E`}"
                                     alt="${writer.name}"
                                     class="actor-image"
-                                    onerror="this.onerror=null; this.src='data:image/svg+xml;charset=utf-8,%3Csvg viewBox=\\'0 0 100 100\\' xmlns=\\'http://www.w3.org/2000/svg\\'%3E%3Ccircle cx=\\'50\\' cy=\\'40\\' r=\\'20\\' fill=\\'%23E5A00D\\'/%3E%3Cpath d=\\'M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z\\' fill=\\'%23E5A00D\\'/%3E%3C/svg%3E'">
+                                    onerror="this.onerror=null; this.src='data:image/svg+xml;charset=utf-8,%3Csvg viewBox=\\'0 0 100 100\\' xmlns=\\'http://www.w3.org/2000/svg\\'%3E%3Ccircle cx=\\'50\\' cy=\\'40\\' r=\\'20\\' fill=\\'${fallbackColor}\\'/%3E%3Cpath d=\\'M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z\\' fill=\\'${fallbackColor}\\'/%3E%3C/svg%3E'">
                                <div class="actor-info">
                                    <div class="actor-name">${writer.name}</div>
                                    <div class="actor-character">${writer.jobs.join(', ')}</div>
@@ -2208,9 +2384,11 @@ function showAllWriters(writers) {
                }
            };
 
+           lockBodyScroll();
            document.body.appendChild(dialog);
 
            dialog.querySelector('.close-button').addEventListener('click', () => {
+               unlockBodyScroll();
                dialog.remove();
            });
 
@@ -2275,10 +2453,10 @@ class ExpandableText {
     	this.element.removeEventListener('click', this.boundToggle);
     	this.element.classList.remove('truncated', 'expanded');
 
-    	const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
+    	const isMobileOrPWA = window.matchMedia('(max-width: 768px)').matches || window.navigator.standalone;
     	if (isMobileOrPWA) {
             if (window.MOBILE_TRUNCATION) {
-            	this.element.style.webkitLineClamp = '1';
+            	this.element.style.webkitLineClamp = '3';
             	this.element.style.display = '-webkit-box';
             } else {
             	this.element.style.webkitLineClamp = 'unset';
@@ -2300,16 +2478,10 @@ class ExpandableText {
     	requestAnimationFrame(() => {
             void this.element.offsetHeight;
 
-            const isMobileOrPWA = window.matchMedia('(max-width: 767px)').matches;
+            const isMobileOrPWA = window.matchMedia('(max-width: 768px)').matches || window.navigator.standalone;
+            const shouldTruncate = !isMobileOrPWA || window.MOBILE_TRUNCATION;
 
-            if (isMobileOrPWA && !window.MOBILE_TRUNCATION) {
-            	this.state.truncated = false;
-            	this.element.classList.remove('truncated');
-            	this.element.style.cursor = 'default';
-            	return;
-            }
-
-            const truncated = this.element.scrollHeight > this.element.clientHeight;
+            const truncated = shouldTruncate && this.element.scrollHeight > this.element.clientHeight;
             this.state.truncated = truncated;
 
             if (truncated) {
@@ -2324,34 +2496,6 @@ class ExpandableText {
         this.element.addEventListener('click', this.boundToggle);
     }
 
-    checkTruncation() {
-    	if (!this.element) return;
-
-    	requestAnimationFrame(() => {
-            void this.element.offsetHeight;
-
-            const isMobileOrPWA = window.matchMedia('(max-width: 768px)').matches || window.navigator.standalone;
-            const shouldTruncate = !isMobileOrPWA || window.MOBILE_TRUNCATION;
-
-            const truncated = shouldTruncate && this.element.scrollHeight > this.element.clientHeight;
-            this.state.truncated = truncated;
-
-            if (truncated) {
-            	this.element.classList.add('truncated');
-            	this.element.style.cursor = 'pointer';
-            }
-
-            console.log('Truncation check:', {
-            	scrollHeight: this.element.scrollHeight,
-            	clientHeight: this.element.clientHeight,
-            	isTruncated: truncated,
-            	isMobile: isMobileOrPWA,
-            	truncationEnabled: window.MOBILE_TRUNCATION,
-            	text: this.element.textContent.substring(0, 50) + '...'
-            });
-    	});
-    }
-
     toggle(e) {
         if (e) e.stopPropagation();
         if (!this.state.truncated || !this.element) return;
@@ -2364,7 +2508,8 @@ class ExpandableText {
             this.element.style.maxHeight = 'none';
         } else {
             this.element.classList.remove('expanded');
-            this.element.style.webkitLineClamp = '2';
+            const isMobileOrPWA = window.matchMedia('(max-width: 768px)').matches || window.navigator.standalone;
+            this.element.style.webkitLineClamp = isMobileOrPWA ? '3' : '2';
             this.element.style.maxHeight = '';
         }
     }
@@ -2447,7 +2592,7 @@ async function openPersonDetailsOverlay(personId, personName) {
         const overlay = document.getElementById('person_details_overlay');
 
         overlay.innerHTML = `
-            <div class="person-details-content">
+            <div class="person-details-content" onclick="event.stopPropagation()">
                 <button class="close-button" onclick="closePersonDetailsOverlay()">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                         <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
@@ -2502,14 +2647,9 @@ async function createMovieCard(movie) {
     posterLink.classList.add('movie-poster-link');
     posterLink.addEventListener('click', async (e) => {
         e.preventDefault();
-        console.log('Poster clicked, movieId:', movie.id);
-        console.log('About to show loading overlay');
         showContextLoadingOverlay('movie');
-        console.log('Loading overlay shown');
         try {
-            console.log('Starting to open movie details');
             await openMovieDataOverlay(movie.id);
-            console.log('Movie details opened successfully');
         } catch (error) {
             console.error('Error opening movie details:', error);
             hideLoadingOverlay();
@@ -2543,92 +2683,81 @@ async function createMovieCard(movie) {
         poster.src = 'https://www.themoviedb.org/assets/2/v4/glyphicons/basic/glyphicons-basic-38-picture-grey-c2ebdbb057f2a7614185931650f8cee23fa137b93812ccb132b9df511df1cfac.svg';
         poster.alt = `${movie.title} Poster`;
         poster.classList.add('movie-poster', 'no-poster');
-        poster.style.width = '80px';
-        poster.style.margin = 'auto';
-        poster.style.display = 'block';
         posterLink.appendChild(poster);
     }
 
-    const infoContainer = document.createElement('div');
-    infoContainer.className = 'movie-info';
+    const cardOverlay = document.createElement('div');
+    cardOverlay.className = 'movie-card-overlay';
 
-    const movieTitle = document.createElement('p');
-    movieTitle.className = 'movie-title';
-    movieTitle.textContent = movie.title;
-    infoContainer.appendChild(movieTitle);
-
-    const characterInfo = document.createElement('p');
-    characterInfo.className = 'movie-character';
-
-    if (movie.character) {
-    	let characterText = movie.character;
-    	characterText = characterText.replace(/\n/g, ' ').trim();
-    	characterInfo.textContent = `as ${characterText}`;
-    } else if (movie.job) {
-    	let jobText = movie.job;
-    	jobText = jobText.replace(/\n/g, ' ').trim();
-    	characterInfo.textContent = jobText;
-    } else {
-    	characterInfo.innerHTML = '&nbsp;';
-    	characterInfo.style.visibility = 'hidden';
-    }
-
-    infoContainer.appendChild(characterInfo);
-
-    const requestButton = document.createElement('button');
-    requestButton.classList.add('request-button');
-    requestButton.dataset.movieId = movie.id;
+    const actionButton = document.createElement('button');
+    actionButton.classList.add('request-button');
+    actionButton.dataset.movieId = movie.id;
 
     if (isInLibrary) {
-        requestButton.textContent = "Watch";
-        requestButton.addEventListener('click', () => showClientsForPoster(movie.id));
+        actionButton.textContent = 'Watch';
+        actionButton.classList.add('watch-button');
+        actionButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showClientsForPoster(movie.id);
+        });
     } else {
         const serviceStatus = await checkRequestServiceAvailability();
         if (serviceStatus.available) {
-            const mediaStatus = await fetch(`/api/overseerr/media/${movie.id}`).then(r => r.json());
-            console.log('Media status:', mediaStatus);
+            const mediaStatus = await fetch(`/api/requests/media/${movie.id}`).then(r => r.json()).catch(() => null);
             const isRequested = mediaStatus?.mediaInfo?.status === 3 || mediaStatus?.mediaInfo?.status === 4;
 
             if (isRequested) {
-                requestButton.textContent = "Requested";
-                requestButton.classList.add('requested');
-                requestButton.disabled = true;
+                actionButton.textContent = 'Requested';
+                actionButton.classList.add('requested');
+                actionButton.disabled = true;
             } else {
-                let serviceName = '';
-                switch(serviceStatus.service) {
-                    case 'overseerr':
-                        serviceName = 'Overseerr';
-                        break;
-                    case 'jellyseerr':
-                        serviceName = 'Jellyseerr';
-                        break;
-                    case 'ombi':
-                        serviceName = 'Ombi';
-                        break;
-                }
-                requestButton.textContent = `Request (${serviceName})`;
-                requestButton.addEventListener('click', () => requestMovie(movie.id));
+                actionButton.textContent = 'Request';
+                actionButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    requestMovie(movie.id);
+                });
             }
         } else {
-            requestButton.textContent = "Request";
-            requestButton.disabled = true;
+            actionButton.textContent = 'Request';
+            actionButton.disabled = true;
             if (currentService === 'jellyfin' || currentService === 'emby') {
-                requestButton.title = "Jellyseerr/Ombi is not configured";
+                actionButton.title = 'Jellyseerr/Ombi is not configured';
             } else if (currentService === 'plex') {
-                requestButton.title = "No request service available";
+                actionButton.title = 'No request service available';
             }
         }
     }
 
+    cardOverlay.appendChild(actionButton);
+    posterLink.appendChild(cardOverlay);
+
+    const infoFooter = document.createElement('div');
+    infoFooter.className = 'movie-info-footer';
+
+    const movieTitle = document.createElement('p');
+    movieTitle.className = 'movie-title';
+    movieTitle.textContent = movie.title;
+    infoFooter.appendChild(movieTitle);
+
+    if (movie.character) {
+        const charEl = document.createElement('p');
+        charEl.className = 'movie-character';
+        charEl.textContent = `as ${movie.character.replace(/\n/g, ' ').trim()}`;
+        infoFooter.appendChild(charEl);
+    } else if (movie.job) {
+        const jobEl = document.createElement('p');
+        jobEl.className = 'movie-character';
+        jobEl.textContent = movie.job.replace(/\n/g, ' ').trim();
+        infoFooter.appendChild(jobEl);
+    }
+
     movieCard.appendChild(posterLink);
-    movieCard.appendChild(infoContainer);
-    movieCard.appendChild(requestButton);
+    movieCard.appendChild(infoFooter);
 
     return movieCard;
 }
 
 async function openMoviesOverlay(personId, personType, personName) {
-    console.log("Opening movies overlay");
     showContextLoadingOverlay('person');
     try {
         const response = await fetch(`/api/movies_by_person?person_id=${personId}&person_type=${personType}`);
@@ -2637,22 +2766,10 @@ async function openMoviesOverlay(personId, personType, personName) {
         }
         const personData = await response.json();
 
-	console.log("Person Data received:", personData);
-        if (personData.credits && personData.credits.crew) {
-            console.log("Crew entries:", personData.credits.crew.map(movie => ({
-                title: movie.title,
-                department: movie.department,
-                job: movie.job
-            })));
-        }
-
         const overlayContent = document.getElementById('movies_overlay_content');
+        const fallbackColor = '#E5A00D';
+
         overlayContent.innerHTML = `
-            <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg>
-            </button>
             <div id="person_header">
                 ${personData.profile_path
                     ? `<a href="#" class="person-image-link" data-person-id="${personId}" data-person-name="${personName}">
@@ -2662,20 +2779,36 @@ async function openMoviesOverlay(personId, personType, personName) {
                        </a>`
                     : `<a href="#" class="person-image-link" data-person-id="${personId}" data-person-name="${personName}">
                          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="person-image">
-                           <circle cx="50" cy="50" r="48.5" fill="#3A3C41" stroke="#E5A00D" stroke-width="3"/>
-                           <circle cx="50" cy="40" r="18" fill="#E5A00D"/>
-                           <path d="M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z" fill="#E5A00D"/>
+                           <circle cx="50" cy="50" r="48.5" fill="#3A3C41" stroke="${fallbackColor}" stroke-width="3"/>
+                           <circle cx="50" cy="40" r="18" fill="${fallbackColor}"/>
+                           <path d="M50 65 C 30 65, 20 80, 20 100 L 80 100 C 80 80, 70 65, 50 65 Z" fill="${fallbackColor}"/>
                          </svg>
                        </a>`}
-                <h2>${personName}</h2>
+                <div class="person-header-info">
+                    <h2>${personName}</h2>
+                    <span id="person-movies-count" class="person-movies-count"></span>
+                </div>
+                ${window.innerWidth <= 768 ? `<button class="person-header-close" aria-label="Close overlay">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" style="width:14px;height:14px;display:block;flex-shrink:0"><path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z"/></svg>
+                </button>` : ''}
             </div>
             <div id="sort_and_filter"></div>
             <div id="movies_container"></div>
         `;
 
-        const closeButton = document.getElementById('movies_overlay_close');
-        if (closeButton) {
-            closeButton.addEventListener('click', closeMoviesOverlay);
+        const overlay = document.getElementById('movies_overlay');
+        if (window.innerWidth > 768) {
+            const existingClose = overlay.querySelector(':scope > #movies_overlay_close');
+            if (existingClose) existingClose.remove();
+            const closeBtn = document.createElement('button');
+            closeBtn.id = 'movies_overlay_close';
+            closeBtn.className = 'close-button';
+            closeBtn.setAttribute('aria-label', 'Close overlay');
+            closeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z"/></svg>';
+            closeBtn.addEventListener('click', closeMoviesOverlay);
+            overlay.insertBefore(closeBtn, overlay.firstChild);
+        } else {
+            overlayContent.querySelector('.person-header-close')?.addEventListener('click', closeMoviesOverlay);
         }
 
         const sortAndFilter = document.getElementById('sort_and_filter');
@@ -2687,10 +2820,11 @@ async function openMoviesOverlay(personId, personType, personName) {
 	const movies = Array.from(
     	    personData.credits[personType === 'actor' ? 'cast' : 'crew']
     	    .filter(movie =>
-        	personType === 'actor' ||
+        	movie.media_type === 'movie' &&
+        	(personType === 'actor' ||
         	(personType === 'writer' && movie.department === 'Writing') ||
 		(personType === 'director' && movie.department === 'Directing') ||
-        	movie.job.toLowerCase() === personType
+        	movie.job.toLowerCase() === personType)
     	    )
     	    .reduce((map, movie) => {
         	const key = movie.id;
@@ -2707,10 +2841,16 @@ async function openMoviesOverlay(personId, personType, personName) {
     	    job: movie.jobs.join(', ')
 	}));
 
+        const countEl = document.getElementById('person-movies-count');
+        if (countEl) countEl.textContent = `${movies.length} movie${movies.length !== 1 ? 's' : ''}`;
+
         await renderMovies(movies);
         sortMovies();
 
-        document.getElementById('movies_overlay').classList.remove("hidden");
+        lockBodyScroll();
+        const moviesOverlayEl = document.getElementById('movies_overlay');
+        moviesOverlayEl.scrollTop = 0;
+        moviesOverlayEl.classList.remove("hidden");
     } catch (error) {
         console.error('Error in openMoviesOverlay:', error);
         alert(error.message);
@@ -2720,10 +2860,8 @@ async function openMoviesOverlay(personId, personType, personName) {
 }
 
 async function openMovieDataOverlay(movieId) {
-    console.log('openMovieDataOverlay started for movieId:', movieId);
     try {
         const movieResponse = await fetch(`/api/movie_details/${movieId}`);
-        
         if (!movieResponse.ok) {
             throw new Error(`Failed to fetch movie details: ${movieResponse.status} ${movieResponse.statusText}`);
         }
@@ -2734,106 +2872,126 @@ async function openMovieDataOverlay(movieId) {
         const [plexAvailable, requestServiceStatus, mediaStatus] = await Promise.all([
             fetch(`/is_movie_in_plex/${tmdbId}`).then(r => r.json()),
             checkRequestServiceAvailability(),
-            fetch(`/api/overseerr/media/${tmdbId}`).then(r => r.json()).catch(() => null)
+            fetch(`/api/requests/media/${tmdbId}`).then(r => r.json()).catch(() => null)
         ]);
-
-        console.log('Media status in overlay:', mediaStatus);
-
-        if (!movieResponse.ok) {
-            throw new Error(`Failed to fetch movie details: ${movieResponse.status} ${movieResponse.statusText}`);
-        }
 
         const isInPlex = plexAvailable.available;
         const isRequested = mediaStatus?.mediaInfo?.status === 3 || mediaStatus?.mediaInfo?.status === 4;
 
+        const credits = movieData.credits || {};
+        const director = credits.crew?.find(c => c.job === 'Director')?.name || '';
+        const topCast = (credits.cast || []).slice(0, 5).map(c => c.name).join(', ');
+
+        const backdropHtml = movieData.backdrop_path
+            ? `<img class="md-backdrop" crossorigin="anonymous" src="https://image.tmdb.org/t/p/w1280${movieData.backdrop_path}" alt="">`
+            : `<div class="md-backdrop-placeholder"></div>`;
+
+        const posterHtml = movieData.poster_path
+            ? `<img class="md-poster" src="https://image.tmdb.org/t/p/w300${movieData.poster_path}" alt="${movieData.title}">`
+            : `<div class="md-poster-placeholder"></div>`;
+
+        const metaParts = [
+            movieData.year,
+            `${movieData.duration_hours}h ${movieData.duration_minutes}m`,
+            movieData.contentRating && movieData.contentRating !== 'Not rated' ? movieData.contentRating : null
+        ].filter(Boolean);
+
+        const ratingsHtml = [
+            movieData.tmdb_rating
+                ? `<span class="md-rating-badge"><span class="md-rating-service">TMDb</span> ★ ${movieData.tmdb_rating.toFixed(1)}</span>`
+                : '',
+            movieData.trakt_rating
+                ? `<span class="md-rating-badge"><span class="md-rating-service">Trakt</span> ${Math.round(movieData.trakt_rating)}%</span>`
+                : ''
+        ].filter(Boolean).join('');
+
+        const genresHtml = (movieData.genres || []).map(g => `<span class="md-genre-pill">${g}</span>`).join('');
+
+        let actionHtml = '';
+        if (isInPlex) {
+            actionHtml = `<button id="watch_movie_button" class="md-action-btn">Watch Movie</button>`;
+        } else if (requestServiceStatus.available) {
+            actionHtml = isRequested
+                ? `<button class="md-action-btn" disabled>Requested</button>`
+                : `<button id="request_movie_button" class="md-action-btn" data-movie-id="${tmdbId}">Request</button>`;
+        }
+
+        const linksHtml = [
+            movieData.tmdb_url ? `<a href="${movieData.tmdb_url}" target="_blank" class="md-link-btn" title="TMDb"><img src="/static/logos/tmdb_logo.svg" alt="TMDb"></a>` : '',
+            movieData.trakt_url ? `<a href="${movieData.trakt_url}" target="_blank" class="md-link-btn" title="Trakt"><img src="/static/logos/trakt_logo.svg" alt="Trakt"></a>` : '',
+            movieData.imdb_url ? `<a href="${movieData.imdb_url}" target="_blank" class="md-link-btn" title="IMDb"><img src="/static/logos/imdb_logo.svg" alt="IMDb"></a>` : ''
+        ].filter(Boolean).join('');
+
         const overlayContent = document.getElementById('movie_data_overlay_content');
+
         overlayContent.innerHTML = `
             <button id="movie_data_overlay_close" class="close-button" aria-label="Close overlay">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z"/>
                 </svg>
             </button>
-            <h2>${movieData.title}</h2>
-            <p><span class="movie-data-label">Year:</span><span class="movie-data-value">${movieData.year}</span></p>
-            <p><span class="movie-data-label">Duration:</span><span class="movie-data-value">${movieData.duration_hours}h ${movieData.duration_minutes}m</span></p>
-            <p><span class="movie-data-label">Rating:</span><span class="movie-data-value">${movieData.contentRating}</span></p>
-            <p><span class="movie-data-label">Genres:</span><span class="movie-data-value">${movieData.genres.join(', ')}</span></p>
-            <p><span class="movie-data-label">TMDb Rating:</span><span class="movie-data-value">${movieData.tmdb_rating.toFixed(1)}/10</span></p>
-            <p><span class="movie-data-label">Trakt Rating:</span><span class="movie-data-value">${Math.round(movieData.trakt_rating)}%</span></p>
-            <p><span class="movie-data-label">Description:</span><span class="movie-data-value">${movieData.description}</span></p>
-            <div class="movie-links">
-                <a href="${movieData.tmdb_url}" target="_blank">TMDb</a>
-                <a href="${movieData.trakt_url}" target="_blank">Trakt</a>
-                <a href="${movieData.imdb_url}" target="_blank">IMDb</a>
-            </div>`;
+            <div class="md-hero">
+                ${backdropHtml}
+                <div class="md-hero-body">
+                    ${posterHtml}
+                    <div class="md-title-block">
+                        <h2 class="md-title">${movieData.title}</h2>
+                        <p class="md-meta">${metaParts.join(' · ')}</p>
+                        <div class="md-ratings">${ratingsHtml}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="md-body">
+                <div class="md-genres">${genresHtml}</div>
+                ${director ? `<p class="md-credit"><span class="md-credit-label">Director</span>${director}</p>` : ''}
+                ${topCast ? `<p class="md-credit"><span class="md-credit-label">Cast</span>${topCast}</p>` : ''}
+                <p class="md-description">${movieData.description}</p>
+                ${actionHtml}
+                <div class="md-links">${linksHtml}</div>
+            </div>
+            <div id="trailer_container"></div>
+        `;
 
-        if (isInPlex) {
-            const watchButton = document.createElement('button');
-            watchButton.id = 'watch_movie_button';
-            watchButton.className = 'action-button';
-            watchButton.textContent = 'Watch Movie';
-            watchButton.addEventListener('click', () => showClientsForPoster(tmdbId));
-            overlayContent.appendChild(watchButton);
-        } else if (requestServiceStatus.available) {
-            const requestButton = document.createElement('button');
-	    requestButton.className = 'action-button request-button';
-	    requestButton.dataset.movieId = movieId;
-            if (isRequested) {
-                requestButton.textContent = 'Requested';
-                requestButton.disabled = true;
-                requestButton.classList.add('requested');
-	    } else {
-                requestButton.id = 'request_movie_button';
-                requestButton.dataset.movieId = tmdbId;
-		let serviceName;
-                switch(requestServiceStatus.service) {
-                    case 'overseerr':
-                        serviceName = 'Overseerr';
-                        break;
-                    case 'jellyseerr':
-                        serviceName = 'Jellyseerr';
-                        break;
-                    case 'ombi':
-                        serviceName = 'Ombi';
-                        break;
-                    default:
-                        serviceName = requestServiceStatus.service;
-                }
-                requestButton.textContent = `Request (${serviceName})`;
-		requestButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    requestMovie(tmdbId);
-                });
-            }
-            overlayContent.appendChild(requestButton);
-        } else {
-            const disabledButton = document.createElement('button');
-            disabledButton.className = 'action-button';
-            disabledButton.textContent = 'Request Movie';
-            disabledButton.disabled = true;
-            disabledButton.title = 'No request service available';
-	    if (currentService === 'jellyfin') {
-                disabledButton.title = "Jellyseerr is not configured";
-            } else {
-                disabledButton.title = "No request service available";
-            }
-            overlayContent.appendChild(disabledButton);
-        }
-
-        const trailerContainer = document.createElement('div');
-        trailerContainer.id = 'trailer_container';
-        overlayContent.appendChild(trailerContainer);
-
-        document.getElementById('movie_data_overlay_close').addEventListener('click', closeMovieDataOverlay);
-
-        const trailerUrl = await getYoutubeTrailer(movieData.title, movieData.year);
-        if (trailerUrl !== "Trailer not found on YouTube.") {
-            trailerContainer.innerHTML = `<iframe width="560" height="315" src="${trailerUrl}" frameborder="0" allowfullscreen></iframe>`;
-        } else {
-            trailerContainer.innerHTML = "<p>No trailer available</p>";
-        }
+        const closeBtn = document.getElementById('movie_data_overlay_close');
+        closeBtn.addEventListener('click', closeMovieDataOverlay);
+        document.getElementById('watch_movie_button')?.addEventListener('click', () => showClientsForPoster(tmdbId));
+        document.getElementById('request_movie_button')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            requestMovie(tmdbId);
+        });
 
         document.getElementById('movie_data_overlay').classList.remove("hidden");
+        lockBodyScroll();
+
+        if (movieData.backdrop_path && window.innerWidth <= 768) {
+            const backdrop = overlayContent.querySelector('.md-backdrop');
+            if (backdrop && closeBtn) {
+                backdrop.addEventListener('load', () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 60;
+                        canvas.height = 60;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(backdrop, backdrop.naturalWidth - 60, 0, 60, 60, 0, 0, 60, 60);
+                        const { data } = ctx.getImageData(0, 0, 60, 60);
+                        let sum = 0;
+                        for (let i = 0; i < data.length; i += 4) {
+                            sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                        }
+                        if (sum / (data.length / 4) / 255 > 0.5) {
+                            closeBtn.classList.add('close-btn-on-bright');
+                        }
+                    } catch (_) {  }
+                }, { once: true });
+            }
+        }
+
+        const trailerUrl = movieData.trailer_url;
+        if (trailerUrl && trailerUrl.startsWith('https://')) {
+            document.getElementById('trailer_container').innerHTML =
+                `<iframe src="${trailerUrl}" frameborder="0" allowfullscreen></iframe>`;
+        }
+
     } catch (error) {
         console.error('Error in openMovieDataOverlay:', error);
         throw error;
@@ -2844,6 +3002,7 @@ async function openMovieDataOverlay(movieId) {
 
 function closeMovieDataOverlay() {
     document.getElementById('movie_data_overlay').classList.add('hidden');
+    unlockBodyScroll();
 }
 
 async function getYoutubeTrailer(title, year) {
@@ -2861,6 +3020,7 @@ function closeMoviesOverlay() {
     const existingDialog = document.querySelector('.cast-dialog');
 
     if (moviesOverlay) {
+        unlockBodyScroll();
         moviesOverlay.classList.add('hidden');
     }
 
@@ -3147,21 +3307,15 @@ function updateServiceButton() {
                 'emby': 'Emby'
             };
 
+            switchButton.title = serviceNames[currentService] || currentService;
             switchButton.innerHTML = `
-                <div class="service-info">
-                    <span class="service-name">${serviceNames[currentService]}</span>
-                    <span class="service-count">${currentIndex + 1}/${availableServices.length}</span>
-                </div>
-                <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
-                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
-                </svg>
+                <img class="service-logo" src="/static/logos/${currentService}.svg" alt="${serviceNames[currentService] || currentService}">
             `;
         }
     } else {
         console.warn("Switch service button not found.");
     }
 }
-
 
 async function switchService() {
     if (window.HOMEPAGE_MODE) return;
@@ -3176,6 +3330,7 @@ async function switchService() {
                 updateServiceButton();
                 await loadRandomMovie();
                 await loadFilterOptions();
+                await updateFilteredMovieCount();
             }
         } catch (error) {
             console.error("Error switching service:", error);
@@ -3192,6 +3347,164 @@ socket.on('movie_added', function(data) {
 socket.on('movie_removed', function(data) {
     console.log('Movie removed:', data.id);
 });
+
+let nowWatchingTimer = null;
+let nowWatchingData = null;
+
+function _nwShow(card) {
+    if (card.classList.contains('nw-visible')) return;
+    card.classList.remove('hidden');
+    card.getBoundingClientRect();
+    card.classList.add('nw-visible');
+}
+
+function _nwHide(card) {
+    if (card.classList.contains('hidden')) return;
+    card.classList.remove('nw-visible');
+    card.addEventListener('transitionend', function handler() {
+        card.removeEventListener('transitionend', handler);
+        card.classList.add('hidden');
+    });
+}
+
+function updateNowWatchingCard(data) {
+    const card = document.getElementById('now_watching_card');
+    if (!card) return;
+    const movieContent = document.getElementById('movieContent');
+    const movieContentVisible = movieContent && !movieContent.classList.contains('hidden');
+    if (!data || !data.active) {
+        _nwHide(card);
+        clearInterval(nowWatchingTimer);
+        nowWatchingTimer = null;
+        nowWatchingData = null;
+        return;
+    }
+    if (nowWatchingData && nowWatchingData.active && data.title === undefined) {
+        nowWatchingData = Object.assign({}, nowWatchingData, data);
+    } else {
+        nowWatchingData = data;
+    }
+    if (data.position_seconds !== undefined && data.status !== 'PAUSED') {
+        nowWatchingData.start_time = new Date(Date.now() - data.position_seconds * 1000).toISOString();
+    }
+    if (!nowWatchingData.title) return;
+
+    const status = nowWatchingData.status || 'PLAYING';
+    card.classList.toggle('nw-paused',  status === 'PAUSED');
+    card.classList.toggle('nw-ending',  status === 'ENDING');
+
+    const labelEl = document.getElementById('nw_label');
+    if (labelEl) {
+        const labels = { PLAYING: 'Now Watching', PAUSED: 'Paused', ENDING: 'Ending' };
+        labelEl.textContent = labels[status] || 'Now Watching';
+    }
+
+    if (data.title !== undefined) {
+        document.getElementById('nw_title').textContent = data.title + (data.year ? ` (${data.year})` : '');
+        const serviceEl = document.getElementById('nw_service');
+        if (serviceEl) serviceEl.textContent = data.service || '';
+        const poster = document.getElementById('nw_poster');
+        if (data.poster) {
+            poster.src = data.poster;
+            poster.style.display = '';
+        } else {
+            poster.style.display = 'none';
+        }
+    }
+
+    _nwShow(card);
+    updateNowWatchingProgress();
+
+    if (status === 'PAUSED') {
+        clearInterval(nowWatchingTimer);
+        nowWatchingTimer = null;
+    } else if (!nowWatchingTimer) {
+        nowWatchingTimer = setInterval(updateNowWatchingProgress, 1000);
+    }
+}
+
+(function() {
+    const movieContent = document.getElementById('movieContent');
+    if (!movieContent) return;
+    new MutationObserver(function(mutations) {
+        for (const m of mutations) {
+            if (m.attributeName === 'class' && !movieContent.classList.contains('hidden')) {
+                if (nowWatchingData && nowWatchingData.active) {
+                    updateNowWatchingCard(nowWatchingData);
+                }
+            }
+        }
+    }).observe(movieContent, { attributes: true });
+}());
+
+function updateNowWatchingProgress() {
+    if (!nowWatchingData) return;
+    const total = nowWatchingData.total_seconds || 1;
+    let elapsed;
+    if (nowWatchingData.status === 'PAUSED' && nowWatchingData.position_seconds !== undefined) {
+        elapsed = nowWatchingData.position_seconds;
+    } else {
+        const startMs = new Date(nowWatchingData.start_time).getTime();
+        elapsed = (Date.now() - startMs) / 1000;
+    }
+    const pct = Math.min(100, Math.max(0, (elapsed / total) * 100));
+    const remaining = Math.max(0, total - elapsed);
+    const h = Math.floor(remaining / 3600);
+    const m = Math.floor((remaining % 3600) / 60);
+    const timeStr = h > 0 ? `${h}h ${m}m left` : `${m}m left`;
+    const fill = document.getElementById('nw_progress_fill');
+    if (fill) fill.style.width = pct.toFixed(1) + '%';
+    const pctEl = document.getElementById('nw_pct');
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+    const metaEl = document.getElementById('nw_meta');
+    if (metaEl && nowWatchingData.username) {
+        metaEl.textContent = nowWatchingData.username;
+    }
+    const timeEl = document.getElementById('nw_time_left');
+    if (timeEl) timeEl.textContent = timeStr;
+}
+
+function dismissNowWatchingCard() {
+    _nwCardEnabled = false;
+    var card = document.getElementById('now_watching_card');
+    _nwHide(card);
+    if (_nwPollInterval) {
+        clearInterval(_nwPollInterval);
+        _nwPollInterval = null;
+    }
+}
+
+socket.on('now_playing_update', function(data) {
+    if (!_nwCardEnabled) return;
+    updateNowWatchingCard(data);
+});
+
+var _nwPollInterval = null;
+var _nwCardEnabled = true;
+
+function _startNwPolling() {
+    if (_nwPollInterval) return;
+    _nwPollInterval = setInterval(_pollNowPlaying, 3000);
+}
+
+function _pollNowPlaying() {
+    fetch('/api/now_playing')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d && d.card_enabled === false) {
+                _nwCardEnabled = false;
+                _nwHide(document.getElementById('now_watching_card'));
+                clearInterval(_nwPollInterval);
+                _nwPollInterval = null;
+                return;
+            }
+            updateNowWatchingCard(d);
+        })
+        .catch(function() {});
+}
+
+_pollNowPlaying();
+_startNwPolling();
 
 async function refreshMovieCache() {
     try {
@@ -3256,7 +3569,7 @@ async function checkAndLoadCache() {
     }
 }
 
-let traktFilterMode = 'all'; // 'all', 'watched', or 'unwatched'
+let traktFilterMode = 'all';
 let watchedMovies = [];
 
 function updateFilters() {
@@ -3803,7 +4116,18 @@ function sortMovies() {
 
 function showContextLoadingOverlay(context) {
     const loadingContent = document.getElementById('loading-content');
-    const getLoadingContent = (title, message) => `
+    const isHeroUI = document.body.classList.contains('heroui-main') || document.body.classList.contains('heroui-theme');
+    const getLoadingContent = (title, message) => isHeroUI ? `
+        <div class="custom-loading">
+            <div class="heroui-loading-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <h3>${title}</h3>
+            <div class="loading-status">
+                <div>${message}</div>
+            </div>
+        </div>
+    ` : `
         <div class="custom-loading">
             <h3>${title}</h3>
             <svg class="progress-ring" viewBox="0 0 50 50">
@@ -3936,6 +4260,54 @@ function startVersionChecker() {
     }, 60 * 60 * 1000);
 }
 
+function renderMarkdown(text) {
+    const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    function inline(s) {
+        return s
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+            .replace(/(?<!href=")https?:\/\/[^\s<>"]+/g, '<a href="$&" target="_blank" rel="noopener noreferrer">$&</a>');
+    }
+
+    const lines = escaped.split('\n');
+    let html = '';
+    let inList = false;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            if (inList) { html += '</ul>'; inList = false; }
+            continue;
+        }
+        const h1 = trimmed.match(/^# (.+)/);
+        const h2 = trimmed.match(/^## (.+)/);
+        const h3 = trimmed.match(/^### (.+)/);
+        if (h1) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h1>${inline(h1[1])}</h1>`;
+        } else if (h2) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h2>${inline(h2[1])}</h2>`;
+        } else if (h3) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h3>${inline(h3[1])}</h3>`;
+        } else if (/^[-*] /.test(trimmed)) {
+            if (!inList) { html += '<ul>'; inList = true; }
+            html += `<li>${inline(trimmed.slice(2))}</li>`;
+        } else {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<p>${inline(trimmed)}</p>`;
+        }
+    }
+    if (inList) html += '</ul>';
+    return html;
+}
+
 function showUpdateDialog(updateInfo) {
     const dialog = document.createElement('div');
     dialog.className = 'trakt-confirm-dialog';
@@ -3945,7 +4317,7 @@ function showUpdateDialog(updateInfo) {
             <p class="version-info">Version ${updateInfo.latest_version} is now available (you have ${updateInfo.current_version})</p>
             <div class="changelog">
                 <h4>Changelog:</h4>
-                <div class="changelog-content">${updateInfo.changelog}</div>
+                <div class="changelog-content">${renderMarkdown(updateInfo.changelog)}</div>
             </div>
             <div class="dialog-buttons">
                 <button class="cancel-button">Dismiss</button>

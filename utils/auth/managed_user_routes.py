@@ -137,6 +137,8 @@ def change_managed_user_password_route():
 
     success, message = auth_manager.db.update_managed_user_password(username, new_password)
     if success:
+        token = request.cookies.get('auth_token')
+        auth_manager.db.invalidate_user_sessions(username, except_token=token)
         return jsonify({"message": "Password updated successfully"}), 200
     else:
         return jsonify({"error": message or "Failed to update password"}), 500

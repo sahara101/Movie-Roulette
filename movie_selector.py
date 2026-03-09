@@ -55,7 +55,8 @@ app.secret_key = flask_secret
 
 csrf = CSRFProtect() 
 csrf.init_app(app) 
-socketio = SocketIO(app, cors_allowed_origins="*", manage_session=False)
+_cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*')
+socketio = SocketIO(app, cors_allowed_origins=_cors_origins, manage_session=False)
 init_socket(socketio)
 collection_service = CollectionService(app=app, socketio=socketio)
 
@@ -66,7 +67,10 @@ def on_connect():
     if user_data and 'username' in user_data:
         user_id = user_data['username']
         join_room(user_id)
-        logger.info(f"Socket connected for user {user_id}, joined room {user_id}")
+        service_type = user_data.get('service_type', 'local')
+        nw_room = f'nw_{user_id}' if service_type in ('plex', 'jellyfin', 'emby') else 'nw_global'
+        join_room(nw_room)
+        logger.info(f"Socket connected for user {user_id}, joined rooms {user_id}, {nw_room}")
 
 @socketio.on('disconnect')
 def on_disconnect():
@@ -75,7 +79,10 @@ def on_disconnect():
     if user_data and 'username' in user_data:
         user_id = user_data['username']
         leave_room(user_id)
-        logger.info(f"Socket disconnected for user {user_id}, left room {user_id}")
+        service_type = user_data.get('service_type', 'local')
+        nw_room = f'nw_{user_id}' if service_type in ('plex', 'jellyfin', 'emby') else 'nw_global'
+        leave_room(nw_room)
+        logger.info(f"Socket disconnected for user {user_id}, left rooms {user_id}, {nw_room}")
 
 HOMEPAGE_SETTINGS = {}
 FEATURE_SETTINGS = {}
@@ -95,7 +102,8 @@ PLEX_AVAILABLE = False
 JELLYFIN_AVAILABLE = False
 MOBILE_TRUNCATION = False
 EMBY_AVAILABLE = False
-ENABLE_MOVIE_LOGOS = True 
+ENABLE_MOVIE_LOGOS = True
+HEROUI_THEME = False
 
 all_plex_unwatched_movies = []
 movies_loaded_from_cache = False
@@ -111,7 +119,7 @@ def load_settings():
     """Load all settings and update global variables"""
     global FEATURE_SETTINGS, CLIENT_SETTINGS, APPLE_TV_SETTINGS
     global PLEX_SETTINGS, JELLYFIN_SETTINGS, EMBY_SETTINGS
-    global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_GRID_VIEW, USE_WATCH_BUTTON, USE_NEXT_BUTTON, ENABLE_MOVIE_LOGOS
+    global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_GRID_VIEW, USE_WATCH_BUTTON, USE_NEXT_BUTTON, ENABLE_MOVIE_LOGOS, HEROUI_THEME
     global PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE, MOBILE_TRUNCATION
 
     FEATURE_SETTINGS = settings.get('features', {})
@@ -128,7 +136,8 @@ def load_settings():
     USE_WATCH_BUTTON = FEATURE_SETTINGS.get('use_watch_button', True)
     USE_NEXT_BUTTON = FEATURE_SETTINGS.get('use_next_button', True)
     MOBILE_TRUNCATION = FEATURE_SETTINGS.get('mobile_truncation', False)
-    ENABLE_MOVIE_LOGOS = FEATURE_SETTINGS.get('enable_movie_logos', True) 
+    ENABLE_MOVIE_LOGOS = FEATURE_SETTINGS.get('enable_movie_logos', True)
+    HEROUI_THEME = FEATURE_SETTINGS.get('heroui_theme', False)
 
     PLEX_AVAILABLE = (
         bool(PLEX_SETTINGS.get('enabled')) or
@@ -180,7 +189,6 @@ def initialize_services():
     except Exception as e:
         logger.error(f"Failed to initialize TMDB service: {e}")
 
-    overseerr_settings = settings.get('overseerr', {})
     tmdb_settings = settings.get('tmdb', {})
 
     logger.info("Starting services initialization")
@@ -340,60 +348,29 @@ def initialize_services():
                        "The global_cache_manager is also None.")
         pass 
 
-    overseerr_enabled = (
-        (bool(os.getenv('OVERSEERR_URL')) and bool(os.getenv('OVERSEERR_API_KEY'))) or
-        (bool(overseerr_settings.get('enabled')) and
-         bool(overseerr_settings.get('url', '').strip()) and
-         bool(overseerr_settings.get('api_key', '').strip()))
+    seerr_settings = settings.get('seerr', {})
+    seerr_enabled = (
+        (bool(os.getenv('SEERR_URL')) and bool(os.getenv('SEERR_API_KEY'))) or
+        (bool(seerr_settings.get('enabled')) and
+         bool(seerr_settings.get('url', '').strip()) and
+         bool(seerr_settings.get('api_key', '').strip()))
     )
 
-    if overseerr_enabled:
-        logger.info("Initializing Overseerr service...")
+    if seerr_enabled:
+        logger.info("Initializing Seerr service...")
         try:
-            from utils.overseerr_service import update_configuration
-            success = update_configuration(
-                url=os.getenv('OVERSEERR_URL') or overseerr_settings.get('url', ''),
-                api_key=os.getenv('OVERSEERR_API_KEY') or overseerr_settings.get('api_key', ''),
-            )
-            if success:
-                logger.info("Overseerr service initialized successfully")
-            else:
-                logger.error("Failed to initialize Overseerr service")
-        except Exception as e:
-            logger.error(f"Failed to initialize Overseerr service: {e}")
-    else:
-        logger.info("Overseerr service is disabled or not configured")
-        try:
-            from utils.overseerr_service import update_configuration
-            update_configuration(url='', api_key='')
-        except Exception as e:
-            logger.error(f"Failed to reset Overseerr configuration: {e}")
-
-    jellyseerr_settings = settings.get('jellyseerr', {})
-    jellyseerr_enabled = (
-        (bool(os.getenv('JELLYSEERR_URL')) and bool(os.getenv('JELLYSEERR_API_KEY'))) or
-        (bool(jellyseerr_settings.get('enabled')) and
-         bool(jellyseerr_settings.get('url', '').strip()) and
-         bool(jellyseerr_settings.get('api_key', '').strip()))
-    )
-
-    if jellyseerr_enabled:
-        logger.info("Initializing Jellyseerr service...")
-        try:
-            from utils.jellyseerr_service import update_configuration
+            from utils.seerr_service import update_configuration
             if update_configuration(
-                url=os.getenv('JELLYSEERR_URL') or jellyseerr_settings.get('url', ''),
-                api_key=os.getenv('JELLYSEERR_API_KEY') or jellyseerr_settings.get('api_key', '')
+                url=os.getenv('SEERR_URL') or seerr_settings.get('url', ''),
+                api_key=os.getenv('SEERR_API_KEY') or seerr_settings.get('api_key', '')
             ):
-                logger.info("Jellyseerr service initialized successfully")
+                logger.info("Seerr service initialized successfully")
             else:
-                logger.error("Failed to initialize Jellyseerr service")
+                logger.error("Failed to initialize Seerr service")
         except Exception as e:
-            logger.error(f"Failed to initialize Jellyseerr service: {e}")
+            logger.error(f"Failed to initialize Seerr service: {e}")
     else:
-        logger.info("Jellyseerr service is disabled or not configured")
-
-    logger.info(f"- Jellyseerr: {jellyseerr_enabled}")
+        logger.info("Seerr service is disabled or not configured")
 
     ombi_settings = settings.get('ombi', {})
     ombi_enabled = (
@@ -427,7 +404,8 @@ def initialize_services():
             os.getenv('TRAKT_ACCESS_TOKEN'),
             os.getenv('TRAKT_REFRESH_TOKEN')
         ])) or
-        (bool(trakt_settings.get('enabled')) and os.path.exists('/app/data/trakt_tokens.json'))
+        (bool(trakt_settings.get('enabled')) and os.path.exists('/app/data/trakt_tokens.json')) or
+        (bool(trakt_settings.get('enabled')) and bool(trakt_settings.get('access_token')))
     )
 
     if trakt_enabled:
@@ -447,9 +425,8 @@ def initialize_services():
     logger.info(f"- Plex: {PLEX_AVAILABLE}")
     logger.info(f"- Jellyfin: {JELLYFIN_AVAILABLE}")
     logger.info(f"- Emby: {EMBY_AVAILABLE}")
-    logger.info(f"- Overseerr: {overseerr_enabled}")
+    logger.info(f"- Seerr: {seerr_enabled}")
     logger.info(f"- Ombi: {ombi_enabled}")
-    logger.info(f"- Jellyseerr: {jellyseerr_enabled}")
     logger.info(f"- Trakt: {trakt_enabled}")
 
     try:
@@ -932,8 +909,7 @@ def fetch_movie_links_for_overlay(tmdb_id):
     return tmdb_service.get_movie_links(tmdb_id)
 
 def get_movie_details(movie_id):
-    overseerr_settings = settings.get('overseerr', {})
-    tmdb_api_key = os.getenv('TMDB_API_KEY') or overseerr_settings.get('tmdb_api_key', '')
+    tmdb_api_key = os.getenv('TMDB_API_KEY') or settings.get('tmdb', {}).get('api_key', '')
     tmdb_url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={tmdb_api_key}&append_to_response=credits,release_dates"
 
     try:
@@ -985,10 +961,12 @@ def get_movie_details(movie_id):
 
 load_settings()
 
-from routes.overseerr_routes import overseerr_bp
+from routes.request_routes import request_bp
+from routes.now_playing_routes import now_playing_bp
 from utils.trakt_service import get_local_watched_movies, sync_watched_status, get_movie_ratings, get_trakt_rating, get_current_user_id, get_watched_movies
 
-app.register_blueprint(overseerr_bp)
+app.register_blueprint(request_bp)
+app.register_blueprint(now_playing_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(poster_bp)
 app.register_blueprint(trakt_bp)
@@ -1038,7 +1016,7 @@ app.config['update_default_poster_manager_service'] = update_default_poster_mana
 initialize_services()
 update_default_poster_manager_service()
 
-playback_monitor = PlaybackMonitor(app, interval=10)
+playback_monitor = PlaybackMonitor(app, interval=3)
 app.config['PLAYBACK_MONITOR'] = playback_monitor
 playback_monitor.start()
 
@@ -1092,9 +1070,10 @@ def index():
         use_watch_button=USE_WATCH_BUTTON,
         use_next_button=USE_NEXT_BUTTON,
         mobile_truncation=MOBILE_TRUNCATION,
-        enable_movie_logos=ENABLE_MOVIE_LOGOS, 
-        load_movie_on_start=load_movie_on_start, 
-        settings_disabled=settings.get('system', {}).get('disable_settings', False)
+        enable_movie_logos=ENABLE_MOVIE_LOGOS,
+        load_movie_on_start=load_movie_on_start,
+        settings_disabled=settings.get('system', {}).get('disable_settings', False),
+        heroui_theme=HEROUI_THEME,
     )
 
 @app.route('/start_loading')
@@ -1121,11 +1100,17 @@ def any_service_available():
     return PLEX_AVAILABLE or JELLYFIN_AVAILABLE or EMBY_AVAILABLE
 
 @app.after_request
-def handle_auth_cookie_clearing(response):
-    """Clear auth cookie if auth was just disabled"""
+def apply_security_headers(response):
+    """Apply security headers and handle auth cookie clearing"""
     if hasattr(g, 'clear_auth_cookie') and g.clear_auth_cookie:
         logger.info("Clearing auth cookie as authentication is now disabled")
         response.delete_cookie('auth_token')
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    if not HOMEPAGE_MODE:
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    response.headers.remove('Server')
     return response
 
 @app.route('/style/<path:filename>')
@@ -1974,12 +1959,14 @@ def devices():
             "displayName": "Apple TV",
             "env_controlled": True
         })
-    elif APPLE_TV_SETTINGS.get('enabled') and APPLE_TV_SETTINGS.get('id'):
-        devices.append({
-            "name": "apple_tv",
-            "displayName": "Apple TV",
-            "env_controlled": False
-        })
+    else:
+        apple_tv_cfg = settings.get('clients', {}).get('apple_tv', {})
+        if apple_tv_cfg.get('enabled') and apple_tv_cfg.get('id'):
+            devices.append({
+                "name": "apple_tv",
+                "displayName": "Apple TV",
+                "env_controlled": False
+            })
     tv_instances = settings.get('clients', {}).get('tvs', {}).get('instances', {})
     for tv_id, tv in tv_instances.items():
         if tv and not isinstance(tv, str) and tv.get('enabled', True):
@@ -2107,7 +2094,7 @@ def debug_service():
                 "cache_file_exists": cache_status.get('cache_file_exists', False), 
                 "all_movies_cache_exists": all_movies_cache_exists, 
                 "username": display_username, 
-                "user_specific_cache": display_username is not None and display_username != 'admin',
+                "user_specific_cache": display_username is not None and not user_context.get('is_admin', False),
                 "unwatched_cache_path": unwatched_cache_path, 
                 "all_movies_cache_path": all_movies_cache_path, 
                 "metadata_cache_path": metadata_cache_path 
@@ -2326,6 +2313,7 @@ def trigger_resync():
     return jsonify({"status": "Cache resync completed"})
 
 @app.route('/trakt_watched_status')
+@auth_manager.require_auth
 def trakt_watched_status():
     """Get Trakt watched status for current user"""
     user_id = get_current_user_id()
@@ -2333,6 +2321,7 @@ def trakt_watched_status():
     return jsonify(watched_movies)
 
 @app.route('/sync_trakt_watched')
+@auth_manager.require_auth
 def sync_trakt_watched():
     """Sync watched status for current user"""
     user_id = get_current_user_id()
@@ -2340,6 +2329,7 @@ def sync_trakt_watched():
     return jsonify(watched_movies)
 
 @app.route('/api/movie_ratings/<int:tmdb_id>')
+@auth_manager.require_auth
 def movie_ratings(tmdb_id):
     try:
         user_id = get_current_user_id()
@@ -2350,6 +2340,7 @@ def movie_ratings(tmdb_id):
         return jsonify({"error": "Failed to fetch ratings"}), 500
 
 @app.route('/api/batch_movie_ratings', methods=['POST'])
+@auth_manager.require_auth
 def batch_movie_ratings():
     movie_ids = request.json.get('movie_ids', [])
     ratings = {}
@@ -2359,6 +2350,7 @@ def batch_movie_ratings():
     return jsonify(ratings)
 
 @app.route('/api/youtube_trailer')
+@auth_manager.require_auth
 def youtube_trailer():
     title = request.args.get('title')
     year = request.args.get('year')
@@ -2369,6 +2361,7 @@ def youtube_trailer():
     return trailer_url
 
 @app.route('/is_movie_in_plex/<int:tmdb_id>')
+@auth_manager.require_auth
 def is_movie_in_plex(tmdb_id):
     current_plex_service = getattr(g, 'plex_service', plex)
     cm = getattr(g, 'cache_manager', cache_manager)
@@ -2388,6 +2381,7 @@ def is_movie_in_plex(tmdb_id):
         return jsonify({"available": False, "error": str(e)})
 
 @app.route('/api/get_plex_id/<tmdb_id>')
+@auth_manager.require_auth
 def get_plex_id(tmdb_id):
     cm = getattr(g, 'cache_manager', cache_manager)
     if not cm:
@@ -2407,6 +2401,7 @@ def get_plex_id(tmdb_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/get_jellyfin_id/<tmdb_id>')
+@auth_manager.require_auth
 def get_jellyfin_id(tmdb_id):
     try:
         if not JELLYFIN_AVAILABLE or not jellyfin:
@@ -2430,6 +2425,7 @@ def get_jellyfin_id(tmdb_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/get_emby_id/<tmdb_id>')
+@auth_manager.require_auth
 def get_emby_id(tmdb_id):
     try:
         if not EMBY_AVAILABLE or not emby:
@@ -2453,6 +2449,7 @@ def get_emby_id(tmdb_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/tv/scan/<tv_type>')
+@auth_manager.require_auth
 def scan_for_tv(tv_type):
     """Scan for TVs of specified type"""
     try:
@@ -2480,6 +2477,7 @@ def scan_for_tv(tv_type):
         }), 500
 
 @app.route('/api/tv/test/<tv_id>')
+@auth_manager.require_auth
 def test_tv_connection(tv_id):
     """Test connection to a specific TV"""
     try:
@@ -2512,6 +2510,7 @@ def test_tv_connection(tv_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/appletv/scan')
+@auth_manager.require_auth
 def scan_for_appletv_devices():
     """Scan for Apple TVs on the network"""
     try:
@@ -2528,6 +2527,7 @@ def scan_for_appletv_devices():
         }), 500
 
 @app.route('/api/appletv/pair/<device_id>')
+@auth_manager.require_auth
 def start_appletv_pairing(device_id):
     """Start pairing process with Apple TV"""
     try:
@@ -2541,6 +2541,7 @@ def start_appletv_pairing(device_id):
         }), 500
 
 @app.route('/api/appletv/pin/<device_id>', methods=['POST'])
+@auth_manager.require_auth
 def submit_appletv_pin(device_id):
     """Submit PIN for Apple TV pairing"""
     try:
@@ -2561,6 +2562,7 @@ def submit_appletv_pin(device_id):
         }), 500
 
 @app.route('/api/appletv/cancel/<device_id>')
+@auth_manager.require_auth
 def cancel_appletv_pairing(device_id):
     """Cancel ongoing pairing process"""
     try:
@@ -2583,6 +2585,7 @@ def cancel_appletv_pairing(device_id):
         }), 500
 
 @app.route('/api/appletv/check_credentials', methods=['POST'])
+@auth_manager.require_auth
 def check_appletv_credentials():
     try:
         data = request.get_json()
@@ -2600,11 +2603,8 @@ def check_appletv_credentials():
         logger.error(f"Error checking Apple TV credentials: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/settings')
-def settings_page():
-    return render_template('settings.html')
-
 @app.route('/setup_status')
+@auth_manager.require_auth
 def setup_status():
     return jsonify({
         'services_configured': bool(PLEX_AVAILABLE or JELLYFIN_AVAILABLE or EMBY_AVAILABLE),
@@ -2614,6 +2614,7 @@ def setup_status():
     })
 
 @app.route('/api/service_status')
+@auth_manager.require_auth
 def service_status():
     """Return the current status of media services"""
     return jsonify({
@@ -2623,7 +2624,66 @@ def service_status():
         'emby_available': EMBY_AVAILABLE
     })
 
+@app.route('/api/media/test_connection', methods=['POST'])
+@auth_manager.require_auth
+def test_media_connection():
+    """Test connectivity to a media server with the provided credentials."""
+    try:
+        data = request.get_json() or {}
+        service = data.get('service', '')
+        url = (data.get('url') or '').rstrip('/')
+
+        if not service or not url:
+            return jsonify({'ok': False, 'error': 'Missing service or url'}), 400
+
+        def resolve(field, stored_key):
+            val = data.get(field, '')
+            if val == '***':
+                val = settings.get(service, {}).get(stored_key, '')
+            return val
+
+        if service == 'plex':
+            token = resolve('token', 'token')
+            if not token:
+                return jsonify({'ok': False, 'error': 'Missing Plex token'}), 400
+            server = PlexServer(url, token, timeout=8)
+            return jsonify({'ok': True, 'label': f'Plex {server.version}'})
+
+        if service == 'jellyfin':
+            api_key = resolve('api_key', 'api_key')
+            if not api_key:
+                return jsonify({'ok': False, 'error': 'Missing API key'}), 400
+            resp = requests.get(
+                f'{url}/System/Info',
+                headers={'X-MediaBrowser-Token': api_key},
+                timeout=8
+            )
+            resp.raise_for_status()
+            info = resp.json()
+            return jsonify({'ok': True, 'label': info.get('ServerName', 'Jellyfin')})
+
+        if service == 'emby':
+            api_key = resolve('api_key', 'api_key')
+            if not api_key:
+                return jsonify({'ok': False, 'error': 'Missing API key'}), 400
+            resp = requests.get(
+                f'{url}/System/Info',
+                headers={'X-Emby-Token': api_key},
+                timeout=8
+            )
+            resp.raise_for_status()
+            info = resp.json()
+            return jsonify({'ok': True, 'label': info.get('ServerName', 'Emby')})
+
+        return jsonify({'ok': False, 'error': f'Unknown service: {service}'}), 400
+
+    except Exception as e:
+        logger.warning(f"Connection test failed for {data.get('service', '?')}: {e}")
+        return jsonify({'ok': False, 'error': str(e)})
+
+
 @app.route('/api/plex/get_token', methods=['POST'])
+@auth_manager.require_auth
 def get_plex_token():
     try:
         client_id = str(uuid.uuid4())
@@ -2662,6 +2722,7 @@ def get_plex_token():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/plex/check_auth/<client_id>')
+@auth_manager.require_auth
 def check_plex_auth(client_id):
     try:
         pin_data = _plex_pin_logins.get(client_id)
@@ -2694,14 +2755,23 @@ def check_plex_auth(client_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/plex/libraries', methods=['POST'])
+@auth_manager.require_auth
 def get_plex_libraries():
     try:
-        data = request.json
+        data = request.json or {}
         plex_url = data.get('plex_url')
         plex_token = data.get('plex_token')
 
         if not plex_url or not plex_token:
             return jsonify({"error": "Missing Plex URL or token"}), 400
+
+        if plex_token == '***':
+            plex_token = os.getenv('PLEX_TOKEN') or PLEX_SETTINGS.get('token')
+        if plex_url == '***':
+            plex_url = os.getenv('PLEX_URL') or PLEX_SETTINGS.get('url')
+
+        if not plex_url or not plex_token or plex_token == '***':
+            return jsonify({"error": "Plex token not configured"}), 400
 
         from plexapi.server import PlexServer
         server = PlexServer(plex_url, plex_token)
@@ -2714,9 +2784,11 @@ def get_plex_libraries():
 
         return jsonify({"libraries": libraries})
     except Exception as e:
+        logger.error(f"Error fetching Plex libraries: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/jellyfin/auth', methods=['POST'])
+@auth_manager.require_auth
 def jellyfin_auth():
     try:
         data = request.json
@@ -2759,7 +2831,7 @@ def jellyfin_auth():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/plex/users', methods=['POST'])
-@auth_manager.require_admin 
+@auth_manager.require_admin
 def get_plex_users():
     """Fetch Plex users (owner + managed) for a given server/token."""
     if not request.is_json:
@@ -2768,6 +2840,8 @@ def get_plex_users():
     data = request.get_json()
     plex_url = data.get('plex_url')
     plex_token = data.get('plex_token')
+    if plex_token == '***':
+        plex_token = settings.get('plex', {}).get('token', '')
 
     if not plex_url or not plex_token:
         return jsonify({"error": "Plex URL and token are required"}), 400
@@ -2815,11 +2889,14 @@ def get_plex_users():
         return jsonify({"error": "An unexpected error occurred while fetching Plex users."}), 500
 
 @app.route('/api/jellyfin/users', methods=['POST'])
+@auth_manager.require_auth
 def get_jellyfin_users():
     try:
         data = request.json
         jellyfin_url = data.get('jellyfin_url')
         api_key = data.get('api_key')
+        if api_key == '***':
+            api_key = settings.get('jellyfin', {}).get('api_key', '')
 
         if not jellyfin_url or not api_key:
             return jsonify({"error": "Missing Jellyfin URL or API key"}), 400
@@ -2844,6 +2921,7 @@ def get_jellyfin_users():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/emby/connect/auth', methods=['POST'])
+@auth_manager.require_auth
 def emby_connect_auth():
     """Handle Emby Connect authentication"""
     try:
@@ -2862,6 +2940,7 @@ def emby_connect_auth():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/emby/connect/check', methods=['POST'])
+@auth_manager.require_auth
 def emby_connect_check():
     """Check Emby Connect authentication status"""
     try:
@@ -2879,7 +2958,8 @@ def emby_connect_check():
         logger.error(f"Error checking Emby Connect auth: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/emby/connect/select_server', methods=['POST'])  
+@app.route('/api/emby/connect/select_server', methods=['POST'])
+@auth_manager.require_auth
 def emby_select_server():
     try:
         data = request.json
@@ -2921,6 +3001,7 @@ def emby_select_server():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/emby/auth', methods=['POST'])
+@auth_manager.require_auth
 def emby_direct_auth():
     """Handle direct Emby authentication"""
     try:
@@ -2941,11 +3022,14 @@ def emby_direct_auth():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/emby/users', methods=['POST'])
+@auth_manager.require_auth
 def get_emby_users():
     try:
         data = request.json
         emby_url = data.get('emby_url')
         api_key = data.get('api_key')
+        if api_key == '***':
+            api_key = settings.get('emby', {}).get('api_key', '')
 
         if not emby_url or not api_key:
             return jsonify({"error": "Missing Emby URL or API key"}), 400
@@ -2991,6 +3075,7 @@ def trigger_service_reinitialization():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/search_person')
+@auth_manager.require_auth
 def search_person_api():
     """Search for a person and return their details with TMDb and IMDb links"""
     name = request.args.get('name')
@@ -3015,6 +3100,7 @@ def search_person_api():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/movies_by_person')
+@auth_manager.require_auth
 def get_movies_by_person():
     person_id = request.args.get('person_id')
     person_type = request.args.get('person_type', 'actor')
@@ -3051,6 +3137,7 @@ def get_movies_by_person():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/person_details_with_external_ids/<person_id>')
+@auth_manager.require_auth
 def get_person_details_with_external_ids(person_id):
     details = tmdb_service.get_person_details_with_external_ids(person_id)
     if details:
@@ -3058,6 +3145,7 @@ def get_person_details_with_external_ids(person_id):
     return jsonify({'error': 'Person not found'}), 404
 
 @app.route('/api/movie_details/<movie_id>')
+@auth_manager.require_auth
 def movie_details(movie_id):
     """Get movie details using centralized TMDB service - movie_id is always a TMDB ID"""
     try:
@@ -3119,9 +3207,11 @@ def movie_details(movie_id):
             "trakt_url": trakt_url,
             "imdb_url": imdb_url,
             "trailer_url": trailer_url,
-            "logo_url": logo_url, 
+            "logo_url": logo_url,
+            "poster_path": movie_data.get('poster_path'),
+            "backdrop_path": movie_data.get('backdrop_path'),
             "credits": credits,
-            "collection_info": collection_info 
+            "collection_info": collection_info
         }
 
         return jsonify(formatted_data)
@@ -3130,6 +3220,7 @@ def movie_details(movie_id):
         return jsonify({"error": "Failed to fetch movie details"}), 500
 
 @app.route('/api/movie_external_ids/<person_id>')
+@auth_manager.require_auth
 def get_person_external_ids(person_id):
     """Get external IDs for a person"""
     try:
@@ -3143,6 +3234,7 @@ def get_person_external_ids(person_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/is_movie_in_jellyfin/<int:tmdb_id>')
+@auth_manager.require_auth
 def is_movie_in_jellyfin(tmdb_id):
     if not JELLYFIN_AVAILABLE:
         return jsonify({"available": False})
@@ -3163,6 +3255,7 @@ def is_movie_in_jellyfin(tmdb_id):
         return jsonify({"available": False})
 
 @app.route('/is_movie_in_emby/<int:tmdb_id>')
+@auth_manager.require_auth
 def is_movie_in_emby(tmdb_id):
     if not EMBY_AVAILABLE:
         return jsonify({"available": False})
@@ -3201,6 +3294,7 @@ def save_version_info(info):
         json.dump(info, f)
 
 @app.route('/api/check_version')
+@auth_manager.require_auth
 def check_version():
     try:
         version_info = get_version_info()
@@ -3234,6 +3328,7 @@ def check_version():
         return jsonify({'error': 'Failed to check version'}), 500
 
 @app.route('/api/dismiss_update')
+@auth_manager.require_auth
 def dismiss_update():
     try:
         with open('/app/data/last_update_check.json', 'w') as f:
@@ -3246,6 +3341,7 @@ def dismiss_update():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/search_movies')
+@auth_manager.require_auth
 def search_movies():
     """Search for movies in the current active service"""
     try:
@@ -3348,7 +3444,8 @@ def grid_view():
     return render_template(
         'grid_view.html',
         auth_enabled=auth_manager.auth_enabled,
-        settings_disabled=settings.get('system', {}).get('disable_settings', False)
+        settings_disabled=settings.get('system', {}).get('disable_settings', False),
+        heroui_theme=HEROUI_THEME,
     )
 
 @app.route('/collections')
@@ -3358,7 +3455,8 @@ def collections():
     return render_template(
         'collections.html',
         auth_enabled=auth_manager.auth_enabled,
-        settings_disabled=settings.get('system', {}).get('disable_settings', False)
+        settings_disabled=settings.get('system', {}).get('disable_settings', False),
+        heroui_theme=HEROUI_THEME,
     )
 
 @app.route('/random_movies_grid')
@@ -3399,38 +3497,37 @@ def get_collections():
     """Get all movie collections"""
     user = g.user if hasattr(g, 'user') else None
     user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
-    
-    from utils.trakt_service import is_trakt_enabled_for_user
-    trakt_currently_enabled = is_trakt_enabled_for_user(user_id)
+
+    from utils.trakt_service import is_trakt_enabled_for_user, get_current_user_id as trakt_get_user_id
+    trakt_user_id = trakt_get_user_id()
+    trakt_currently_enabled = is_trakt_enabled_for_user(trakt_user_id)
 
     current_service = session.get('current_service', get_available_service())
     cached_data = collection_service.get_collections_from_cache(user=user, service_name=current_service)
-    
+
     if isinstance(cached_data, dict):
         trakt_enabled_in_cache = cached_data.get('trakt_enabled_in_cache', False)
-        
+
         if trakt_currently_enabled == trakt_enabled_in_cache:
             return jsonify({"collections": cached_data.get('collections', [])})
-    
+
     if collection_service.cache_building:
         return jsonify({"status": "building_cache"}), 202
 
     current_service = session.get('current_service', get_available_service())
     cache_manager = g.cache_manager if hasattr(g, 'cache_manager') else None
-    
+
     logger.info(f"Rebuilding collections cache for user {user_id}. Reason: Trakt status changed or cache is invalid/old.")
-    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id)
-    
+    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id, trakt_user_id=trakt_user_id)
+
     return jsonify({"status": "building_cache"}), 202
 
 @app.route('/api/collections/trakt_watched', methods=['POST'])
 @auth_manager.require_auth
 def get_collections_trakt_watched():
-    """Get live Trakt watched status for collection movies via direct API call"""
-    user = g.user if hasattr(g, 'user') else None
-    user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
-
-    from utils.trakt_service import is_trakt_enabled_for_user
+    """Get Trakt watched status for collection movies from local cache"""
+    from utils.trakt_service import is_trakt_enabled_for_user, get_current_user_id as trakt_get_user_id, get_local_watched_movies
+    user_id = trakt_get_user_id()
 
     if not is_trakt_enabled_for_user(user_id):
         return jsonify({'enabled': False, 'watched_tmdb_ids': []})
@@ -3440,14 +3537,14 @@ def get_collections_trakt_watched():
         if request.json and 'tmdb_ids' in request.json:
             tmdb_ids_filter = {int(tid) for tid in request.json['tmdb_ids']}
 
-        watched_tmdb_ids = get_watched_movies(user_id)
+        watched_tmdb_ids = get_local_watched_movies(user_id)
 
         if tmdb_ids_filter:
             watched_tmdb_ids = [tid for tid in watched_tmdb_ids if tid in tmdb_ids_filter]
 
         return jsonify({'enabled': True, 'watched_tmdb_ids': watched_tmdb_ids})
     except Exception as e:
-        logger.error(f"Error fetching live Trakt watched status: {e}")
+        logger.error(f"Error fetching Trakt watched status: {e}")
         return jsonify({'enabled': False, 'watched_tmdb_ids': []}), 500
 
 @app.route('/api/collections/build_cache', methods=['POST'])
@@ -3459,11 +3556,14 @@ def build_collections_cache_endpoint():
 
     user = g.user if hasattr(g, 'user') else None
     user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
-    
+
+    from utils.trakt_service import get_current_user_id as trakt_get_user_id
+    trakt_user_id = trakt_get_user_id()
+
     current_service = session.get('current_service', get_available_service())
     cache_manager = g.cache_manager if hasattr(g, 'cache_manager') else None
-    
-    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id)
+
+    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id, trakt_user_id=trakt_user_id)
     return jsonify({'status': 'cache build started'}), 202
 
 
@@ -3492,17 +3592,19 @@ def all_movies_grid():
                 "service": current_service,
                 "movies": movies_data
             })
-        else:
-            return jsonify({"error": "No movies found"}), 404
+
+        cache_mgr = getattr(g, 'cache_manager', None)
+        is_building = cache_mgr and (
+            getattr(cache_mgr, '_initializing', False) or
+            not (cache_mgr.cache_file_path and os.path.exists(cache_mgr.cache_file_path))
+        )
+        if is_building:
+            return jsonify({"status": "cache_building"}), 202
+
+        return jsonify({"error": "No movies found"}), 404
     except Exception as e:
         logger.error(f"Error in all_movies_grid: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-@app.route('/user_cache_admin')
-@auth_manager.require_admin
-def user_cache_admin():
-    """Admin panel for managing user caches (admin only)"""
-    return render_template('user_cache_admin.html')
 
 @app.route('/api/clear_global_cache', methods=['POST'])
 @auth_manager.require_admin
@@ -3569,6 +3671,7 @@ def get_user_profile():
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @socketio.on('connect', namespace='/poster')
 def poster_connect():

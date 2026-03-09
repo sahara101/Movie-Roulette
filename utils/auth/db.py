@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 class AuthDB:
     """Database for user authentication"""
     
+    _MAX_FAILED_ATTEMPTS = 5
+    _LOCKOUT_DURATION = 900  # 15 minutes
+    _MIN_PASSWORD_LENGTH = 8
+
     def __init__(self):
         settings_dir = os.path.dirname(SETTINGS_FILE)
         self.db_path = os.path.join(settings_dir, 'auth.json')
@@ -22,6 +26,7 @@ class AuthDB:
         self.managed_users = {}
         self.sessions = {}
         self.last_load_time = 0
+        self._failed_attempts = {}  # {username: {'count': N, 'locked_until': timestamp}}
         self.load_db()
 
     def load_db(self):
@@ -77,21 +82,71 @@ class AuthDB:
                  self.last_load_time = os.path.getmtime(self.db_path)
             except OSError:
                  self.last_load_time = time.time()
-            logger.info("Auth database saved successfully")
+            logger.debug("Auth database saved successfully")
         except Exception as e:
             logger.error(f"Error saving auth database: {e}")
 
-    def _hash_password(self, password, salt=None):
-        """Hash a password with a salt using SHA-256"""
-        if salt is None:
-            salt = secrets.token_hex(16)
-        
-        pw_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    _PBKDF2_ITERATIONS = 260000
+
+    def _hash_password(self, password):
+        """Hash a password using PBKDF2-HMAC-SHA256."""
+        salt = secrets.token_hex(16)
+        pw_hash = hashlib.pbkdf2_hmac(
+            'sha256', password.encode(), salt.encode(), self._PBKDF2_ITERATIONS
+        ).hex()
         return {
             'hash': pw_hash,
-            'salt': salt
+            'salt': salt,
+            'algo': 'pbkdf2',
+            'iterations': self._PBKDF2_ITERATIONS
         }
-    
+
+    def _verify_password(self, password, pw_data):
+        """Verify a password against stored hash data.
+
+        Supports both legacy SHA-256 (no 'algo' key) and PBKDF2.
+        Returns True if the password matches.
+        """
+        algo = pw_data.get('algo')
+        salt = pw_data['salt']
+        stored_hash = pw_data['hash']
+
+        if algo == 'pbkdf2':
+            iterations = pw_data.get('iterations', self._PBKDF2_ITERATIONS)
+            computed = hashlib.pbkdf2_hmac(
+                'sha256', password.encode(), salt.encode(), iterations
+            ).hex()
+        else:
+            # Legacy single-round SHA-256
+            computed = hashlib.sha256((password + salt).encode()).hexdigest()
+
+        return computed == stored_hash
+
+    def _check_lockout(self, username):
+        """Return (is_locked, seconds_remaining) for a username."""
+        entry = self._failed_attempts.get(username)
+        if not entry:
+            return False, 0
+        locked_until = entry.get('locked_until', 0)
+        if locked_until and time.time() < locked_until:
+            return True, int(locked_until - time.time())
+        return False, 0
+
+    def _record_failed_attempt(self, username):
+        """Increment failed-attempt counter; lock account when threshold is reached."""
+        entry = self._failed_attempts.setdefault(username, {'count': 0, 'locked_until': 0})
+        entry['count'] += 1
+        if entry['count'] >= self._MAX_FAILED_ATTEMPTS:
+            entry['locked_until'] = time.time() + self._LOCKOUT_DURATION
+            logger.warning(
+                f"Account '{username}' locked for {self._LOCKOUT_DURATION // 60} minutes "
+                f"after {entry['count']} consecutive failed login attempts"
+            )
+
+    def _reset_failed_attempts(self, username):
+        """Clear failed-attempt state after a successful login."""
+        self._failed_attempts.pop(username, None)
+
     def _clean_expired_sessions(self):
         """Remove expired sessions"""
         now = time.time()
@@ -103,6 +158,7 @@ class AuthDB:
         
         if expired:
             logger.info(f"Cleaned {len(expired)} expired sessions")
+            self.save_db()
     
     def add_user(self, username, password, is_admin=False, service_type='local', **kwargs):
         """
@@ -111,6 +167,9 @@ class AuthDB:
         """
         if username in self.users:
             return False, "Username already exists"
+
+        if service_type == 'local' and password and len(password) < self._MIN_PASSWORD_LENGTH:
+            return False, f"Password must be at least {self._MIN_PASSWORD_LENGTH} characters long"
 
         pw_data = self._hash_password(password) if password else None
 
@@ -130,14 +189,13 @@ class AuthDB:
             'trakt_access_token': None,
             'trakt_refresh_token': None,
             'trakt_enabled': False,
-            'passkeys': []  # New field for passkey credentials
+            'passkeys': []
         }
 
         allowed_service_keys = ['service_user_id', 'service_token', 'service_server_id',
                                 'plex_token', 'plex_email', 'jellyfin_token', 'jellyfin_user_id',
                                 'is_plex_owner', 'is_jellyfin_owner', 'is_emby_owner',
                                 'trakt_access_token', 'trakt_refresh_token', 'trakt_enabled']
-        # passkeys is managed by specific methods, not generic kwargs
         for key, value in kwargs.items():
             if key in allowed_service_keys:
                 user_entry[key] = value
@@ -164,7 +222,6 @@ class AuthDB:
         if 'passkeys' not in user:
             user['passkeys'] = []
         
-        # Ensure no duplicate credential ID for this user (or globally if desired)
         existing_ids = [cred.get('id') for cred in user['passkeys']]
         if credential_data.get('id') in existing_ids:
             logger.warning(f"Passkey credential ID {credential_data.get('id')} already exists for user {username}")
@@ -181,7 +238,7 @@ class AuthDB:
             return []
         user = self.users[username]
         if user.get('service_type') != 'local':
-            return [] # Only local users have passkeys
+            return []
         return user.get('passkeys', [])
 
     def get_passkey_credential_by_id(self, credential_id_bytes):
@@ -189,14 +246,7 @@ class AuthDB:
         Retrieves a specific passkey credential by its ID (bytes).
         Returns the credential and the username it belongs to.
         """
-        # In this simple JSON DB, we have to iterate. For a larger system, this would be indexed.
-        # Credential ID is stored as base64url-encoded string in JSON, but passed as bytes here.
-        # For comparison, we might need to encode credential_id_bytes or decode stored IDs.
-        # For now, let's assume credential_id_bytes is the raw bytes and stored ID is base64url string.
-        # The webauthn library typically handles bytes for credential IDs.
-        # We'll store it as base64url string in JSON for simplicity.
-        # The library will give us bytes, so we'll need to encode it before searching.
-        from webauthn.helpers import bytes_to_base64url # Use consistent helper
+        from webauthn.helpers import bytes_to_base64url
         credential_id_str = bytes_to_base64url(credential_id_bytes)
 
 
@@ -204,16 +254,12 @@ class AuthDB:
             if user_data.get('service_type') == 'local':
                 for cred in user_data.get('passkeys', []):
                     if cred.get('id') == credential_id_str:
-                        # The webauthn library expects the credential's public_key and sign_count
-                        # to be in specific formats (bytes for public_key).
-                        # We need to ensure they are stored and retrieved correctly.
-                        # For now, returning the whole dict. Conversion might be needed in AuthManager.
                         return cred, username
         return None, None
 
     def update_passkey_sign_count(self, credential_id_bytes, new_sign_count):
         """Updates the sign count for a given passkey credential ID (bytes)."""
-        from webauthn.helpers import bytes_to_base64url # Use consistent helper
+        from webauthn.helpers import bytes_to_base64url
         credential_id_str = bytes_to_base64url(credential_id_bytes)
 
 
@@ -223,7 +269,7 @@ class AuthDB:
                     if cred.get('id') == credential_id_str:
                         cred['sign_count'] = new_sign_count
                         self.save_db()
-                        logger.info(f"Updated sign count for passkey ID {credential_id_str} for user {username}")
+                        logger.debug(f"Updated sign count for passkey ID {credential_id_str} for user {username}")
                         return True
         logger.warning(f"Could not find passkey ID {credential_id_str} to update sign count.")
         return False
@@ -249,13 +295,28 @@ class AuthDB:
         logger.warning(f"Passkey credential ID {credential_id_str_b64} not found for user {username}")
         return False, "Passkey credential not found"
 
+    def invalidate_user_sessions(self, username, except_token=None):
+        """Invalidate all sessions for a user, optionally preserving one (the current session)."""
+        before = len(self.sessions)
+        self.sessions = {
+            token: session for token, session in self.sessions.items()
+            if session.get('username') != username or token == except_token
+        }
+        invalidated = before - len(self.sessions)
+        if invalidated:
+            logger.info(f"Invalidated {invalidated} session(s) for user '{username}' after password change")
+        self.save_db()
+
     def update_password(self, username, new_password):
         """Update a user's password"""
         if username not in self.users:
             return False, "User not found"
-        
+
+        if self.users[username].get('service_type') == 'local' and len(new_password) < self._MIN_PASSWORD_LENGTH:
+            return False, f"Password must be at least {self._MIN_PASSWORD_LENGTH} characters long"
+
         pw_data = self._hash_password(new_password)
-        
+
         self.users[username]['password'] = pw_data
         self.save_db()
         logger.info(f"Updated password for user: {username}")
@@ -276,21 +337,31 @@ class AuthDB:
         return True, "User deleted successfully"
     
     def verify_user(self, username, password):
-        """Verify user credentials"""
+        """Verify user credentials, upgrading legacy SHA-256 hashes to PBKDF2 on success."""
         if username not in self.users:
             return False, "Invalid username or password"
-        
+
+        is_locked, remaining = self._check_lockout(username)
+        if is_locked:
+            minutes = (remaining + 59) // 60
+            return False, f"Too many failed attempts. Try again in {minutes} minute(s)."
+
         user = self.users[username]
         pw_data = user['password']
-        
-        verify_data = self._hash_password(password, pw_data['salt'])
-        
-        if verify_data['hash'] == pw_data['hash']:
-            self.users[username]['last_login'] = datetime.now().isoformat()
-            self.save_db()
-            return True, "Authentication successful"
-        
-        return False, "Invalid username or password"
+
+        if not self._verify_password(password, pw_data):
+            self._record_failed_attempt(username)
+            return False, "Invalid username or password"
+
+        self._reset_failed_attempts(username)
+
+        if pw_data.get('algo') != 'pbkdf2':
+            logger.debug(f"Upgrading password hash for user '{username}' from SHA-256 to PBKDF2")
+            user['password'] = self._hash_password(password)
+
+        user['last_login'] = datetime.now().isoformat()
+        self.save_db()
+        return True, "Authentication successful"
 
     def add_managed_user(self, username, password, plex_user_id):
         """Add a new managed user."""
@@ -358,31 +429,40 @@ class AuthDB:
         if username not in self.managed_users:
             return False, "Invalid username or password", None
 
+        is_locked, remaining = self._check_lockout(username)
+        if is_locked:
+            minutes = (remaining + 59) // 60
+            return False, f"Too many failed attempts. Try again in {minutes} minute(s).", None
+
         user = self.managed_users[username]
-        
+
         if 'password' not in user:
             logger.warning(f"Attempt to login with password for managed user '{username}' who has no password record (likely old PIN user).")
             return False, "Account not configured for password login. Please update user via settings.", None
 
         password_data = user['password']
 
-        verify_data = self._hash_password(password, password_data['salt'])
+        if not self._verify_password(password, password_data):
+            self._record_failed_attempt(username)
+            logger.warning(f"Failed password authentication attempt for managed user: {username}")
+            return False, "Invalid username or password", None
 
-        if verify_data['hash'] == password_data['hash']:
-            self.managed_users[username]['last_login'] = datetime.now().isoformat()
-            self.save_db()
-            logger.info(f"Managed user {username} authenticated successfully.")
-            return True, "Authentication successful", user.get('plex_user_id')
+        self._reset_failed_attempts(username)
 
-        logger.warning(f"Failed password authentication attempt for managed user: {username}")
-        return False, "Invalid username or password", None
+        if password_data.get('algo') != 'pbkdf2':
+            logger.debug(f"Upgrading password hash for managed user '{username}' from SHA-256 to PBKDF2")
+            self.managed_users[username]['password'] = self._hash_password(password)
+
+        self.managed_users[username]['last_login'] = datetime.now().isoformat()
+        self.save_db()
+        return True, "Authentication successful", user.get('plex_user_id')
 
     def update_managed_user_password(self, username, new_password):
         """Update a managed user's password."""
         if username not in self.managed_users:
             return False, "Managed user not found"
-        if not isinstance(new_password, str) or len(new_password) < 6:
-            return False, "Password must be at least 6 characters long"
+        if not isinstance(new_password, str) or len(new_password) < self._MIN_PASSWORD_LENGTH:
+            return False, f"Password must be at least {self._MIN_PASSWORD_LENGTH} characters long"
 
         password_data = self._hash_password(new_password)
         self.managed_users[username]['password'] = password_data
@@ -461,7 +541,6 @@ class AuthDB:
             'username': username,
             'created_at': time.time(),
             'expires': expires,
-            'username': username,
             'user_type': user_type,
             'is_admin': is_admin,
             'service_type': service_type,
@@ -585,6 +664,27 @@ class AuthDB:
     def has_admin(self):
         """Check if there are any admin users"""
         return any(user.get('is_admin', False) for user in self.users.values())
+
+    def get_user_preference(self, username, key, default=None):
+        """Return a user's personal preference value, or default if not set."""
+        self.load_db()
+        user = self.users.get(username) or self.managed_users.get(username)
+        if not user:
+            return default
+        return user.get('preferences', {}).get(key, default)
+
+    def set_user_preference(self, username, key, value):
+        """Set a user's personal preference. Returns True on success."""
+        self.load_db()
+        user = self.users.get(username) or self.managed_users.get(username)
+        if not user:
+            logger.warning(f"Cannot set preference for unknown user: {username}")
+            return False
+        if 'preferences' not in user:
+            user['preferences'] = {}
+        user['preferences'][key] = value
+        self.save_db()
+        return True
 
     def update_user_data(self, username, data_to_update):
         """Update specific fields for a user."""
