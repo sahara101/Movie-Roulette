@@ -2,16 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token() }}"> 
     <title>Settings - Movie Roulette</title>
     <link href="/static/style/style.css" rel="stylesheet">
     <link href="/static/style/settings.css" rel="stylesheet">
     <link href="/static/style/auth.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style/heroui-theme.css">
+    <link rel="stylesheet" href="/static/style/aceternity-effects.css">
+    {% endif %}
 </head>
-<body>
+<body{% if heroui_theme %} class="heroui-theme"{% endif %}>
     {% if settings_disabled %}
+        {% if heroui_theme %}<div class="settings-disabled-heroui-wrap">{% endif %}
         {% if no_services_configured %}
         <div class="settings-disabled">
             <h1>Service Configuration Required</h1>
@@ -49,6 +55,7 @@ EMBY_USER_ID=your-user-id</pre>
             </a>
         </div>
         {% endif %}
+        {% if heroui_theme %}</div>{% endif %}
     {% else %}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -89,5 +96,6 @@ EMBY_USER_ID=your-user-id</pre>
     	});
     });
     </script>
+    {% if heroui_theme %}<script src="/static/js/theme-effects.js"></script>{% endif %}
 </body>
 </html>

@@ -40,6 +40,8 @@ DEFAULT_SETTINGS = {
         'homepage_mode': False,
         'enable_movie_logos': True, 
         'load_movie_on_start': False,
+        'heroui_theme': True,
+        'show_now_watching_card': True,
         'login_backdrop': {
             'enabled': False
         },
@@ -59,17 +61,12 @@ DEFAULT_SETTINGS = {
         }
     },
     'request_services': {
-        'default': 'auto',  # Values: auto, overseerr, jellyseerr, ombi
-        'plex_override': 'auto',  # Values: auto, overseerr, jellyseerr, ombi
-        'jellyfin_override': 'auto',  # Values: auto, jellyseerr, ombi
-        'emby_override': 'auto'  # Values: auto, jellyseerr, ombi
+        'default': 'auto',  # Values: auto, seerr, ombi
+        'plex_override': 'auto',  # Values: auto, seerr, ombi
+        'jellyfin_override': 'auto',  # Values: auto, seerr, ombi
+        'emby_override': 'auto'  # Values: auto, seerr, ombi
     },
-    'overseerr': {
-        'enabled': False,
-        'url': '',
-        'api_key': ''
-    },
-    'jellyseerr': {
+    'seerr': {
         'enabled': False,
         'url': '',
         'api_key': ''
@@ -135,11 +132,9 @@ ENV_MAPPINGS = {
     'EMBY_API_KEY': ('emby', 'api_key', str),
     'EMBY_USER_ID': ('emby', 'user_id', str),
 
-    # Overseerr/Jellyseerr ENV
-    'OVERSEERR_URL': ('overseerr', 'url', str),
-    'OVERSEERR_API_KEY': ('overseerr', 'api_key', str),
-    'JELLYSEERR_URL': ('jellyseerr', 'url', str),
-    'JELLYSEERR_API_KEY': ('jellyseerr', 'api_key', str),
+    # Seerr ENV
+    'SEERR_URL': ('seerr', 'url', str),
+    'SEERR_API_KEY': ('seerr', 'api_key', str),
 
     # Ombi ENV
     'OMBI_URL': ('ombi', 'url', str),
@@ -160,6 +155,8 @@ ENV_MAPPINGS = {
     'ENABLE_MOVIE_LOGOS': ('features', 'enable_movie_logos', lambda x: x.upper() == 'TRUE'),
     'LOAD_MOVIE_ON_START': ('features', 'load_movie_on_start', lambda x: x.upper() == 'TRUE'),
     'LOGIN_BACKDROP_ENABLED': ('features.login_backdrop', 'enabled', lambda x: x.upper() == 'TRUE'),
+    'USE_HEROUI_THEME': ('features', 'heroui_theme', lambda x: x.upper() == 'TRUE'),
+    'SHOW_NOW_WATCHING_CARD': ('features', 'show_now_watching_card', lambda x: x.upper() == 'TRUE'),
     # AppleTV ENV
     'APPLE_TV_ID': ('clients.apple_tv', 'id', str),
 

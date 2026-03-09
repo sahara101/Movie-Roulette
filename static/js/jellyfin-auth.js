@@ -105,7 +105,7 @@ class JellyfinAuth {
                         try {
                              const textError = await response.text();
                              if (textError && !textError.trim().startsWith('<')) {
-                                 errorMessage = textError.trim(); // Trim whitespace
+                                 errorMessage = textError.trim();
                              }
                         } catch (e2) {
                         }

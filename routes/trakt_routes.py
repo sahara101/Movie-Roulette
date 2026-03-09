@@ -2,6 +2,9 @@ from flask import Blueprint, jsonify, redirect, request, session, make_response
 import requests
 import json
 import os
+import hashlib
+import base64
+import secrets
 from datetime import datetime
 import logging
 from utils.settings import settings 
@@ -13,11 +16,9 @@ logger = logging.getLogger(__name__)
 trakt_bp = Blueprint('trakt_bp', __name__)
 
 HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
-HARDCODED_CLIENT_SECRET = '3e5c2b9163264d8e9b50b8727c827b49a5ea8cc6cf0331bca931a697c243f508'
-REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'  
+REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 
 CLIENT_ID = os.getenv('TRAKT_CLIENT_ID') or HARDCODED_CLIENT_ID
-CLIENT_SECRET = os.getenv('TRAKT_CLIENT_SECRET') or HARDCODED_CLIENT_SECRET
 
 @trakt_bp.route('/trakt/status')
 @auth_manager.require_auth 
@@ -92,12 +93,21 @@ def status():
     return response
 
 @trakt_bp.route('/trakt/authorize')
-@auth_manager.require_auth 
+@auth_manager.require_auth
 def authorize():
-    """Start the Trakt authorization flow"""
+    """Start the Trakt authorization flow using PKCE (no client_secret required)"""
+    code_verifier = secrets.token_urlsafe(96)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b'=').decode()
+    session['trakt_pkce_verifier'] = code_verifier
+
     auth_url = 'https://trakt.tv/oauth/authorize'
-    full_auth_url = f"{auth_url}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
-    logger.info(f"Authorization URL: {full_auth_url}")
+    full_auth_url = (
+        f"{auth_url}?response_type=code&client_id={CLIENT_ID}"
+        f"&redirect_uri={REDIRECT_URI}"
+        f"&code_challenge={code_challenge}&code_challenge_method=S256"
+    )
 
     return jsonify({
         'auth_url': full_auth_url,
@@ -114,11 +124,15 @@ def get_token():
         return jsonify({'error': 'No code provided'}), 400
 
     try:
+        code_verifier = session.pop('trakt_pkce_verifier', None)
+        if not code_verifier:
+            return jsonify({'error': 'PKCE session expired. Restart the authorization.'}), 400
+
         request_data = {
             'code': code,
             'client_id': CLIENT_ID,
-            'client_secret': CLIENT_SECRET,
             'redirect_uri': REDIRECT_URI,
+            'code_verifier': code_verifier,
             'grant_type': 'authorization_code'
         }
 
@@ -139,7 +153,6 @@ def get_token():
         response = requests.post('https://api.trakt.tv/oauth/token', json=request_data)
 
         logger.info(f"Token response status: {response.status_code}")
-        logger.info(f"Token response text: {response.text}")
 
         if response.ok:
             token_data = response.json()
@@ -181,7 +194,9 @@ def get_token():
                     logger.error(f"Failed to save Trakt tokens to global settings: {e}")
                     return jsonify({'error': f'Failed to save tokens: {str(e)}'}), 500
         else:
-            logger.error(f"Token request failed: {response.text}")
+            logger.error(f"Token request failed: {response.status_code} - {response.text}")
+            if response.status_code == 403 or 'banned' in response.text.lower():
+                return jsonify({'error': 'Your IP has been temporarily banned by Trakt. Please wait a while and try again.'}), 503
             return jsonify({'error': 'Failed to get access token'}), 500
 
     except Exception as e:

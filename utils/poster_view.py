@@ -74,7 +74,47 @@ def get_poster_data():
         'service': current_movie['service'],
     }
 
-def set_current_movie(movie_data, service, resume_position=0, session_type='NEW', username=None):
+def get_poster_proxy_url(poster_url, service):
+    """Convert a raw media-server poster URL to a same-origin proxy URL."""
+    if not poster_url:
+        return ''
+    if service == 'plex' and '/library/metadata/' in poster_url:
+        parts = poster_url.split('/library/metadata/')[1].split('?')[0]
+        return f"/proxy/poster/plex/{parts}"
+    if service in ('jellyfin', 'emby') and '/Items/' in poster_url:
+        item_id = poster_url.split('/Items/')[1].split('/Images')[0]
+        return f"/proxy/poster/{service}/{item_id}"
+    return poster_url
+
+def get_backdrop_proxy_url(background_url, service):
+    """Convert a raw media-server backdrop URL to a same-origin proxy URL."""
+    if not background_url:
+        return ''
+    if service == 'plex' and '/library/metadata/' in background_url:
+        item_id = background_url.split('/library/metadata/')[1].split('/')[0]
+        return f"/proxy/backdrop/plex/{item_id}"
+    if service in ('jellyfin', 'emby') and '/Items/' in background_url:
+        item_id = background_url.split('/Items/')[1].split('/Images')[0]
+        return f"/proxy/backdrop/{service}/{item_id}"
+    return ''
+
+def _parse_imdb_id(imdb_url):
+    """Extract tt-ID from a full IMDb URL, e.g. https://www.imdb.com/title/tt1234567"""
+    if imdb_url and '/title/' in imdb_url:
+        return imdb_url.split('/title/')[-1].strip('/')
+    return ''
+
+def emit_now_playing_update(data, room=None):
+    """Emit now_playing_update to a specific room (or globally if room is None)."""
+    if socketio:
+        if room:
+            socketio.emit('now_playing_update', data, room=room, namespace='/')
+        else:
+            socketio.emit('now_playing_update', data, namespace='/')
+    else:
+        logger.warning("SocketIO not initialized in poster_view")
+
+def set_current_movie(movie_data, service, resume_position=0, session_type='NEW', username=None, room='nw_global'):
     """Set current movie with authorization check"""
     current_time = datetime.now(get_current_timezone())
 
@@ -121,7 +161,8 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
         'duration_minutes': movie_data['duration_minutes'],
         'service': service,
         'resume_position': resume_position,
-        'session_type': session_type
+        'session_type': session_type,
+        'username': username or '',
     }
     save_current_movie(current_movie)
 
@@ -132,8 +173,35 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
 
     if socketio:
         socketio.emit('movie_changed', current_movie, namespace='/poster')
+        emit_now_playing_update({
+            'active': True,
+            'status': 'PLAYING',
+            'title': movie_data.get('title', ''),
+            'year': movie_data.get('year', ''),
+            'poster': movie_data.get('poster', ''),
+            'service': service,
+            'start_time': start_time.isoformat(),
+            'total_seconds': int(total_duration.total_seconds()),
+            'username': username or '',
+            'tmdb_id': movie_data.get('tmdb_id', ''),
+            'imdb_id': _parse_imdb_id(movie_data.get('imdb_url', '')),
+            'poster_proxy': get_poster_proxy_url(movie_data.get('poster', ''), service),
+            'backdrop_proxy': get_backdrop_proxy_url(movie_data.get('background', ''), service),
+        }, room=room)
     else:
         logger.warning("SocketIO not initialized in poster_view")
+
+def notify_now_playing_stopped(room='nw_global'):
+    """Notify clients that playback has stopped"""
+    emit_now_playing_update({'active': False}, room=room)
+
+def notify_now_playing_status(status, position_seconds=0, room='nw_global'):
+    """Notify clients of a playback status change (PAUSED/PLAYING/ENDING/UNKNOWN)"""
+    emit_now_playing_update({
+        'active': True,
+        'status': status,
+        'position_seconds': int(position_seconds),
+    }, room=room)
 
 def get_playback_state(movie_id):
     default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
@@ -273,6 +341,7 @@ def poster():
         poster_settings = get_poster_settings()
         features = poster_settings.get('features', {})
         custom_text = poster_settings['custom_text']
+        heroui_theme = features.get('heroui_theme', False)
 
         poster_data = get_poster_data()
         active_movie_found = False
@@ -316,10 +385,11 @@ def poster():
                                 service=poster_data['service'],
                                 current_poster=current_poster,
                                 custom_text=custom_text,
+                                heroui_theme=heroui_theme,
                                 features={
-                                    'poster_mode': 'default',  
+                                    'poster_mode': 'default',
                                     'screensaver_interval': features.get('screensaver_interval', 300),
-                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
+                                    'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                 })
 
         if not active_movie_found:
@@ -373,8 +443,9 @@ def poster():
                                         service=poster_data['service'],
                                         current_poster=movie_poster_url,
                                         custom_text=custom_text,
+                                        heroui_theme=heroui_theme,
                                         features={
-                                            'poster_mode': 'default',  
+                                            'poster_mode': 'default',
                                             'screensaver_interval': features.get('screensaver_interval', 300),
                                             'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                         })
@@ -418,10 +489,11 @@ def poster():
                                         current_poster=proxy_url,
                                         movie=None,
                                         custom_text=custom_text,
+                                        heroui_theme=heroui_theme,
                                         initial_directors=random_movie.get('directors', []),
                                         initial_description=random_movie.get('description') or None,
                                         initial_tagline=random_movie.get('tagline') or None,
-                                        initial_actors=random_movie.get('actors', [])[:5],
+                                        initial_actors=random_movie.get('actors', [])[:4],
                                         initial_content_rating=random_movie.get('contentRating') or None,
                                         initial_video_format=random_movie.get('videoFormat') or None,
                                         initial_audio_format=random_movie.get('audioFormat') or None,
@@ -439,10 +511,11 @@ def poster():
                                 current_poster=current_poster,
                                 movie=None,
                                 custom_text=custom_text,
+                                heroui_theme=heroui_theme,
                                 features={
                                     'poster_mode': features.get('poster_mode', 'default'),
                                     'screensaver_interval': features.get('screensaver_interval', 300),
-                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
+                                    'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                                 })
 
         logger.info("Fallback to default poster")
@@ -450,10 +523,11 @@ def poster():
                             current_poster=default_poster_manager.default_poster,
                             movie=None,
                             custom_text=custom_text,
+                            heroui_theme=heroui_theme,
                             features={
                                 'poster_mode': features.get('poster_mode', 'default'),
                                 'screensaver_interval': features.get('screensaver_interval', 300),
-                                            'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
+                                'poster_cinema_overlay': features.get('poster_cinema_overlay', True)
                             })
 
     except Exception as e:
@@ -462,6 +536,7 @@ def poster():
                             current_poster="/static/images/default_poster.png",
                             movie=None,
                             custom_text="Error loading poster",
+                            heroui_theme=False,
                             features={
                                 'poster_mode': 'default',
                                 'screensaver_interval': 300,
@@ -534,4 +609,38 @@ def proxy_poster(service, poster_id):
 
     except Exception as e:
         logger.error(f"Error proxying poster: {e}")
+        return Response(status=500)
+
+@poster_bp.route('/proxy/backdrop/<service>/<path:item_id>')
+@auth_manager.require_auth
+def proxy_backdrop(service, item_id):
+    try:
+        if service == 'plex':
+            plex_service = current_app.config.get('PLEX_SERVICE')
+            if not plex_service:
+                return Response(status=400)
+            full_url = f"{plex_service.PLEX_URL}/library/metadata/{item_id}/art?X-Plex-Token={plex_service.PLEX_TOKEN}"
+
+        elif service == 'jellyfin':
+            jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
+            if not jellyfin_service:
+                return Response(status=400)
+            full_url = f"{jellyfin_service.server_url}/Items/{item_id}/Images/Backdrop?api_key={jellyfin_service.admin_api_key}"
+
+        elif service == 'emby':
+            emby_service = current_app.config.get('EMBY_SERVICE')
+            if not emby_service:
+                return Response(status=400)
+            full_url = f"{emby_service.server_url}/Items/{item_id}/Images/Backdrop?api_key={emby_service.api_key}"
+
+        else:
+            return Response(status=400)
+
+        response = requests.get(full_url)
+        if response.status_code == 200:
+            return Response(response.content, mimetype=response.headers['content-type'])
+        return Response(status=response.status_code)
+
+    except Exception as e:
+        logger.error(f"Error proxying backdrop: {e}")
         return Response(status=500)

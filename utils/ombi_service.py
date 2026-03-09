@@ -13,43 +13,23 @@ OMBI_INITIALIZED = False
 OMBI_URL = None
 OMBI_API_KEY = None
 
-def write_debug(message):
-    """Write debug message to a file"""
-    try:
-        with open('/app/data/debug.log', 'a') as f:
-            f.write(f"{message}\n")
-    except Exception as e:
-        print(f"Error writing debug: {e}")
-
 def initialize_ombi():
     """Initialize or reinitialize Ombi service"""
     global OMBI_INITIALIZED, OMBI_URL, OMBI_API_KEY
-    write_debug("\n=== initialize_ombi called ===")
-    
-    previous_state = {
-        'initialized': OMBI_INITIALIZED,
-        'has_url': bool(OMBI_URL),
-        'has_key': bool(OMBI_API_KEY)
-    }
-    write_debug(f"Previous state: {previous_state}")
 
     ombi_settings = settings.get('ombi', {})
     enabled = ombi_settings.get('enabled', False)
-    write_debug(f"Settings: {ombi_settings}")
-    write_debug(f"Enabled: {enabled}")
 
     OMBI_URL = os.getenv('OMBI_URL') or ombi_settings.get('url', '').strip()
     OMBI_API_KEY = os.getenv('OMBI_API_KEY') or ombi_settings.get('api_key', '').strip()
 
     is_env_configured = bool(os.getenv('OMBI_URL') and os.getenv('OMBI_API_KEY'))
     is_settings_configured = bool(enabled and OMBI_URL and OMBI_API_KEY)
-    write_debug(f"ENV configured: {is_env_configured}")
-    write_debug(f"Settings configured: {is_settings_configured}")
 
     if is_env_configured or is_settings_configured:
         try:
             OMBI_INITIALIZED = True
-            
+
             state_file = '/app/data/ombi_state.json'
             os.makedirs(os.path.dirname(state_file), exist_ok=True)
             state = {
@@ -59,28 +39,23 @@ def initialize_ombi():
             }
             with open(state_file, 'w') as f:
                 json.dump(state, f)
-            
-            write_debug(f"State file written: {state}")
-            write_debug("Ombi service initialized successfully")
+
             logger.info("Ombi service initialized successfully")
             return True
         except Exception as e:
-            write_debug(f"Failed to save Ombi state: {e}")
             logger.error(f"Failed to save Ombi state: {e}")
             OMBI_INITIALIZED = False
             return False
 
     OMBI_INITIALIZED = False
-    
+
     try:
         state_file = '/app/data/ombi_state.json'
         if os.path.exists(state_file):
             os.remove(state_file)
-            write_debug("State file removed")
     except Exception as e:
-        write_debug(f"Failed to clean up Ombi state file: {e}")
-    
-    write_debug("Ombi service not initialized - missing configuration or disabled")
+        logger.error(f"Failed to clean up Ombi state file: {e}")
+
     logger.info("Ombi service not initialized - missing configuration or disabled")
     return False
 
@@ -217,7 +192,7 @@ def get_media_status(tmdb_id):
 
         return {
             "mediaInfo": {
-                "status": 1,  # not requested
+                "status": 1,
                 "requested": False
             }
         }

@@ -1,7 +1,17 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Authentication Successful</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style/heroui-theme.css">
+    <link rel="stylesheet" href="/static/style/aceternity-effects.css">
+    {% endif %}
     <style>
         body {
             font-family: 'Montserrat', sans-serif;
@@ -30,9 +40,11 @@
         }
     </style>
 </head>
-<body>
-    <div class="success-container">
-        <div class="icon">✓</div>
+<body{% if heroui_theme %} class="heroui-theme"{% endif %}>
+    <div class="success-container{% if heroui_theme %} login-card{% endif %}">
+        <div class="icon">
+            {% if heroui_theme %}<i class="fa-solid fa-circle-check"></i>{% else %}✓{% endif %}
+        </div>
         <h1>Authentication Successful</h1>
         <p>You've successfully authenticated with Plex. This window will close automatically.</p>
     </div>
@@ -41,5 +53,6 @@
             window.close();
         }, 2000);
     </script>
+    {% if heroui_theme %}<script src="/static/js/theme-effects.js"></script>{% endif %}
 </body>
 </html>

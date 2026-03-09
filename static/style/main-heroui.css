@@ -1,0 +1,3027 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+body.heroui-main {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #09090b;
+  color: #fafafa;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  position: relative;
+
+  --bg-2: #111113;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --primary: #6366f1;
+  --primary-hover: #818cf8;
+  --primary-glow: rgba(99, 102, 241, 0.4);
+  --secondary: #7c3aed;
+  --accent: #06b6d4;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow-primary: 0 0 20px rgba(99, 102, 241, 0.4), 0 0 40px rgba(99, 102, 241, 0.2);
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.heroui-main .aurora-container {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.heroui-main .aurora-el {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.18;
+  will-change: transform;
+}
+
+body.heroui-main .aurora-1 {
+  width: 80vw;
+  height: 80vw;
+  top: -25vh;
+  left: -15vw;
+  background: radial-gradient(circle at 50% 50%, #6366f1, #4338ca 40%, transparent 70%);
+  animation: heroui-aurora-circle 26s ease-in-out infinite;
+}
+
+body.heroui-main .aurora-2 {
+  width: 65vw;
+  height: 65vw;
+  top: 30vh;
+  right: -15vw;
+  background: radial-gradient(circle at 50% 50%, #7c3aed, #6d28d9 40%, transparent 70%);
+  animation: heroui-aurora-circle 20s ease-in-out infinite reverse;
+}
+
+body.heroui-main .aurora-3 {
+  width: 55vw;
+  height: 55vw;
+  bottom: -20vh;
+  left: 25vw;
+  background: radial-gradient(circle at 50% 50%, #0891b2, #0e7490 40%, transparent 70%);
+  animation: heroui-aurora-horiz 23s ease-in-out infinite;
+}
+
+@keyframes heroui-aurora-circle {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(4vw, -7vh) scale(1.08); }
+  66%       { transform: translate(-4vw,  5vh) scale(0.94); }
+}
+
+@keyframes heroui-aurora-horiz {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  50%       { transform: translateX(7vw) translateY(-4vh); }
+}
+
+body.heroui-main .bg-grid-dots {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
+
+body.heroui-main #spotlight-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    700px circle at var(--mx, -9999px) var(--my, -9999px),
+    rgba(99, 102, 241, 0.07),
+    transparent 50%
+  );
+}
+
+body.heroui-main #img_background {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 3;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  filter: blur(70px) brightness(0.25) saturate(1.8);
+  transform: scale(1.1);
+  pointer-events: none;
+  opacity: 1;
+  transition: background-image 1s ease;
+}
+
+/* ── Navigation ───────────────────────────────────────────────── */
+body.heroui-main .main-nav {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 60px;
+  display: flex !important;
+  align-items: center;
+  padding: 0 20px;
+  background: rgba(9, 9, 11, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 1px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.heroui-main .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
+body.heroui-main .movies-link-mobile {
+  display: none !important;
+}
+
+@media (max-width: 767px) {
+  body.heroui-main .movies-menu-desktop {
+    display: flex !important;
+  }
+  body.heroui-main .movies-link-mobile {
+    display: none !important;
+  }
+}
+
+body.heroui-main .nav-link,
+body.heroui-main .nav-link a,
+body.heroui-main .media-menu-trigger,
+body.heroui-main .user-menu-trigger {
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: rgba(250, 250, 250, 0.55) !important;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.15s, background 0.15s;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+body.heroui-main .nav-link:hover,
+body.heroui-main .nav-link.active,
+body.heroui-main .nav-link.nav-open {
+  color: #fafafa !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.heroui-main .media-menu,
+body.heroui-main .user-menu {
+  position: relative;
+}
+
+body.heroui-main .media-dropdown,
+body.heroui-main .user-dropdown,
+body.heroui-main .account-dropdown {
+  position: absolute !important;
+  top: 100% !important;
+  padding: 5px !important;
+  min-width: 164px;
+  background: rgba(14, 14, 17, 0.97) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6) !important;
+  display: none !important;
+  transform-origin: top center;
+  border-top: 6px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+body.heroui-main .media-dropdown {
+  left: 0 !important;
+  right: auto !important;
+}
+
+body.heroui-main .user-dropdown,
+body.heroui-main .account-dropdown {
+  right: 0 !important;
+  left: auto !important;
+}
+
+body.heroui-main .media-dropdown.open,
+body.heroui-main .user-dropdown.open,
+body.heroui-main .account-dropdown.open {
+  display: block !important;
+  animation: heroui-dropdown-in 0.14s ease forwards;
+}
+
+@media (hover: hover) {
+  body.heroui-main .media-menu:hover .media-dropdown,
+  body.heroui-main .user-menu:hover .user-dropdown {
+    display: block !important;
+    animation: heroui-dropdown-in 0.14s ease forwards;
+  }
+}
+
+@keyframes heroui-dropdown-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+body.heroui-main .dropdown-item:not(.hidden) {
+  display: block !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  color: rgba(250, 250, 250, 0.65) !important;
+  font-size: 0.875rem !important;
+  text-decoration: none !important;
+  transition: background 0.15s, color 0.15s !important;
+}
+
+body.heroui-main .dropdown-item:hover,
+body.heroui-main .dropdown-item.active {
+  background: rgba(99, 102, 241, 0.14) !important;
+  color: #fafafa !important;
+}
+
+body.heroui-main .dropdown-item i {
+  margin-right: 8px;
+  width: 14px;
+  opacity: 0.5;
+}
+
+/* ── Section / Main layout ────────────────────────────────────── */
+body.heroui-main #section {
+  background-color: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100dvh !important;
+  padding-top: 60px !important;
+  width: 100% !important;
+  position: relative !important;
+  z-index: 10;
+  box-sizing: border-box !important;
+}
+
+/* ── Filter toolbar ───────────────────────────────────────────── */
+body.heroui-main .filter-container {
+  position: fixed !important;
+  top: 68px !important;
+  right: 20px !important;
+  z-index: 50 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.heroui-main .card-controls {
+  position: absolute !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 20 !important;
+}
+
+body.heroui-main .card-controls .filter-container {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  z-index: auto !important;
+}
+
+body.heroui-main .filter-button,
+body.heroui-main .search-button {
+  width: 38px !important;
+  height: 38px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+  background: rgba(9, 9, 11, 0.7) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: rgba(250, 250, 250, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+  padding: 0 !important;
+  font-size: unset !important;
+  font-weight: unset !important;
+  font-family: unset !important;
+  margin: 0 !important;
+}
+
+body.heroui-main .filter-button:hover,
+body.heroui-main .search-button:hover {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #fafafa !important;
+  transform: none !important;
+}
+
+body.heroui-main .filter-button svg,
+body.heroui-main .search-button svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+body.heroui-main .grid-view-button {
+  width: 38px !important;
+  height: 38px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+  background: rgba(9, 9, 11, 0.7) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: rgba(250, 250, 250, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s !important;
+  text-decoration: none !important;
+  flex-shrink: 0 !important;
+}
+
+body.heroui-main .grid-view-button:hover {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #fafafa !important;
+}
+
+body.heroui-main .collection-button:not(.hidden) {
+  position: relative !important;
+  width: 38px !important;
+  height: 38px !important;
+  border: 1px solid rgba(229, 160, 13, 0.35) !important;
+  border-radius: 10px !important;
+  background: rgba(229, 160, 13, 0.08) !important;
+  color: #e5a00d !important;
+  font-weight: 500 !important;
+  font-size: 1rem !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  animation: heroui-pulse-gold 2.5s ease-in-out infinite !important;
+}
+
+@keyframes heroui-pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 160, 13, 0); }
+  50%       { box-shadow: 0 0 0 4px rgba(229, 160, 13, 0.15); }
+}
+
+body.heroui-main .collection-button:not(.hidden) .badge {
+  position: absolute !important;
+  top: -6px !important;
+  right: -6px !important;
+  background: #e5a00d !important;
+  color: #09090b !important;
+  border-radius: 50% !important;
+  width: 16px !important;
+  height: 16px !important;
+  font-size: 0.6rem !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+}
+
+body.heroui-main .filter-dropdown {
+  display: none !important;
+  position: fixed !important;
+  width: 220px !important;
+  max-height: 70dvh !important;
+  overflow-y: auto !important;
+  background: rgba(10, 10, 14, 0.96) !important;
+  backdrop-filter: blur(32px) !important;
+  -webkit-backdrop-filter: blur(32px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  padding: 14px 16px !important;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 20px 50px rgba(0, 0, 0, 0.75) !important;
+  z-index: 201 !important;
+}
+
+body.heroui-main .filter-dropdown.show {
+  display: block !important;
+}
+
+body.heroui-main .filter-dropdown::before {
+  content: 'FILTERS';
+  display: block !important;
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.14em !important;
+  color: rgba(250, 250, 250, 0.28) !important;
+  margin-bottom: 16px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+body.heroui-main .filter-option {
+  margin-bottom: 14px !important;
+}
+
+body.heroui-main .filter-option label {
+  display: block !important;
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  color: rgba(250, 250, 250, 0.35) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  margin-bottom: 5px !important;
+}
+
+body.heroui-main .filter-option select[multiple] {
+  width: 100% !important;
+  height: 108px !important;
+  padding: 4px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  color: rgba(250, 250, 250, 0.75) !important;
+  font-family: inherit !important;
+  font-size: 0.83rem !important;
+  transition: border-color 0.15s !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(99, 102, 241, 0.35) transparent !important;
+}
+
+body.heroui-main .filter-option select[multiple]::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+body.heroui-main .filter-option select[multiple]::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+body.heroui-main .filter-option select[multiple]::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.35) !important;
+  border-radius: 4px !important;
+}
+
+body.heroui-main .filter-option select[multiple] option {
+  padding: 4px 8px !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  cursor: pointer !important;
+}
+
+body.heroui-main .filter-option select[multiple] option:checked {
+  background: rgba(99, 102, 241, 0.22) !important;
+  color: #a5b4fc !important;
+}
+
+body.heroui-main .filter-option select:not([multiple]) {
+  width: 100% !important;
+  padding: 8px 32px 8px 10px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  color: rgba(250, 250, 250, 0.75) !important;
+  font-family: inherit !important;
+  font-size: 0.83rem !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(250,250,250,0.3)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  transition: border-color 0.15s !important;
+  cursor: pointer !important;
+}
+
+body.heroui-main .filter-option select:focus {
+  outline: none !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+body.heroui-main .heroui-watch-pills {
+  display: flex !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+body.heroui-main .heroui-watch-pill {
+  flex: 1 !important;
+  padding: 7px 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: rgba(250, 250, 250, 0.45) !important;
+  font-family: inherit !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+body.heroui-main .heroui-watch-pill:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+body.heroui-main .heroui-watch-pill.active {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #a5b4fc !important;
+  font-weight: 600 !important;
+}
+
+body.heroui-main .filter-dropdown > div:last-child {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 16px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+body.heroui-main #applyFilter,
+body.heroui-main #clearFilter {
+  flex: 1 !important;
+  padding: 9px 0 !important;
+  border-radius: 10px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  font-family: inherit !important;
+  letter-spacing: 0.03em !important;
+  margin: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+body.heroui-main #applyFilter {
+  margin-bottom: 8px !important;
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+body.heroui-main #applyFilter:hover {
+  filter: brightness(1.12) !important;
+  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.45) !important;
+  transform: translateY(-1px) !important;
+}
+
+body.heroui-main #clearFilter {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(250, 250, 250, 0.5) !important;
+}
+
+body.heroui-main #clearFilter:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(250, 250, 250, 0.8) !important;
+  transform: none !important;
+}
+
+/* ── Search modal ─────────────────────────────────────────────── */
+body.heroui-main #search_modal {
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  z-index: 200 !important;
+  align-items: center !important;
+  padding: 20px !important;
+}
+
+body.heroui-main .search-modal-content {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 20px !important;
+  padding: 24px !important;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7) !important;
+  max-width: 1100px !important;
+  width: 95% !important;
+  margin-top: 0 !important;
+  max-height: calc(100vh - 80px) !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(99, 102, 241, 0.3) transparent !important;
+}
+
+body.heroui-main .search-modal-close {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: flex-end !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin-bottom: 10px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 50% !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+}
+
+body.heroui-main .search-modal-close svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+body.heroui-main .search-modal-close:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+
+body.heroui-main .search-modal-content::-webkit-scrollbar { width: 4px !important; }
+body.heroui-main .search-modal-content::-webkit-scrollbar-track { background: transparent !important; }
+body.heroui-main .search-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3) !important;
+  border-radius: 4px !important;
+}
+
+body.heroui-main .search-modal-input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  color: #fafafa !important;
+  font-family: inherit !important;
+  font-size: 1rem !important;
+  padding: 12px 16px !important;
+  padding-right: 54px !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+
+body.heroui-main .search-modal-input:focus {
+  outline: none !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+}
+
+body.heroui-main .search-modal-input::placeholder {
+  color: rgba(250, 250, 250, 0.3) !important;
+}
+
+/* ── Search results grid ─────────────────────────────────────── */
+body.heroui-main #search_results {
+  max-height: none !important;
+  overflow-y: visible !important;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  gap: 16px !important;
+  padding: 16px 0 4px !important;
+  align-items: start !important;
+}
+
+body.heroui-main #search_results .movie-card {
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-self: start !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 14px !important;
+  padding: 10px !important;
+  box-shadow: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+body.heroui-main #search_results .movie-card:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.heroui-main #search_results .movie-poster-link {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  margin-bottom: 0 !important;
+  overflow: clip !important;
+  border-radius: 10px !important;
+}
+
+body.heroui-main #search_results .movie-poster {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 10px !important;
+  transition: transform 0.3s ease !important;
+}
+
+body.heroui-main #search_results .movie-card:hover .movie-poster {
+  transform: scale(1.04) !important;
+}
+
+body.heroui-main #search_results .movie-poster.no-poster {
+  object-fit: contain !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  opacity: 0.3 !important;
+}
+
+body.heroui-main #search_results .search-card-caption {
+  padding: 6px 4px 0 !important;
+  color: rgba(250, 250, 250, 0.75) !important;
+  font-size: 0.7rem !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  line-height: 1.3 !important;
+  flex-shrink: 0 !important;
+}
+
+body.heroui-main #search_results .movie-card-hover {
+  position: absolute !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 0 !important;
+  transition: opacity 0.25s ease !important;
+  z-index: 2 !important;
+  border-radius: 10px !important;
+}
+
+body.heroui-main #search_results .movie-poster-link:hover .movie-card-hover {
+  opacity: 1 !important;
+}
+
+body.heroui-main #search_results .watch-button {
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 0.55rem 1.4rem !important;
+  border-radius: 0.5rem !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  cursor: pointer !important;
+  transition: background 0.2s, transform 0.15s !important;
+}
+
+body.heroui-main #search_results .watch-button:hover {
+  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+  transform: scale(1.06) !important;
+}
+
+
+body.heroui-main #search_results .loading-indicator {
+  grid-column: 1 / -1 !important;
+  color: rgba(250, 250, 250, 0.4) !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  padding: 32px 20px !important;
+  text-align: center !important;
+}
+
+body.heroui-main #search_results .search-error {
+  grid-column: 1 / -1 !important;
+  color: #f87171 !important;
+  font-size: 0.9rem !important;
+  padding: 32px 20px !important;
+  text-align: center !important;
+}
+
+body.heroui-main #search_results .no-results {
+  grid-column: 1 / -1 !important;
+  text-align: center !important;
+  padding: 32px 20px !important;
+}
+
+body.heroui-main #search_results .no-results div:first-child {
+  color: #a5b4fc !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+}
+
+body.heroui-main #search_results .no-results div:last-child {
+  color: rgba(250, 250, 250, 0.4) !important;
+  font-size: 0.85rem !important;
+}
+
+/* ── Hero CTA ─────────────────────────────────────────────────── */
+body.heroui-main #btn_get_movie.button,
+body.heroui-main #btn_get_movie.button.large-button {
+  position: relative !important;
+  z-index: 5 !important;
+  overflow: hidden !important;
+  padding: 18px 56px !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  font-family: inherit !important;
+  letter-spacing: 0.025em !important;
+  border: none !important;
+  border-radius: 16px !important;
+  cursor: pointer !important;
+  color: white !important;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%) !important;
+  background-size: 200% 100% !important;
+  box-shadow: 0 0 40px rgba(99, 102, 241, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1),
+              box-shadow 0.2s cubic-bezier(0.4,0,0.2,1) !important;
+  margin: 0 !important;
+}
+
+body.heroui-main #btn_get_movie.button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+body.heroui-main #btn_get_movie.button::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  transition: left 0.55s ease;
+}
+
+body.heroui-main #btn_get_movie.button:hover::after {
+  left: 100%;
+}
+
+body.heroui-main #btn_get_movie.button:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 0 60px rgba(99, 102, 241, 0.55), 0 16px 50px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.heroui-main #btn_get_movie.button:active {
+  transform: translateY(-1px) !important;
+}
+
+/* ── Movie hero card layout ───────────────────────────────────── */
+body.heroui-main #movieContent:not(.hidden) {
+  display: block !important;
+  width: 100% !important;
+  max-width: 1080px !important;
+  padding: 16px 20px 24px !important;
+  box-sizing: border-box !important;
+}
+
+body.heroui-main .movie-hero-card {
+  display: flex;
+  gap: 36px;
+  align-items: flex-start;
+  position: relative;
+  z-index: 5;
+  background: radial-gradient(
+    600px circle at var(--card-mx, -9999px) var(--card-my, -9999px),
+    rgba(99, 102, 241, 0.08),
+    transparent 55%
+  ), rgba(255, 255, 255, 0.028);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 28px;
+  padding: 32px;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.05),
+    0 32px 80px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  position: relative;
+  transition: box-shadow 0.3s ease;
+}
+
+/* ── Poster column ────────────────────────────────────────────── */
+body.heroui-main .poster-col {
+  flex-shrink: 0;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+body.heroui-main .movie_poster,
+body.heroui-main .poster-col .movie_poster {
+  width: 220px !important;
+  position: relative !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  aspect-ratio: 2/3;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 30px 80px rgba(0, 0, 0, 0.8),
+    0 0 50px rgba(99, 102, 241, 0.18) !important;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  z-index: auto !important;
+}
+
+body.heroui-main .movie_poster > img,
+body.heroui-main #poster_img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+/* ── Info column ──────────────────────────────────────────────── */
+body.heroui-main .info-col.movie_details,
+body.heroui-main .movie_details {
+  flex: 1 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  color: #fafafa !important;
+  font-weight: 400 !important;
+  font-size: 0.9rem !important;
+  text-align: left !important;
+  align-self: auto !important;
+  z-index: auto !important;
+}
+
+body.heroui-main .movie_details #title {
+  font-size: 2rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.025em !important;
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  margin: 0 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  min-height: calc(2 * 2rem * 1.15) !important;
+  padding-right: 140px !important;
+}
+
+body.heroui-main .movie_details #year_duration,
+body.heroui-main .movie_details #directors,
+body.heroui-main .movie_details #writers,
+body.heroui-main .movie_details #actors,
+body.heroui-main .movie_details #genres {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  margin: 0 !important;
+}
+
+body.heroui-main .movie_details #year_duration {
+  font-size: 0.825rem !important;
+  font-weight: 500 !important;
+  color: rgba(250, 250, 250, 0.4) !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+body.heroui-main .movie_details #directors,
+body.heroui-main .movie_details #writers {
+  font-size: 0.875rem !important;
+  color: rgba(250, 250, 250, 0.6) !important;
+}
+
+body.heroui-main .movie_details #actors {
+  font-size: 0.875rem !important;
+  color: rgba(250, 250, 250, 0.55) !important;
+}
+
+body.heroui-main .movie_details #genres {
+  font-size: 0.8rem !important;
+  color: rgba(250, 250, 250, 0.4) !important;
+  letter-spacing: 0.02em !important;
+}
+
+body.heroui-main .movie_details #description {
+  font-size: 0.875rem !important;
+  line-height: 1.65 !important;
+  color: rgba(250, 250, 250, 0.48) !important;
+  margin: 4px 0 0 !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(4 * 0.875rem * 1.65) !important;
+}
+
+body.heroui-main .movie_details #description.expanded {
+  -webkit-line-clamp: unset !important;
+  overflow: visible !important;
+  min-height: 0 !important;
+}
+
+body.heroui-main .movie-hero-card {
+  transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.heroui-main .movie-hero-card.heroui-refreshing {
+  opacity: 0 !important;
+  transform: translateY(14px) scale(0.985) !important;
+  pointer-events: none !important;
+}
+
+body.heroui-main #img_background {
+  transition: opacity 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.heroui-main .movie-hero-card.heroui-refreshing ~ #img_background {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease !important;
+}
+
+body.heroui-main .movie_details .placeholder-text {
+  display: inline-block;
+  min-width: 190px;
+  height: 0.9em;
+  vertical-align: middle;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.11) 40%,
+    rgba(255, 255, 255, 0.04) 80%
+  );
+  background-size: 250% 100%;
+  animation: heroui-shimmer 1.8s ease-in-out infinite;
+  border-radius: 6px;
+  user-select: none;
+  pointer-events: none;
+}
+
+@keyframes heroui-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── Per-field enrichment reveal ────────────────────────────── */
+body.heroui-main .heroui-field-enter {
+  animation: heroui-field-reveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms) both;
+}
+
+@keyframes heroui-field-reveal {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+body.heroui-main .clickable-person {
+  cursor: pointer;
+  color: rgba(250, 250, 250, 0.75);
+  transition: color 0.15s;
+}
+
+body.heroui-main .clickable-person:hover {
+  color: #818cf8;
+}
+
+body.heroui-main .more-actors,
+body.heroui-main .more-directors,
+body.heroui-main .more-writers {
+  color: rgba(250, 250, 250, 0.35);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+
+body.heroui-main .more-actors:hover,
+body.heroui-main .more-directors:hover,
+body.heroui-main .more-writers:hover {
+  color: rgba(250, 250, 250, 0.62);
+}
+
+/* Logo links */
+body.heroui-main .logo-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin-top: 4px !important;
+}
+
+body.heroui-main .logo-container .logo {
+  height: 20px !important;
+  width: auto !important;
+  opacity: 0.5 !important;
+  transition: opacity 0.15s !important;
+}
+
+body.heroui-main .logo-container a:hover .logo {
+  opacity: 1 !important;
+}
+
+/* ── Action buttons ───────────────────────────────────────────── */
+body.heroui-main .button_container:not(.hidden) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: nowrap !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
+  position: static !important;
+  z-index: 5;
+  width: 100% !important;
+}
+
+body.heroui-main .button_container .button {
+  position: relative !important;
+  overflow: hidden !important;
+  height: 42px !important;
+  padding: 0 18px !important;
+  border: none !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  font-size: 0.8125rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  display: flex;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+body.heroui-main #btn_watch.button {
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%) !important;
+  color: white !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding: 0 10px !important;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35) !important;
+}
+
+body.heroui-main #btn_watch.button::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+  transition: left 0.45s ease;
+}
+
+body.heroui-main #btn_watch.button:hover::after {
+  left: 100%;
+}
+
+body.heroui-main #btn_watch.button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 28px rgba(99, 102, 241, 0.5) !important;
+}
+
+/* Icon buttons (NEXT, POWER) */
+body.heroui-main #btn_next_movie.button,
+body.heroui-main #btn_power.button {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(250, 250, 250, 0.65) !important;
+  width: 42px !important;
+  padding: 0 !important;
+  min-width: unset !important;
+}
+
+body.heroui-main #btn_next_movie.button:hover,
+body.heroui-main #btn_power.button:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  color: #fafafa !important;
+  transform: translateY(-2px) !important;
+  box-shadow: none !important;
+}
+
+body.heroui-main #switch_service.button {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(250, 250, 250, 0.65) !important;
+  width: 42px !important;
+  min-width: unset !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+}
+
+body.heroui-main #switch_service .service-logo {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+body.heroui-main #switch_service.button:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  color: #fafafa !important;
+  transform: translateY(-2px) !important;
+  box-shadow: none !important;
+}
+
+body.heroui-main .button_container .button svg {
+  fill: currentColor !important;
+  flex-shrink: 0 !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* ── Loading overlay ──────────────────────────────────────────── */
+body.heroui-main #loading-overlay {
+  background: rgba(9, 9, 11, 0.92) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  z-index: 3000 !important;
+}
+
+body.heroui-main #loading-content {
+  text-align: center;
+  max-width: 420px;
+  width: 90%;
+}
+
+body.heroui-main #loading-content h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #fafafa;
+  margin-bottom: 8px;
+}
+
+body.heroui-main .loading-text {
+  font-size: 0.875rem;
+  color: rgba(250, 250, 250, 0.45);
+  margin-bottom: 20px;
+}
+
+body.heroui-main #loading-bar-container {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+body.heroui-main #loading-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #06b6d4, #6366f1);
+  background-size: 200% 100%;
+  border-radius: 99px;
+  animation: heroui-progress-shimmer 1.5s linear infinite;
+  transition: width 0.3s ease;
+}
+
+@keyframes heroui-progress-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── Modals / prompts enhancement ─────────────────────────────── */
+body.heroui-main #client_prompt,
+body.heroui-main #device_prompt {
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+body.heroui-main #container_list_of_clients,
+body.heroui-main #container_list_of_devices {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7) !important;
+  padding: 20px !important;
+}
+
+body.heroui-main .client,
+body.heroui-main .device {
+  background: transparent !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border-radius: 10px !important;
+  padding: 12px 16px !important;
+  text-transform: none !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  color: rgba(250, 250, 250, 0.75) !important;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s !important;
+}
+
+body.heroui-main .client:hover,
+body.heroui-main .device:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  transform: translateX(4px) !important;
+  color: #a5b4fc !important;
+}
+
+body.heroui-main .no-clients-message {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  color: rgba(250, 250, 250, 0.4) !important;
+  padding: 24px 20px !important;
+  margin: 8px 0 !important;
+  font-size: 0.9rem !important;
+  letter-spacing: 0.01em !important;
+}
+
+body.heroui-main #trailer_popup {
+  background: rgba(0, 0, 0, 0.88) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+body.heroui-main #collection_modal {
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+}
+
+body.heroui-main .collection-modal-content {
+  background: rgba(10, 10, 14, 0.97) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 28px !important;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 40px 100px rgba(0, 0, 0, 0.88) !important;
+  color: #fafafa !important;
+  padding: 32px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent !important;
+}
+
+body.heroui-main .collection-modal-content::-webkit-scrollbar { width: 4px !important; }
+body.heroui-main .collection-modal-content::-webkit-scrollbar-track { background: transparent !important; }
+body.heroui-main .collection-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 4px !important;
+}
+
+/* Close button */
+body.heroui-main .collection-modal-content .close-button {
+  top: 18px !important;
+  right: 18px !important;
+}
+
+body.heroui-main .collection-info-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  margin: 0 0 24px !important;
+  padding: 0 0 20px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+body.heroui-main .heroui-collection-label {
+  display: block !important;
+  font-size: 0.6rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2em !important;
+  color: rgba(99, 102, 241, 0.75) !important;
+  margin-bottom: 7px !important;
+  text-transform: uppercase !important;
+}
+
+body.heroui-main .collection-info-header h3 {
+  font-size: 1.4rem !important;
+  font-weight: 800 !important;
+  color: #fafafa !important;
+  margin: 0 !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1.2 !important;
+}
+
+body.heroui-main #collection_modal .unwatched-movies > p {
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.12em !important;
+  color: rgba(250, 250, 250, 0.3) !important;
+  margin: 0 0 10px !important;
+}
+
+/* "Other movies" section */
+body.heroui-main #collection_modal .other-movies {
+  margin-top: 20px !important;
+}
+
+body.heroui-main #collection_modal .other-movies h4 {
+  font-size: 0.6rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.16em !important;
+  color: rgba(250, 250, 250, 0.25) !important;
+  margin: 0 0 8px !important;
+}
+
+body.heroui-main #collection_modal .movie-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+body.heroui-main #collection_modal .movie-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 10px 12px !important;
+  border-bottom: none !important;
+  border-radius: 10px !important;
+  gap: 12px !important;
+  font-size: 0.875rem !important;
+  transition: background 0.15s !important;
+}
+
+body.heroui-main #collection_modal .movie-item:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+body.heroui-main #collection_modal .movie-title-link {
+  color: rgba(250, 250, 250, 0.82) !important;
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  transition: color 0.15s !important;
+}
+
+body.heroui-main #collection_modal .movie-title-link:hover {
+  color: #a5b4fc !important;
+}
+
+body.heroui-main #collection_modal .movie-title {
+  color: rgba(250, 250, 250, 0.82) !important;
+  font-weight: 500 !important;
+}
+
+body.heroui-main #collection_modal .status-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Status badges — uppercase pill tags */
+body.heroui-main #collection_modal .movie-status {
+  font-size: 0.62rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  padding: 3px 10px !important;
+  border-radius: 20px !important;
+  white-space: nowrap !important;
+  border: none !important;
+}
+
+body.heroui-main #collection_modal .status-in-library {
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: #4ade80 !important;
+}
+
+body.heroui-main #collection_modal .status-requested {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+}
+
+body.heroui-main #collection_modal .status-not-in-library {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #f87171 !important;
+}
+
+body.heroui-main #collection_modal .status-watched,
+body.heroui-main #collection_modal .movie-item .status-watched {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(250, 250, 250, 0.3) !important;
+}
+
+body.heroui-main #collection_modal .request-icon {
+  fill: #818cf8 !important;
+  width: 15px !important;
+  height: 15px !important;
+  cursor: pointer !important;
+  transition: opacity 0.15s !important;
+}
+
+body.heroui-main #collection_modal .request-icon:hover { opacity: 0.75 !important; }
+
+body.heroui-main #collection_modal .action-buttons {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 24px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+
+body.heroui-main #collection_modal .action-button {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 40px !important;
+  max-height: none !important;
+  padding: 0 20px !important;
+  border-radius: 12px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  line-height: 40px !important;
+  box-shadow: none !important;
+}
+
+body.heroui-main #collection_modal .action-button.watch-button {
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+body.heroui-main #collection_modal .action-button.watch-button:hover {
+  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+}
+
+body.heroui-main #collection_modal .action-button.request-button {
+  background: transparent !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.45) !important;
+}
+
+body.heroui-main #collection_modal .action-button.request-button:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.65) !important;
+  color: #c7d2fe !important;
+  transform: translateY(-1px) !important;
+}
+
+body.heroui-main #collection_modal .action-button.request-button.disabled,
+body.heroui-main #collection_modal .action-button.request-button:disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(250, 250, 250, 0.25) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+body.heroui-main #collection_modal .action-button.dismiss-button {
+  background: transparent !important;
+  color: rgba(250, 250, 250, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  margin-left: auto !important;
+}
+
+body.heroui-main #collection_modal .action-button.dismiss-button:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(250, 250, 250, 0.65) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+body.heroui-main .person-details-content {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7) !important;
+}
+
+body.heroui-main #movies_overlay,
+body.heroui-main #movie_data_overlay {
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+body.heroui-main #movies_overlay_content {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 24px !important;
+  padding: 32px !important;
+  color: #fafafa !important;
+}
+
+body.heroui-main .change-password-content {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 24px !important;
+  color: #fafafa !important;
+}
+
+/* Close buttons */
+body.heroui-main .close-button {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 50% !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+  padding: 0 !important;
+  font-size: unset !important;
+  font-family: unset !important;
+  font-weight: unset !important;
+  position: fixed !important;
+  top: 24px !important;
+  right: 24px !important;
+}
+
+body.heroui-main .close-button:hover {
+  background: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+}
+
+@media (min-width: 769px) {
+  body.heroui-main .close-button svg {
+    width: 12px !important;
+    height: 12px !important;
+    fill: rgba(250, 250, 250, 0.55) !important;
+  }
+
+  body.heroui-main .close-button:hover svg {
+    fill: #f43f5e !important;
+  }
+}
+
+@media (max-width: 768px) {
+  body.heroui-main .close-button svg {
+    width: 20px !important;
+    height: 20px !important;
+    fill: #EAEAEC !important;
+  }
+
+  body.heroui-main #movie_data_overlay_close {
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)) !important;
+  }
+
+  body.heroui-main #movie_data_overlay_close.close-btn-on-bright {
+    background: rgba(0, 0, 0, 0.55) !important;
+    border-color: rgba(0, 0, 0, 0.25) !important;
+  }
+
+  body.heroui-main #movie_data_overlay_close.close-btn-on-bright svg {
+    fill: rgba(255, 255, 255, 0.9) !important;
+  }
+}
+
+
+/* Movie logo */
+body.heroui-main #movie-logo-container {
+  z-index: 15 !important;
+}
+
+@media (max-width: 768px) {
+  body.heroui-main .main-nav {
+    height: auto !important;
+    padding-top: max(8px, env(safe-area-inset-top)) !important;
+    padding-bottom: 8px !important;
+  }
+
+  body.heroui-main main {
+    padding-top: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.heroui-main #section {
+    justify-content: flex-start !important;
+    align-items: center !important;
+    padding: 10px !important;
+    padding-top: calc(50px + env(safe-area-inset-top)) !important;
+    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+    margin-top: 0 !important;
+    gap: 0 !important;
+    min-height: 100dvh !important;
+    box-sizing: border-box !important;
+  }
+
+  body.heroui-main .movie-hero-card {
+    flex-direction: column !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    width: 100% !important;
+  }
+
+  body.heroui-main .poster-col {
+    order: 1 !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0 !important;
+  }
+
+  body.heroui-main .movie_poster,
+  body.heroui-main .poster-col .movie_poster {
+    width: 100% !important;
+    aspect-ratio: unset !important;
+    max-height: 58vh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    flex-shrink: unset !important;
+  }
+
+  body.heroui-main .movie_poster > img,
+  body.heroui-main #poster_img {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 58vh !important;
+    object-fit: contain !important;
+  }
+
+  body.heroui-main .button_container:not(.hidden) {
+    width: 100% !important;
+    flex: unset !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 12px 0 !important;
+  }
+
+  body.heroui-main .button_container .button {
+    margin: 0 !important;
+  }
+
+  body.heroui-main #btn_watch.button {
+    flex: 1 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 46px !important;
+    font-size: 0.9rem !important;
+    border-radius: 14px !important;
+  }
+
+  body.heroui-main #btn_next_movie.button,
+  body.heroui-main #btn_power.button,
+  body.heroui-main #switch_service.button {
+    flex: 0 0 auto !important;
+    width: 46px !important;
+    height: 46px !important;
+    min-width: unset !important;
+    border-radius: 14px !important;
+    margin: 0 !important;
+  }
+
+  body.heroui-main .info-col.movie_details,
+  body.heroui-main .movie_details {
+    order: 3 !important;
+    width: 100% !important;
+    padding: 8px 14px 24px !important;
+    text-align: left !important;
+    align-self: auto !important;
+    gap: 5px !important;
+  }
+
+  body.heroui-main .movie_details #title {
+    font-size: 1.75rem !important;
+    text-align: center !important;
+    padding-right: 0 !important;
+    min-height: 0 !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+    display: block !important;
+    margin-bottom: 10px !important;
+  }
+
+  body.heroui-main .movie_details #description {
+    -webkit-line-clamp: 3;
+    min-height: 0 !important;
+  }
+
+  body.heroui-main .movie_details #directors,
+  body.heroui-main .movie_details #writers,
+  body.heroui-main .movie_details #actors {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+
+  body.heroui-main #movieContent {
+    padding: 0 !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+  }
+
+  body.heroui-main #btn_get_movie.button {
+    padding: 16px 36px !important;
+    font-size: 1rem !important;
+  }
+
+  body.heroui-main .card-controls {
+    position: static !important;
+    order: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding: 6px 14px 10px !important;
+    gap: 0 !important;
+  }
+
+  body.heroui-main .movie-hero-card .card-controls .filter-container {
+    flex-direction: row !important;
+    justify-content: space-evenly !important;
+    width: 100% !important;
+    gap: 0 !important;
+    top: 0 !important;
+  }
+
+  body.heroui-main .logo-container {
+    justify-content: center !important;
+    margin-top: 8px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+
+  body.heroui-main #search_modal {
+    padding: 0 !important;
+    align-items: flex-start !important;
+  }
+
+  body.heroui-main .search-modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: max(16px, env(safe-area-inset-top)) 16px 16px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  body.heroui-main #search_results {
+    flex: 1 !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0 !important;
+    overflow-y: auto !important;
+  }
+
+  body.heroui-main #search_results .movie-card {
+    height: auto !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  body.heroui-main #search_results .movie-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  body.heroui-main #search_results .movie-poster-link {
+    border-radius: 6px !important;
+  }
+
+  body.heroui-main #search_results .movie-poster {
+    border-radius: 6px !important;
+  }
+
+  body.heroui-main #search_results .search-card-caption {
+    -webkit-line-clamp: 1 !important;
+    font-size: 0.62rem !important;
+  }
+
+  /* ─── Filter bottom-sheet on mobile ────────────────────────── */
+  body.heroui-main .filter-dropdown {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    max-height: 70dvh !important;
+    overflow-y: auto !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) !important;
+    z-index: 201 !important;
+  }
+
+  body.heroui-main .filter-dropdown.show {
+    display: block !important;
+  }
+
+  body.heroui-main .filter-backdrop {
+    display: none;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    z-index: 200 !important;
+    opacity: 0;
+    transition: opacity 0.28s ease !important;
+  }
+
+  body.heroui-main .filter-backdrop.show {
+    display: block;
+    opacity: 1;
+  }
+
+  body.heroui-main .filter-dropdown::before {
+    margin-bottom: 10px !important;
+    padding-bottom: 8px !important;
+  }
+
+  body.heroui-main .filter-option {
+    margin-bottom: 10px !important;
+  }
+
+  body.heroui-main .filter-option label {
+    margin-bottom: 3px !important;
+  }
+
+  body.heroui-main .filter-option select[multiple] {
+    height: 54px !important;
+  }
+
+  body.heroui-main .filter-dropdown > div:last-child {
+    margin-top: 12px !important;
+    padding-top: 10px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.heroui-main .movie_details #title {
+    font-size: 1.5rem !important;
+  }
+
+  body.heroui-main #search_results {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.4rem !important;
+  }
+
+  body.heroui-main #search_results .movie-poster-link {
+    border-radius: 4px !important;
+  }
+
+  body.heroui-main #search_results .movie-poster {
+    border-radius: 4px !important;
+  }
+}
+
+html.heroui-pwa body.heroui-main .main-nav {
+  height: auto !important;
+  padding-top: max(8px, env(safe-area-inset-top)) !important;
+  padding-bottom: 8px !important;
+}
+
+html.heroui-pwa body.heroui-main main {
+  padding-top: 0 !important;
+  margin: 0 !important;
+}
+
+html.heroui-pwa body.heroui-main #section {
+  padding-top: calc(50px + env(safe-area-inset-top)) !important;
+  margin-top: 0 !important;
+}
+
+html.heroui-pwa body.heroui-main #movieContent {
+  margin-top: 0 !important;
+}
+
+html.heroui-pwa body.heroui-main .filter-container {
+  top: calc(50px + env(safe-area-inset-top)) !important;
+}
+
+/* ── Cast / Directors / Writers dialog ─────────────────────────── */
+body.heroui-main .cast-dialog {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  z-index: 9999 !important;
+}
+
+body.heroui-main .cast-dialog ~ #movie-logo-container,
+body.heroui-main:has(.cast-dialog) #movie-logo-container {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 768px) {
+  body.heroui-main .cast-dialog .close-button {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    width: 34px !important;
+    height: 34px !important;
+    margin-left: auto !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 50% !important;
+    transition: all 0.15s !important;
+  }
+
+  body.heroui-main .cast-dialog .close-button:hover {
+    background: rgba(244, 63, 94, 0.14) !important;
+    border-color: rgba(244, 63, 94, 0.3) !important;
+  }
+
+  body.heroui-main .cast-dialog-content .close-button svg {
+    width: 12px !important;
+    height: 12px !important;
+    fill: rgba(250, 250, 250, 0.55) !important;
+  }
+
+  body.heroui-main .cast-dialog .close-button:hover svg {
+    fill: #f43f5e !important;
+  }
+}
+
+body.heroui-main .cast-dialog-content {
+  background: rgba(14, 14, 18, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 24px !important;
+  padding: 28px !important;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 40px 100px rgba(0, 0, 0, 0.88) !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(99, 102, 241, 0.35) transparent !important;
+}
+
+body.heroui-main .cast-dialog-content::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+body.heroui-main .cast-dialog-content::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+body.heroui-main .cast-dialog-content::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.35) !important;
+  border-radius: 4px !important;
+}
+
+body.heroui-main .cast-dialog-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.55) !important;
+}
+
+body.heroui-main .cast-dialog-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-bottom: 16px !important;
+}
+
+body.heroui-main .cast-dialog-header h3 {
+  color: #fafafa !important;
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 !important;
+}
+
+body.heroui-main .cast-count {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 26px !important;
+  height: 22px !important;
+  padding: 0 7px !important;
+  border-radius: 99px !important;
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+}
+
+body.heroui-main .cast-search {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  color: #fafafa !important;
+  font-family: inherit !important;
+  font-size: 0.875rem !important;
+  padding: 10px 14px !important;
+  margin-bottom: 16px !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+
+body.heroui-main .cast-search:focus {
+  outline: none !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+}
+
+body.heroui-main .cast-search::placeholder {
+  color: rgba(250, 250, 250, 0.25) !important;
+}
+
+body.heroui-main .cast-list {
+  gap: 6px !important;
+}
+
+body.heroui-main .cast-item {
+  background: rgba(255, 255, 255, 0.025) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+  gap: 12px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+body.heroui-main .cast-item:hover {
+  background: rgba(99, 102, 241, 0.07) !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
+}
+
+body.heroui-main .actor-image {
+  width: 52px !important;
+  height: 52px !important;
+  border: 2px solid rgba(99, 102, 241, 0.25) !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+body.heroui-main .cast-item:hover .actor-image {
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.18) !important;
+}
+
+body.heroui-main .actor-name {
+  color: rgba(250, 250, 250, 0.9) !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+}
+
+body.heroui-main .cast-item:hover .actor-name {
+  color: #a5b4fc !important;
+}
+
+body.heroui-main .actor-character {
+  color: rgba(250, 250, 250, 0.35) !important;
+  font-style: normal !important;
+  font-size: 0.78rem !important;
+}
+
+body.heroui-main .custom-loading {
+  background: rgba(14, 14, 18, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  padding: 36px 40px 32px !important;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 32px 80px rgba(0, 0, 0, 0.7) !important;
+}
+
+body.heroui-main .custom-loading h3 {
+  color: #fafafa !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  margin-bottom: 6px !important;
+  margin-top: 0 !important;
+}
+
+body.heroui-main .heroui-loading-dots {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin-bottom: 20px !important;
+}
+
+body.heroui-main .heroui-loading-dots span {
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #6366f1 !important;
+  animation: heroui-dot-pulse 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+}
+
+body.heroui-main .heroui-loading-dots span:nth-child(2) {
+  animation-delay: 0.15s !important;
+}
+
+body.heroui-main .heroui-loading-dots span:nth-child(3) {
+  animation-delay: 0.3s !important;
+}
+
+@keyframes heroui-dot-pulse {
+  0%, 80%, 100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+  }
+}
+
+body.heroui-main .progress-ring {
+  width: 56px !important;
+  height: 56px !important;
+  margin: 16px auto !important;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.3)) !important;
+}
+
+body.heroui-main .progress-ring circle {
+  stroke: #6366f1 !important;
+  stroke-width: 3 !important;
+}
+
+body.heroui-main .loading-status {
+  color: rgba(250, 250, 250, 0.4) !important;
+  font-size: 0.8rem !important;
+  margin-top: 0 !important;
+}
+
+/* ── Cast / loading responsive ─────────────────────────────────── */
+@media (max-width: 768px) {
+  body.heroui-main .cast-dialog-content {
+    width: 95% !important;
+    padding: 20px !important;
+    border-radius: 20px !important;
+    max-height: 85vh !important;
+  }
+
+  body.heroui-main .cast-list {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.heroui-main .cast-dialog-content {
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+
+  body.heroui-main .cast-item {
+    padding: 10px !important;
+    border-radius: 10px !important;
+  }
+}
+
+/* ── Movies Overlay (actor / director filmography) ───────────────── */
+
+body.heroui-main:has(#movies_overlay:not(.hidden)) #movie-logo-container {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.heroui-main #movies_overlay {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  overflow-x: hidden !important;
+}
+
+body.heroui-main .person-header-close {
+  position: absolute !important;
+  top: 15px !important;
+  right: 15px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 34px !important;
+  height: 34px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+}
+
+body.heroui-main .person-header-close:hover {
+  background: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+}
+
+body.heroui-main .person-header-close svg {
+  width: 12px !important;
+  height: 12px !important;
+  fill: rgba(250, 250, 250, 0.55) !important;
+  transition: fill 0.15s;
+  border-radius: 0 !important;
+  border: none !important;
+  margin-right: 0 !important;
+}
+
+body.heroui-main .person-header-close:hover svg {
+  fill: #f43f5e !important;
+}
+
+
+body.heroui-main #movies_overlay_content {
+  background: rgba(14, 14, 18, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+  width: 90% !important;
+  max-width: 800px !important;
+  max-height: 90vh !important;
+}
+
+body.heroui-main #movies_overlay_content::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+body.heroui-main #movies_overlay_content::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+body.heroui-main #movies_overlay_content::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.35) !important;
+  border-radius: 4px !important;
+}
+
+body.heroui-main #movies_overlay_content::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.55) !important;
+}
+
+body.heroui-main #person_header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  margin-bottom: 20px !important;
+  padding-bottom: 20px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+body.heroui-main #person_header h2 {
+  color: #fafafa !important;
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+
+body.heroui-main .person-image-link .person-image,
+body.heroui-main #person_header img,
+body.heroui-main #person_header > a > svg.person-image {
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  border-radius: 50% !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+body.heroui-main #person_header > .person-image-link {
+  flex-shrink: 0 !important;
+}
+
+body.heroui-main .person-header-info {
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+body.heroui-main .person-header-info h2 {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+@media screen and (max-width: 767px) {
+  body.heroui-main .person-header-info h2 {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+}
+
+body.heroui-main .person-image-link:hover .person-image {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.35) !important;
+}
+
+body.heroui-main .person-movies-count {
+  color: #a5b4fc !important;
+}
+
+body.heroui-main .rating-star {
+  color: #818cf8 !important;
+}
+
+/* Sort + filter bar */
+body.heroui-main #sort_and_filter {
+  padding-bottom: 14px !important;
+  margin-bottom: 14px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+body.heroui-main .sort-button,
+body.heroui-main .filter-dropdown-button {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(250, 250, 250, 0.6) !important;
+  border-radius: 20px !important;
+  transition: background 0.2s, border-color 0.2s, color 0.2s !important;
+}
+
+body.heroui-main .sort-button:hover,
+body.heroui-main .filter-dropdown-button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #fafafa !important;
+}
+
+body.heroui-main .sort-button.active,
+body.heroui-main .filter-dropdown-button.active {
+  background: rgba(99, 102, 241, 0.18) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  color: #a5b4fc !important;
+}
+
+/* Search input */
+body.heroui-main #movies_overlay .search-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #fafafa !important;
+  border-radius: 10px !important;
+}
+
+body.heroui-main #movies_overlay .search-input:focus {
+  outline: none !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+}
+
+body.heroui-main #movies_overlay .search-input::placeholder {
+  color: rgba(250, 250, 250, 0.25) !important;
+}
+
+/* Filter dropdown */
+body.heroui-main .filter-dropdown-content {
+  background: rgba(12, 12, 18, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(12px) !important;
+  z-index: 9999 !important;
+}
+
+body.heroui-main .filter-dropdown-content label {
+  color: rgba(250, 250, 250, 0.65) !important;
+}
+
+body.heroui-main .filter-dropdown-content label:hover {
+  background: rgba(99, 102, 241, 0.08) !important;
+  color: #fafafa !important;
+}
+
+/* Movie cards */
+body.heroui-main #movies_overlay .movie-card {
+  background: rgba(255, 255, 255, 0.025) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 12px !important;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.18s !important;
+}
+
+body.heroui-main #movies_overlay .movie-card:hover {
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.14) !important;
+  transform: translateY(-2px) !important;
+}
+
+body.heroui-main #movies_overlay .movie-card .movie-title {
+  color: #ebebf0 !important;
+}
+
+body.heroui-main #movies_overlay .movie-card:hover .movie-title {
+  color: #a5b4fc !important;
+}
+
+body.heroui-main #movies_overlay .movie-card .movie-character {
+  color: rgba(250, 250, 250, 0.42) !important;
+}
+
+/* Request / Watch button */
+body.heroui-main #movies_overlay .request-button.watch-button {
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s !important;
+}
+
+body.heroui-main #movies_overlay .request-button.watch-button:hover {
+  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+}
+
+body.heroui-main #movies_overlay .request-button:not(.watch-button):not(:disabled) {
+  background: rgba(10, 10, 20, 0.72) !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.55) !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s !important;
+}
+
+body.heroui-main #movies_overlay .request-button:not(.watch-button):not(:disabled):hover {
+  background: rgba(99, 102, 241, 0.25) !important;
+  border-color: rgba(99, 102, 241, 0.75) !important;
+  color: #c7d2fe !important;
+}
+
+body.heroui-main #movies_overlay .request-button:disabled,
+body.heroui-main #movies_overlay .request-button.requested {
+  background: rgba(10, 10, 20, 0.65) !important;
+  color: rgba(250, 250, 250, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  cursor: not-allowed !important;
+}
+
+body.heroui-main #movie_data_overlay_content {
+  background: rgba(14, 14, 17, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  color: #fafafa !important;
+}
+
+body.heroui-main .md-hero {
+  background: #09090b !important;
+  border-radius: 20px 20px 0 0 !important;
+}
+
+body.heroui-main .md-backdrop-placeholder {
+  background: #09090b !important;
+}
+
+body.heroui-main .md-hero::after {
+  background: linear-gradient(to bottom, transparent 0%, rgba(14, 14, 17, 0.98) 100%) !important;
+}
+
+body.heroui-main .md-title {
+  color: #fafafa !important;
+}
+
+body.heroui-main .md-meta {
+  color: rgba(250, 250, 250, 0.45) !important;
+}
+
+body.heroui-main .md-rating-badge {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #a5b4fc !important;
+}
+
+body.heroui-main .md-rating-service {
+  color: rgba(250, 250, 250, 0.4) !important;
+  opacity: 1 !important;
+}
+
+body.heroui-main .md-genre-pill {
+  background: rgba(99, 102, 241, 0.1) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(99, 102, 241, 0.25) !important;
+}
+
+body.heroui-main .md-credit {
+  color: rgba(250, 250, 250, 0.7) !important;
+}
+
+body.heroui-main .md-credit-label {
+  color: #a5b4fc !important;
+}
+
+body.heroui-main .md-description {
+  color: rgba(250, 250, 250, 0.5) !important;
+}
+
+body.heroui-main #watch_movie_button.md-action-btn {
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+body.heroui-main #watch_movie_button.md-action-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+}
+
+body.heroui-main .md-action-btn {
+  background: transparent !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.45) !important;
+}
+
+body.heroui-main .md-action-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.65) !important;
+  color: #c7d2fe !important;
+}
+
+body.heroui-main .md-action-btn:disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(250, 250, 250, 0.25) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.heroui-main .md-link-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+body.heroui-main .md-link-btn:hover {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+body.heroui-main #trailer_container {
+  background: #09090b !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 12px !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  body.heroui-main #movies_overlay,
+  body.heroui-main #movie_data_overlay {
+    padding-top: max(20px, calc(env(safe-area-inset-top) + 16px)) !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-y: contain !important;
+  }
+
+  body.heroui-main #movies_overlay_content {
+    position: relative !important;
+    width: 96% !important;
+    box-sizing: border-box !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.heroui-main .cast-dialog {
+    align-items: flex-start !important;
+    justify-content: center !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-y: contain !important;
+    padding-top: max(24px, calc(env(safe-area-inset-top) + 16px)) !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+  }
+
+  body.heroui-main .cast-dialog-content {
+    box-sizing: border-box !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+}
+
+@media (max-width: 520px) {
+  body.heroui-main #movie_data_overlay_content {
+    border-radius: 14px !important;
+  }
+}
+
+/* ── Now Watching card ─────────────────────────────────────── */
+body.heroui-main .now-watching-card {
+  max-width: 800px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.028);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.05),
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  position: relative;
+  z-index: 10;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+body.heroui-main .now-watching-card.nw-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body.heroui-main .nw-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(250, 250, 250, 0.45);
+}
+
+body.heroui-main .nw-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.8);
+  animation: nw-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+body.heroui-main .now-watching-card.nw-paused .nw-dot {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.7);
+  animation: none;
+}
+
+body.heroui-main .now-watching-card.nw-ending .nw-dot {
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.8);
+  animation: nw-pulse 1s ease-in-out infinite;
+}
+
+@keyframes nw-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(74, 222, 128, 0.8); }
+  50% { opacity: 0.5; box-shadow: 0 0 3px rgba(74, 222, 128, 0.3); }
+}
+
+body.heroui-main .nw-service {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: rgba(250, 250, 250, 0.3);
+  text-transform: capitalize;
+  letter-spacing: 0.04em;
+}
+
+body.heroui-main .nw-share-btn {
+  background: none;
+  border: none;
+  padding: 3px 4px;
+  margin-left: 6px;
+  cursor: pointer;
+  color: rgba(250, 250, 250, 0.3);
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  transition: color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+body.heroui-main .nw-share-btn:hover {
+  color: #fafafa;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.heroui-main .nw-share-btn:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+body.heroui-main .nw-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+body.heroui-main .nw-poster {
+  width: 44px;
+  height: 66px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+body.heroui-main .nw-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+body.heroui-main .nw-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #fafafa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+body.heroui-main .nw-meta {
+  font-size: 0.75rem;
+  color: rgba(250, 250, 250, 0.5);
+  margin: 0;
+}
+
+body.heroui-main .nw-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.heroui-main .nw-progress-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+body.heroui-main .nw-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  width: 0%;
+  background: linear-gradient(90deg, #6366f1, #7c3aed);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+  transition: width 1s linear;
+}
+
+body.heroui-main .nw-pct {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(250, 250, 250, 0.45);
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+body.heroui-main .nw-time-left {
+  font-size: 0.72rem;
+  color: rgba(250, 250, 250, 0.35);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  body.heroui-main .now-watching-card {
+    margin-top: 12px;
+    padding: 14px 16px;
+  }
+}
+
+/* ── No-movies / error message ──────────────────────────────────────────── */
+body.heroui-main #messageContainer {
+  background: transparent !important;
+  height: auto !important;
+  min-height: 55vh !important;
+  padding: 20px !important;
+  grid-column: unset !important;
+}
+
+body.heroui-main .no-movies-message,
+body.heroui-main .error-message {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  background: rgba(14, 14, 17, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 24px !important;
+  padding: 40px 32px !important;
+  max-width: 480px !important;
+  width: 100% !important;
+  text-align: center !important;
+  color: #fafafa !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4) !important;
+  margin: 0 !important;
+  gap: 0 !important;
+}
+
+body.heroui-main .no-movies-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #818cf8;
+}
+
+body.heroui-main .no-movies-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+body.heroui-main .no-movies-message h2,
+body.heroui-main .error-message h2 {
+  font-size: 1.35rem !important;
+  font-weight: 700 !important;
+  color: #fafafa !important;
+  margin-bottom: 10px !important;
+  letter-spacing: -0.01em !important;
+}
+
+body.heroui-main .no-movies-message p,
+body.heroui-main .error-message p {
+  font-size: 0.875rem !important;
+  color: rgba(250, 250, 250, 0.45) !important;
+  line-height: 1.6 !important;
+  margin-bottom: 28px !important;
+}
+
+body.heroui-main .no-movies-message button,
+body.heroui-main .error-message button {
+  background: #6366f1 !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 11px 28px !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  border-radius: 12px !important;
+  letter-spacing: 0.02em !important;
+  transition: background 0.15s, transform 0.1s !important;
+  width: auto !important;
+  align-self: center !important;
+}
+
+body.heroui-main .no-movies-message button:hover,
+body.heroui-main .error-message button:hover {
+  background: #818cf8 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ── Landscape rotation message ─────────────────────────────────────────── */
+@media screen and (orientation: landscape) and (max-height: 600px) {
+  body.heroui-main::before {
+    content: "Please rotate your device to portrait mode";
+    position: fixed;
+    inset: 0;
+    background: #09090b;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #EAEAEC;
+    font-size: 1.2em;
+    padding: 20px;
+    text-align: center;
+    pointer-events: auto;
+  }
+}

@@ -151,7 +151,7 @@ class Settings:
                 else:
                     target[last_part][key] = converter(value)
 
-            if any(path.startswith(service) for service in ['plex', 'jellyfin', 'emby', 'overseerr', 'jellyseerr', 'ombi', 'trakt']):
+            if any(path.startswith(service) for service in ['plex', 'jellyfin', 'emby', 'seerr', 'ombi', 'trakt']):
                 target['enabled'] = True
 
         except Exception as e:
@@ -175,20 +175,12 @@ class Settings:
                     return bool(os.getenv(f'TV_{instance_name.upper()}_{field.upper()}'))
             return False
 
-        if parts[0] == 'overseerr':
-            has_overseerr_env = bool(os.getenv('OVERSEERR_URL') and os.getenv('OVERSEERR_API_KEY'))
+        if parts[0] == 'seerr':
+            has_seerr_env = bool(os.getenv('SEERR_URL') and os.getenv('SEERR_API_KEY'))
             if len(parts) > 1:
                 if parts[1] == 'enabled':
-                    return has_overseerr_env
-                return has_overseerr_env
-            return False
-
-        elif parts[0] == 'jellyseerr':
-            has_jellyseerr_env = bool(os.getenv('JELLYSEERR_URL') and os.getenv('JELLYSEERR_API_KEY'))
-            if len(parts) > 1:
-                if parts[1] == 'enabled':
-                    return has_jellyseerr_env
-                return has_jellyseerr_env
+                    return has_seerr_env
+                return has_seerr_env
             return False
 
         elif parts[0] == 'ombi':

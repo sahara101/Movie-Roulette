@@ -199,16 +199,16 @@ function updateAuthUI(authData) {
                 dropdownContent.insertBefore(managedUserChangePasswordLink, logoutLink);
             }
 
-            localUserChangePasswordLink.style.display = 'none';
-            managedUserChangePasswordLink.style.display = 'none';
+            localUserChangePasswordLink.classList.add('hidden');
+            managedUserChangePasswordLink.classList.add('hidden');
 
             if (serviceType === 'local') {
-                localUserChangePasswordLink.style.display = '';
+                localUserChangePasswordLink.classList.remove('hidden');
                 localStorage.removeItem('is-plex-user');
             } else if (serviceType === 'plex_managed') {
-                managedUserChangePasswordLink.style.display = '';
+                managedUserChangePasswordLink.classList.remove('hidden');
                 localStorage.setItem('is-plex-user', 'true');
-            } else { 
+            } else {
                 if (serviceType === 'plex') localStorage.setItem('is-plex-user', 'true');
                 else localStorage.removeItem('is-plex-user');
             }

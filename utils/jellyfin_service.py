@@ -32,6 +32,9 @@ class JellyfinService:
         self.running = False
         self._start_cache_updater()
 
+        self._grid_cache = {}      
+        self._grid_cache_ttl = 300
+
         self.playback_start_times = {}
 
     def _get_request_details(self, user_id=None, api_key=None):
@@ -142,7 +145,7 @@ class JellyfinService:
                 'Recursive': 'true',
                 'SortBy': 'Random',
                 'Limit': '1',
-                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines',
+                'Fields': 'Overview,People,Genres,CommunityRating,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines,MediaSources',
                 'IsPlayed': 'false'
             }
             response = requests.get(movies_url, headers=headers, params=params)
@@ -165,7 +168,7 @@ class JellyfinService:
                 'IncludeItemTypes': 'Movie',
                 'Recursive': 'true',
                 'SortBy': 'Random',
-                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines',
+                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines,MediaSources',
             }
 
             if not get_all:
@@ -250,9 +253,21 @@ class JellyfinService:
             return []
 
     def get_all_movies(self, watch_status='unwatched', user_id=None, api_key=None):
-        """Get all movies based on watch status"""
+        """Get all movies based on watch status, with in-memory TTL cache"""
+        target_user_id, _, _ = self._get_request_details(user_id, api_key)
+        cache_key = (watch_status, target_user_id)
+        cached = self._grid_cache.get(cache_key)
+        if cached:
+            ts, movies = cached
+            if time.time() - ts < self._grid_cache_ttl:
+                logger.debug(f"Jellyfin grid cache hit for {watch_status}/{target_user_id}")
+                return movies
+
         try:
-            return self.filter_movies(None, None, None, watch_status, user_id, api_key, get_all=True)
+            movies = self.filter_movies(None, None, None, watch_status, user_id, api_key, get_all=True)
+            if movies:
+                self._grid_cache[cache_key] = (time.time(), movies)
+            return movies if movies else []
         except Exception as e:
             logger.error(f"Error in get_all_movies: {str(e)}")
             return []
@@ -581,7 +596,7 @@ class JellyfinService:
             target_user_id, _, headers = self._get_request_details(user_id, api_key)
             item_url = f"{self.server_url}/Users/{target_user_id}/Items/{movie_id}"
             params = {
-                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines'
+                'Fields': 'Overview,People,Genres,RunTimeTicks,ProviderIds,UserData,OfficialRating,Taglines,MediaSources'
             }
             response = requests.get(item_url, headers=headers, params=params)
 
@@ -592,7 +607,6 @@ class JellyfinService:
             if response.status_code in (400, 404):
                 logger.warning(f"Movie with ID {movie_id} not found (HTTP {response.status_code}). Checking if it's a TMDB ID.")
 
-                # Primary fallback: fast cache lookup
                 if os.path.exists(self.cache_path):
                     with open(self.cache_path, 'r') as f:
                         all_movies = json.load(f)
@@ -607,7 +621,6 @@ class JellyfinService:
                             movie = response.json()
                             return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
 
-                # Secondary fallback: API search by TMDB provider ID (cache miss or not built yet)
                 logger.info(f"Cache miss for TMDB ID {movie_id}, searching Jellyfin API with AnyProviderIdEquals")
                 search_url = f"{self.server_url}/Users/{target_user_id}/Items"
                 search_params = {
@@ -709,8 +722,6 @@ class JellyfinService:
             if movie_data:
                 from utils.poster_view import set_current_movie as set_global_current_movie
                 set_global_current_movie(movie_data, 'jellyfin', username=username)
-                # from flask import session 
-                # session['current_service'] = 'jellyfin'
             
             return {
                 "status": "playing",

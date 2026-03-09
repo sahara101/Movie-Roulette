@@ -276,10 +276,6 @@ body, html {
     max-height: none;
 }
 
-/* ==========================================================================
-   Special Modes
-   ========================================================================== */
-
 /* Default Poster Mode */
 .default-poster .poster-image {
     max-height: 100vh;
@@ -311,14 +307,9 @@ body, html {
     height: 100vh;
 }
 
-/* Override for active movie mode */
 .poster-container:not(.default-poster):not(.screensaver) .custom-text-container {
     display: none !important;
 }
-
-/* ==========================================================================
-   Media Queries
-   ========================================================================== */
 
 @media (orientation: portrait) {
     .poster-container:not(.screensaver):not(.default-poster):not(.cinema-info) .poster-image {
@@ -388,7 +379,6 @@ body, html {
     }
 }
 
-/* 4K+ portrait scaling — only activates on tall displays (1vh ≈ 41px at 4095px) */
 @media (orientation: portrait) and (min-height: 2000px) {
     :root {
         --info-height-top: 150px;
@@ -431,8 +421,6 @@ body, html {
         width: 100%;
     }
 
-    /* Playing mode: poster at full width with 2:3 height (100vw × 1.5),
-       info bars expand to fill the remaining vertical space */
     .poster-container:not(.screensaver):not(.default-poster):not(.cinema-info) .poster-image {
         width: 100%;
         height: calc(100vw * 1.5);
@@ -445,15 +433,11 @@ body, html {
         flex: 1 0 auto;
     }
 
-    /* All modes: poster fills full width on 4K */
     .screensaver:not(.cinema-info) .poster-image,
     .default-poster .poster-image {
         width: 100%;
     }
 
-    /* Cinema-info (screensaver): same 2:3 poster, overlays fill the rest.
-       Top = 40% of remaining space (director name), Bottom = 60% (tagline + cast + tech).
-       Poster sits higher, giving the info footer comfortable breathing room. */
     .poster-container.cinema-info .poster-image {
         height: calc(100vw * 1.5);
         flex: 0 0 auto;

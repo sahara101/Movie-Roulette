@@ -37,12 +37,6 @@ def validate_emby(data):
                 raise ValueError("Emby server URL is required")
     return True
 
-def validate_overseerr(data):
-    if data.get('enabled'):
-        if not data.get('url') or not data.get('api_key'):
-            raise ValueError("Overseerr URL and API key are required when enabled")
-    return True
-
 def validate_trakt(data):
     if data.get('enabled'):
         required = ['client_id', 'client_secret', 'access_token', 'refresh_token']
@@ -69,23 +63,18 @@ def validate_clients(data):
                     raise ValueError(f"TV '{tv_id}': Invalid type '{tv_config['type']}'")
     return True
 
-def validate_jellyseerr(data):
-    """Validate Jellyseerr settings"""
+def validate_seerr(data):
+    """Validate Seerr settings"""
     if data.get('enabled'):
         if not data.get('url') or not data.get('api_key'):
-            raise ValueError("Jellyseerr URL and API key are required when enabled")
-
-        # force_use is optional and boolean, no validation needed
-        if 'force_use' in data and not isinstance(data['force_use'], bool):
-            raise ValueError("force_use must be a boolean value")
+            raise ValueError("Seerr URL and API key are required when enabled")
     return True
 
 VALIDATORS = {
     'plex': validate_plex,
     'jellyfin': validate_jellyfin,
     'emby': validate_emby,
-    'overseerr': validate_overseerr,
     'trakt': validate_trakt,
     'clients': validate_clients,
-    'jellyseerr': validate_jellyseerr
+    'seerr': validate_seerr
 }

@@ -24,12 +24,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     let allCollections = [];
+    let currentService = null;
 
     function fetchCollections() {
         fetch('/current_service')
             .then(response => response.json())
             .then(serviceData => {
                 const serviceName = serviceData.service;
+                currentService = serviceName;
                 if (!serviceName) {
                     console.error("Could not determine the current service.");
                     return;
@@ -51,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(data => {
                         if (data && data.collections) {
                             allCollections = data.collections;
+                            searchInput.placeholder = `Search ${allCollections.length} collections...`;
                             displayCollections(allCollections);
                         }
                     });
@@ -148,11 +151,8 @@ document.addEventListener('DOMContentLoaded', function() {
         let requestServiceName = "";
         if (isRequestServiceAvailable) {
             switch(requestServiceStatus.service) {
-                case 'overseerr':
-                    requestServiceName = "Overseerr";
-                    break;
-                case 'jellyseerr':
-                    requestServiceName = "Jellyseerr";
+                case 'seerr':
+                    requestServiceName = "Seerr";
                     break;
                 case 'ombi':
                     requestServiceName = "Ombi";
@@ -216,16 +216,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             break;
                         case 'Watched':
                             if (movie.in_library) {
-                                statusHTML = `<button class="action-button watch-button" onclick="showClientsForPoster(${movie.id})">Watch Again</button>`;
+                                statusHTML = `<button class="action-button watch-button" onclick="showClientsForPoster(${movie.id})">Rewatch</button>`;
                             } else {
-                                statusHTML = `<span class="movie-status status-watched">Watched on Trakt</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
+                                statusHTML = `<span class="movie-status status-watched">On Trakt</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
                             }
                             break;
                         case 'Requested':
                             statusHTML = `<span class="movie-status status-requested">Requested</span>`;
                             break;
                         case 'Request Watched':
-                             statusHTML = `<span class="movie-status status-watched">Watched on Trakt</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
+                             statusHTML = `<span class="movie-status status-watched">On Trakt</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
                              break;
                         default:
                             statusHTML = `<button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     return `
                         <div class="collection-card modal-movie-card">
-                            <div class="card_left">
+                            <div class="card_left" data-tmdb-id="${movie.id}">
                                 <img src="${posterPath}" alt="${movie.title}">
                             </div>
                             <div class="card_right">
@@ -309,12 +309,35 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     
+        infoContainer.querySelectorAll('.modal-movie-card .card_left[data-tmdb-id]').forEach(cardLeft => {
+            cardLeft.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                showContextLoadingOverlay('movie');
+                try {
+                    await openMovieDataOverlay(parseInt(cardLeft.dataset.tmdbId, 10));
+                } catch (error) {
+                    console.error('Error opening movie details:', error);
+                    hideLoadingOverlay();
+                }
+            });
+        });
+
         document.getElementById('collection_modal_close').addEventListener('click', () => {
             modalContainer.classList.add('hidden');
         });
     }
 
-    fetchCollections();
+    if (sessionStorage.getItem('collections_force_refresh')) {
+        sessionStorage.removeItem('collections_force_refresh');
+        loadingOverlay.classList.remove('hidden');
+        fetch('/api/collections/build_cache', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        // fetchCollections() will be called by the collections_cache_complete socket event
+    } else {
+        fetchCollections();
+    }
 
     searchInput.addEventListener('input', () => {
         const searchTerm = searchInput.value.toLowerCase();
@@ -350,7 +373,7 @@ function getCsrfToken() {
 
 async function checkRequestServiceAvailability() {
     try {
-        const response = await fetch('/api/overseerr/status');
+        const response = await fetch('/api/requests/status');
         const data = await response.json();
 
         return {
@@ -540,18 +563,36 @@ function showClientsForPoster(movieId) {
         });
 }
 
-function playMovieFromPoster(clientId, tmdbId) {
-    fetch(`/play_movie/${clientId}?movie_id=${tmdbId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.status !== 'playing') {
-                throw new Error(data.error || 'Failed to start playback');
-            }
-        })
-        .catch(error => {
-            console.error('Error playing movie:', error);
-            alert('Failed to play movie. Please try again.');
-        });
+async function playMovieFromPoster(clientId, tmdbId) {
+    try {
+        const service = currentService || (await fetch('/current_service').then(r => r.json()).then(d => d.service));
+
+        const idEndpoints = {
+            plex:     { url: `/api/get_plex_id/${tmdbId}`,     key: 'plexId' },
+            jellyfin: { url: `/api/get_jellyfin_id/${tmdbId}`, key: 'jellyfinId' },
+            emby:     { url: `/api/get_emby_id/${tmdbId}`,     key: 'embyId' },
+        };
+
+        const endpoint = idEndpoints[service];
+        if (!endpoint) throw new Error(`Unknown service: ${service}`);
+
+        const idResp = await fetch(endpoint.url);
+        if (!idResp.ok) throw new Error(`Movie not found in ${service} library`);
+        const idData = await idResp.json();
+        const serviceId = idData[endpoint.key];
+
+        if (!serviceId) throw new Error(`Movie not found in ${service} library`);
+
+        const playResp = await fetch(`/play_movie/${clientId}?movie_id=${serviceId}`);
+        const playData = await playResp.json();
+
+        if (playData.status !== 'playing') {
+            throw new Error(playData.error || 'Failed to start playback');
+        }
+    } catch (error) {
+        console.error('Error playing movie:', error);
+        alert(`Failed to play movie: ${error.message}`);
+    }
 }
 
 function closeClientPrompt() {

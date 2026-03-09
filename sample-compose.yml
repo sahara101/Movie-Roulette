@@ -5,6 +5,7 @@ services:
     environment:
       # Core Settings
       FLASK_SECRET_KEY: ""           # Random string of characters
+      CORS_ALLOWED_ORIGINS: "*"      # Restrict WebSocket origins behind a reverse proxy, e.g. "https://yourdomain.com"
       DISABLE_SETTINGS: "FALSE"      # Lock Settings page
       AUTH_ENABLED: "TRUE"           # Enable authentication
       AUTH_SESSION_LIFETIME: "86400" # Session lifetime in seconds
@@ -40,21 +41,19 @@ services:
       USE_NEXT_BUTTON: "TRUE"            # Show next button
       USE_GRID_VIEW: "true"              # Show grid view button on main page
       ENABLE_MOBILE_TRUNCATION: "FALSE"  # Truncate descriptions on mobile
+      SHOW_NOW_WATCHING_CARD: "TRUE"     # Show live Now Watching card on main page
+      USE_HEROUI_THEME: "FALSE"          # Enable HeroUI theme
       ENABLE_MOVIE_LOGOS: "TRUE"         # Show movie titles as logos
       LOAD_MOVIE_ON_START: "FALSE"       # Adds a button to get a random movie
 
       # Request Service Configuration (Optional)
-      # Service URLs and API Keys
-      OVERSEERR_URL: "http://overseerr.example.com"
-      OVERSEERR_API_KEY: "your-overseerr-api-key"
-      
-      JELLYSEERR_URL: "http://jellyseerr.example.com"
-      JELLYSEERR_API_KEY: "your-jellyseerr-api-key"
-      
+      SEERR_URL: "http://seerr.example.com"
+      SEERR_API_KEY: "your-seerr-api-key"
+
       OMBI_URL: "http://ombi.example.com"
       OMBI_API_KEY: "your-ombi-api-key"
 
-      # Request Service Preferences
+      # Request Service Preferences (auto, seerr, ombi)
       REQUEST_SERVICE_DEFAULT: "auto"     # Default request service
       REQUEST_SERVICE_PLEX: "auto"        # Plex override
       REQUEST_SERVICE_JELLYFIN: "auto"    # Jellyfin override

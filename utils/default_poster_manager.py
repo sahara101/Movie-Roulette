@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class DefaultPosterManager:
     def __init__(self, socketio):
         """Constructor to initialize the DefaultPosterManager with socketio"""
-        self.init(socketio)  # Call existing init method
+        self.init(socketio)
 
     def init(self, socketio):
         """Initialize the DefaultPosterManager"""
@@ -42,12 +42,10 @@ class DefaultPosterManager:
             old_mode = self.poster_mode
             old_interval = self.screensaver_interval
 
-            # Get settings from features section
             features = settings.get('features', {})
             configured_mode = features.get('poster_mode', 'default')
             custom_text = features.get('default_poster_text', '')
 
-            # Handle interval - could be string or int
             interval_value = features.get('screensaver_interval', 300)
             try:
                 new_interval = int(str(interval_value))
@@ -61,39 +59,32 @@ class DefaultPosterManager:
             logger.info(f"- Old interval: {old_interval} -> New interval: {new_interval}")
             logger.info(f"- Movie service available: {bool(self.movie_service)}")
 
-            # Check if there's an active movie
             has_active_movie = os.path.exists(self.current_movie_file)
 
-            # Reset state before changing modes
             self.stop_screensaver()
 
             if configured_mode == 'default':
-                # Switching TO default mode
                 self.poster_mode = 'default'
-                # Force emit default poster with custom text
                 self.socketio.emit('set_default_poster', {
                     'poster': self.default_poster,
                     'custom_text': custom_text
                 }, namespace='/poster')
 
             elif configured_mode == 'screensaver' and not has_active_movie:
-                # Switching TO screensaver mode
                 self.screensaver_interval = new_interval
                 self.poster_mode = 'screensaver'
 
                 if self.movie_service:
                     logger.info("Starting screensaver immediately with first movie")
                     try:
-                        # Get first random movie
                         random_movie = self.movie_service.get_random_movie()
                         if random_movie:
-                            # Emit initial movie
                             self.socketio.emit('update_screensaver', {
                                 'poster': random_movie.get('poster'),
                                 'directors': random_movie.get('directors', []),
                                 'description': random_movie.get('description', ''),
                                 'tagline': random_movie.get('tagline', ''),
-                                'actors': random_movie.get('actors', [])[:5],
+                                'actors': random_movie.get('actors', [])[:4],
                                 'contentRating': random_movie.get('contentRating', ''),
                                 'videoFormat': random_movie.get('videoFormat', ''),
                                 'audioFormat': random_movie.get('audioFormat', '')
@@ -101,7 +92,6 @@ class DefaultPosterManager:
                         self.start_screensaver()
                     except Exception as e:
                         logger.error(f"Error starting screensaver: {e}")
-                        # If screensaver fails, revert to default poster
                         self.poster_mode = 'default'
                         self.socketio.emit('set_default_poster', {
                             'poster': self.default_poster,
@@ -109,7 +99,6 @@ class DefaultPosterManager:
                         }, namespace='/poster')
                 else:
                     logger.error("No movie service available for screensaver")
-                    # Revert to default poster mode if no movie service
                     self.poster_mode = 'default'
                     self.socketio.emit('set_default_poster', {
                         'poster': self.default_poster,
@@ -118,7 +107,7 @@ class DefaultPosterManager:
 
     def set_movie_service(self, service):
         """Set the movie service for getting random movies"""
-        with self.lock:  # Add lock for thread safety
+        with self.lock:
             if service == self.movie_service:
                 logger.info("Movie service already set, skipping initialization")
                 return
@@ -126,23 +115,18 @@ class DefaultPosterManager:
             logger.info(f"Setting movie service to {service.__class__.__name__}")
             self.movie_service = service
 
-            # If we're in screensaver mode, we need to reinitialize
             if self.poster_mode == 'screensaver':
                 logger.info("Reinitializing screensaver with new service")
-                # Store current state
                 old_interval = self.screensaver_interval
                 was_screensaver = True
             else:
                 was_screensaver = False
 
-            # Stop current screensaver
             self.stop_screensaver()
 
-            # Reset and restart only if we were in screensaver mode
             if was_screensaver and service:
                 self.screensaver_interval = old_interval
                 self.poster_mode = 'screensaver'
-                # Attempt to get a random movie immediately
                 random_movie = self.movie_service.get_random_movie()
                 if random_movie:
                     logger.info(f"Found initial movie for screensaver: {random_movie.get('title', 'Unknown')}")
@@ -151,7 +135,7 @@ class DefaultPosterManager:
                         'directors': random_movie.get('directors', []),
                         'description': random_movie.get('description', ''),
                         'tagline': random_movie.get('tagline', ''),
-                        'actors': random_movie.get('actors', [])[:5],
+                        'actors': random_movie.get('actors', [])[:4],
                         'contentRating': random_movie.get('contentRating', ''),
                         'videoFormat': random_movie.get('videoFormat', ''),
                         'audioFormat': random_movie.get('audioFormat', '')
@@ -177,7 +161,6 @@ class DefaultPosterManager:
         current_time = time.strftime('%H:%M:%S')
         logger.info(f"[{current_time}] Starting screensaver...")
 
-        # First verify we can get movies
         test_movie = self.movie_service.get_random_movie()
         if not test_movie:
             logger.error("Movie service not providing movies, reverting to default poster")
@@ -187,13 +170,12 @@ class DefaultPosterManager:
             }, namespace='/poster')
             return
 
-        # Clear any existing event and create new one
         if hasattr(self, 'screensaver_event'):
-            self.screensaver_event.set()  # Stop any existing loop
-            time.sleep(0.1)  # Give time for the old loop to clean up
+            self.screensaver_event.set()
+            time.sleep(0.1)
 
         self.screensaver_event = threading.Event()
-        current_instance = self.screensaver_event  # Track this instance
+        current_instance = self.screensaver_event
 
         def screensaver_loop():
             while not self.screensaver_event.is_set():
@@ -210,14 +192,13 @@ class DefaultPosterManager:
                         current_time = time.strftime('%H:%M:%S')
                         logger.info(f"[{current_time}] Emitting movie: {random_movie.get('title')}")
 
-                        # Only emit if we're still the current instance
                         if self.screensaver_event == current_instance:
                             self.socketio.emit('update_screensaver', {
                                 'poster': random_movie.get('poster'),
                                 'directors': random_movie.get('directors', []),
                                 'description': random_movie.get('description', ''),
                                 'tagline': random_movie.get('tagline', ''),
-                                'actors': random_movie.get('actors', [])[:5],
+                                'actors': random_movie.get('actors', [])[:4],
                                 'contentRating': random_movie.get('contentRating', ''),
                                 'videoFormat': random_movie.get('videoFormat', ''),
                                 'audioFormat': random_movie.get('audioFormat', '')
@@ -233,7 +214,6 @@ class DefaultPosterManager:
                         }, namespace='/poster')
                         return
 
-                    # Wait but check event every second
                     for _ in range(int(self.screensaver_interval)):
                         if self.screensaver_event.is_set() or self.screensaver_event != current_instance:
                             return
@@ -243,15 +223,13 @@ class DefaultPosterManager:
                     current_time = time.strftime('%H:%M:%S')
                     logger.error(f"[{current_time}] Error in screensaver loop: {e}", exc_info=True)
 
-        # Start the screensaver loop
         self.socketio.start_background_task(screensaver_loop)
 
     def stop_screensaver(self):
         """Stop the screensaver"""
         logger.info("Stopping screensaver")
         if hasattr(self, 'screensaver_event'):
-            self.screensaver_event.set()  # Signal loop to stop
-        # Don't change poster_mode here - it should be set by the caller
+            self.screensaver_event.set()
         if not os.path.exists(self.current_movie_file):
             self.is_default_poster_active = True
             logger.info("Setting default poster after stopping screensaver")
@@ -263,7 +241,6 @@ class DefaultPosterManager:
     def start_default_poster_timer(self, state):
         """Start timer for transitioning to default poster or screensaver"""
         with self.lock:
-            # Skip if timer already exists
             if self.default_poster_timer:
                 return
             self.last_state = state
@@ -287,26 +264,22 @@ class DefaultPosterManager:
         with self.lock:
             logger.info(f"Setting default poster - Mode: {self.poster_mode}, Movie Service: {bool(self.movie_service)}")
             if self.last_state == 'STOPPED' and time.time() - self.state_change_time >= 300:  # 5 minutes
-                # Archive current movie state
                 if os.path.exists(self.current_movie_file):
                     with open(self.current_movie_file, 'r') as f:
                         movie_data = json.load(f)
                     movie_data['session_type'] = 'STOP'
                     with open(self.current_movie_file, 'w') as f:
                         json.dump(movie_data, f)
-                # Clear current movie
                 self.clear_current_movie()
                 self.is_default_poster_active = True
-                # Get current settings mode
                 settings_data = settings.get_all()
                 features = settings_data.get('features', {})
                 configured_mode = features.get('poster_mode', 'default')
                 custom_text = features.get('default_poster_text', '')
-                # Start screensaver or show default poster based on settings
                 if configured_mode == 'screensaver' and self.movie_service:
                     logger.info("Starting screensaver mode after 5-minute timer")
                     self.poster_mode = 'screensaver'
-                    self.start_screensaver()  # This will handle the configured interval (e.g., 1 minute)
+                    self.start_screensaver()
                 else:
                     logger.info("Setting default poster after 5-minute timer")
                     self.poster_mode = 'default'
@@ -321,19 +294,17 @@ class DefaultPosterManager:
 
     def handle_playback_state(self, state):
         """Handle playback state changes"""
-        # Don't process if state hasn't changed
         if state == self.current_state:
             return
         logger.info(f"Handling playback state change: {state}")
         self.current_state = state
         if state == 'PLAYING':
-            # For PLAYING, stop screensaver and show movie
             logger.info("Movie PLAYING - showing movie poster")
             if self.default_poster_timer:
                 self.cancel_default_poster_timer()
-            self.poster_mode = 'default'  # Force default mode for movie display
-            self.is_default_poster_active = False  # Make sure we're not in default poster mode
-            if self.current_screensaver_poster:  # Clear any screensaver state
+            self.poster_mode = 'default'
+            self.is_default_poster_active = False
+            if self.current_screensaver_poster:
                 self.current_screensaver_poster = None
                 logger.info("Cleared screensaver poster state")
             if os.path.exists(self.current_movie_file):
@@ -341,12 +312,10 @@ class DefaultPosterManager:
                     current_movie = json.load(f)
                     logger.info(f"Maintaining current movie: {current_movie.get('movie', {}).get('title')}")
         elif state == 'STOPPED':
-            # Only start timer if we don't already have one running
             if not self.default_poster_timer:
                 logger.info("Movie STOPPED - starting 5-minute timer before default/screensaver")
                 self.start_default_poster_timer(state)
         elif state in ['ENDING', 'PAUSED']:
-            # For ENDING and PAUSED, keep current movie poster
             logger.info(f"Movie {state} - maintaining current movie poster")
             if self.default_poster_timer:
                 self.cancel_default_poster_timer()
@@ -355,17 +324,14 @@ class DefaultPosterManager:
 
     def get_current_poster(self):
         with self.lock:
-            # First check if a movie JSON file exists (this takes priority)
             if os.path.exists(self.current_movie_file):
                 try:
                     with open(self.current_movie_file, 'r') as f:
                         current_movie = json.load(f)
                         poster_url = current_movie['movie']['poster']
 
-                        # If we have a movie file, default poster should not be active
                         self.is_default_poster_active = False
 
-                        # Proxy the URL if needed
                         jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
                         emby_service = current_app.config.get('EMBY_SERVICE')
 
@@ -381,12 +347,9 @@ class DefaultPosterManager:
                         return poster_url
                 except Exception as e:
                     logger.error(f"Error reading current movie file: {e}")
-                    # Fall through to other checks on error
 
-            # Then check screensaver mode
             if self.poster_mode == 'screensaver' and self.current_screensaver_poster:
                 url = self.current_screensaver_poster
-                # Process URL for screensaver as before...
                 jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
                 emby_service = current_app.config.get('EMBY_SERVICE')
 
@@ -401,7 +364,6 @@ class DefaultPosterManager:
                         return f"/proxy/poster/emby/{item_id}"
                 return url
 
-            # Finally, default poster if nothing else matched
             if self.is_default_poster_active:
                 return self.default_poster
 

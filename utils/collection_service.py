@@ -129,44 +129,27 @@ class CollectionService:
 
             request_service = service_override if service_override != 'auto' else default_service
 
-            if request_service == 'overseerr' and current_service != 'plex':
-                return False
-
             if request_service == 'auto':
-                overseerr_enabled = settings.get('overseerr', {}).get('enabled', False)
-                jellyseerr_enabled = settings.get('jellyseerr', {}).get('enabled', False)
+                seerr_enabled = settings.get('seerr', {}).get('enabled', False)
                 ombi_enabled = settings.get('ombi', {}).get('enabled', False)
 
-                if current_service == 'plex' and overseerr_enabled:
-                    request_service = 'overseerr'
-                elif jellyseerr_enabled:
-                    request_service = 'jellyseerr'
+                if seerr_enabled:
+                    request_service = 'seerr'
                 elif ombi_enabled:
                     request_service = 'ombi'
                 else:
-                    return False  
+                    return False
 
-            if request_service == 'overseerr':
+            if request_service == 'seerr':
                 try:
-                    from utils.overseerr_service import get_media_status, OVERSEERR_INITIALIZED
-                    if OVERSEERR_INITIALIZED:
+                    from utils.seerr_service import get_media_status, SEERR_INITIALIZED
+                    if SEERR_INITIALIZED:
                         status = get_media_status(tmdb_id)
                         if status and status.get('mediaInfo'):
                             requested = status['mediaInfo'].get('status') in [2, 3, 4, 5]
                             return requested
                 except Exception as e:
-                    logger.error(f"Error checking Overseerr status: {e}")
-
-            elif request_service == 'jellyseerr':
-                try:
-                    from utils.jellyseerr_service import get_media_status, JELLYSEERR_INITIALIZED
-                    if JELLYSEERR_INITIALIZED:
-                        status = get_media_status(tmdb_id)
-                        if status and status.get('mediaInfo'):
-                            requested = status['mediaInfo'].get('status') in [2, 3, 4, 5]
-                            return requested
-                except Exception as e:
-                    logger.error(f"Error checking Jellyseerr status: {e}")
+                    logger.error(f"Error checking Seerr status: {e}")
 
             elif request_service == 'ombi':
                 try:
@@ -187,16 +170,15 @@ class CollectionService:
     def is_request_service_active(self):
         """Check if any request service is configured and enabled."""
         request_config = settings.get('request_services', {})
-        overseerr_enabled = settings.get('overseerr', {}).get('enabled', False)
-        jellyseerr_enabled = settings.get('jellyseerr', {}).get('enabled', False)
+        seerr_enabled = settings.get('seerr', {}).get('enabled', False)
         ombi_enabled = settings.get('ombi', {}).get('enabled', False)
 
-        if any(s in ['overseerr', 'jellyseerr', 'ombi'] for s in request_config.values()):
+        if any(s in ['seerr', 'ombi'] for s in request_config.values()):
             return True
-        
-        if overseerr_enabled or jellyseerr_enabled or ombi_enabled:
+
+        if seerr_enabled or ombi_enabled:
             return True
-            
+
         return False
 
     def check_collection_status(self, tmdb_id, current_service):
@@ -265,7 +247,8 @@ class CollectionService:
             except Exception as e:
                 logger.error(f"Error checking library status for movie {movie['id']}: {e}")
 
-            is_watched = self._is_movie_watched(movie['id'], self.get_all_movies())
+            is_watched_in_library = self._is_movie_watched(movie['id'], self.get_all_movies())
+            is_watched_trakt = is_movie_watched_on_trakt(movie['id'])
 
             is_requested = self.check_request_status(movie['id'])
 
@@ -275,7 +258,8 @@ class CollectionService:
                 'release_date': movie.get('release_date', ''),
                 'poster_path': movie.get('poster_path', ''),
                 'in_library': in_library,
-                'is_watched': is_watched,
+                'is_watched': is_watched_in_library,
+                'is_watched_on_trakt': is_watched_trakt,
                 'is_requested': is_requested
             })
 
@@ -384,7 +368,7 @@ class CollectionService:
         return None
 
 
-    def build_collections_cache(self, app, current_service, cache_manager=None, user=None, path=None, sid=None):
+    def build_collections_cache(self, app, current_service, cache_manager=None, user=None, path=None, sid=None, trakt_user_id=None):
         """Build and save the collections cache."""
         with app.app_context():
             if self.cache_building:
@@ -433,8 +417,9 @@ class CollectionService:
                         self.socketio.emit('collections_cache_progress', {'progress': (i + 1) / total_movies * 50}, room=sid)
 
                 user_id = user['internal_username'] if user else get_current_user_id()
-                trakt_enabled = is_trakt_enabled_for_user(user_id)
-                trakt_watched_movies = set(get_trakt_watched_movies(user_id)) if trakt_enabled else set()
+                effective_trakt_user_id = trakt_user_id if trakt_user_id is not None else user_id
+                trakt_enabled = is_trakt_enabled_for_user(effective_trakt_user_id)
+                trakt_watched_movies = set(get_trakt_watched_movies(effective_trakt_user_id)) if trakt_enabled else set()
 
                 if trakt_enabled:
                     trakt_movie_ids = list(trakt_watched_movies)

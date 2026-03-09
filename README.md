@@ -55,7 +55,7 @@ This project was extended with the assistance of AI tools. The core functionalit
 -  **Device Control**: Power on Apple TV and TV devices directly in the selected service application
 -  **Service Integration**: 
   - Trakt for global watch status
-  - Overseerr/Jellyseerr/Ombi for requests
+  - Seerr or Ombi for requests
   - YouTube for trailers
 - **Authentication System**: Login with Media Servers, local admin (pass/passkey), Plex Managed User.
  
@@ -117,7 +117,7 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 3. Optional: Enable Auth
 4. Automatic redirection to admin user setup page
 5. Wait for initial cache building for Plex
-6. Optional: Configure additional services (Trakt, Overseerr, etc.)
+6. Optional: Configure additional services (Trakt, Seerr, etc.)
 
 ## Key Configuration
 
@@ -141,7 +141,7 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 ### Integrations
 - TMDb (built-in key provided or custom API)
 - Trakt (built-in app or custom credentials)
-- Overseerr/Jellyseerr/Ombi (optional, for requests)
+- Seerr or Ombi (optional, for requests)
 
 ### Devices
 - Apple TV (auto-discovery available)
@@ -219,6 +219,7 @@ Movie Roulette offers two ways to configure the application:
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
 | `FLASK_SECRET_KEY` | Securely sign the session cookie | Random on startup | - |
+| `CORS_ALLOWED_ORIGINS` | Allowed WebSocket origins. Set to your domain when behind a reverse proxy (e.g. `https://yourdomain.com`) | `*` | - |
 
 ### Optional Features
 | Variable | Description | Default | UI Alternative |
@@ -239,14 +240,14 @@ Movie Roulette offers two ways to configure the application:
 | `USE_NEXT_BUTTON` | Show next button | TRUE | ✅ Settings |
 | `USE_GRID_VIEW` | Show grid view button on main page | true | ✅ Settings |
 | `ENABLE_MOBILE_TRUNCATION` | Choose if descriptions are truncated on mobile | FALSE | ✅ Settings |
+| `SHOW_NOW_WATCHING_CARD` | Show live Now Watching card on main page | TRUE | ✅ Settings |
+| `USE_HEROUI_THEME` | Enable HeroUI theme | FALSE | ✅ Settings |
 
 ### Request Service (Optional)
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
-| `OVERSEERR_URL` | Overseerr URL | - | ✅ Settings |
-| `OVERSEERR_API_KEY` | Overseerr API key | - | ✅ Settings |
-| `JELLYSEERR_URL` | Jellyseerr URL | - | ✅ Settings |
-| `JELLYSEERR_API_KEY` | Jellyseerr API key | - | ✅ Settings |
+| `SEERR_URL` | Seerr URL | - | ✅ Settings |
+| `SEERR_API_KEY` | Seerr API key | - | ✅ Settings |
 | `OMBI_URL` | Ombi server URL | - | ✅ Settings |
 | `OMBI_API_KEY` | Ombi API key | - | ✅ Settings |
 | `REQUEST_SERVICE_DEFAULT` | Default request service | "auto" | ✅ Settings |

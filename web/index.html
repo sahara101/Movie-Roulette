@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,17 +21,32 @@
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style/main-heroui.css">
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/ios-pwa-splash@1.0.0/cdn.min.js"></script>
     <script>iosPWASplash('/static/icons/icon.png', '#222222');</script>
 </head>
 
-<body{% if homepage_mode %} class="homepage-mode"{% endif %}>
+<body{% if homepage_mode and heroui_theme %} class="homepage-mode heroui-main"{% elif homepage_mode %} class="homepage-mode"{% elif heroui_theme %} class="heroui-main"{% endif %}>
 <script>
     if (window !== window.parent) {
         document.body.classList.add('in-iframe');
     }
 </script>
+
+{% if heroui_theme %}
+<div class="aurora-container">
+    <div class="aurora-el aurora-1"></div>
+    <div class="aurora-el aurora-2"></div>
+    <div class="aurora-el aurora-3"></div>
+</div>
+<div class="bg-grid-dots"></div>
+<div id="spotlight-mask"></div>
+{% endif %}
+
     <div id="movie-logo-container">
         <img id="movie-logo-img" src="" alt="Movie Title Logo" style="display: none;">
     </div>
@@ -105,11 +120,6 @@
 
 	    <div id="search_modal" class="hidden">
     		<div class="search-modal-content">
-        	    <button id="search_modal_close" class="close-button" aria-label="Close search">
-            		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                	    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-            		</svg>
-        	    </button>
         	    <div class="search-input-container">
             	    	<input type="text" id="movie_search" placeholder="Search movies..." class="search-modal-input">
         	    </div>
@@ -119,6 +129,59 @@
 
             <button id="btn_get_movie" class="button large-button initially-hidden{% if load_movie_on_start %} hidden{% endif %}">Get Random Movie</button>
             <div id="movieContent"{% if not load_movie_on_start %} class="hidden"{% endif %}>
+
+                {% if heroui_theme %}
+                <div class="movie-hero-card">
+                    <div class="poster-col">
+                        <div class="movie_poster">
+                            <img src="" alt="" id="poster_img">
+                        </div>
+                        {% if not homepage_mode %}
+                        <div class="button_container{% if not load_movie_on_start %} hidden{% endif %}">
+                            {% if use_watch_button %}
+                            <button id="btn_watch" class="button">WATCH</button>
+                            {% endif %}
+
+                            {% if use_next_button %}
+                            <button id="btn_next_movie" class="button">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
+                                </svg>
+                            </button>
+                            {% endif %}
+                            <button id="btn_power" class="button" style="display:none">
+                                <svg width="24" height="24" viewBox="0 0 24 24">
+                                    <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
+                                </svg>
+                            </button>
+                            <button id="switch_service" class="button">
+                                <span class="service-name"></span>
+                                <svg class="switch-icon" width="24" height="24" viewBox="0 0 24 24">
+                                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="info-col movie_details">
+                        <p id="title"></p>
+                        <p id="year_duration"></p>
+                        <p id="directors"></p>
+                        <p id="writers"></p>
+                        <p id="actors"></p>
+                        <p id="genres"></p>
+                        <p id="description"></p>
+                        {% if not homepage_mode and use_links %}
+                        <div class="logo-container">
+                            <a href="#" id="tmdb_link" target="_blank"><img src="/static/logos/tmdb_logo.svg" alt="TMDb Logo" class="logo"></a>
+                            <a href="#" id="trakt_link" target="_blank"><img src="/static/logos/trakt_logo.svg" alt="Trakt Logo" class="logo"></a>
+                            <a href="#" id="imdb_link" target="_blank"><img src="/static/logos/imdb_logo.svg" alt="IMDb Logo" class="logo"></a>
+                            <a href="#" id="trailer_link"><img src="/static/logos/youtube_logo.svg" alt="YouTube Logo" class="logo"></a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
                 <div class="movie_poster">
                     <img src="" alt="" id="poster_img">
                 </div>
@@ -153,7 +216,7 @@
                         </svg>
                     </button>
                     {% endif %}
-                    <button id="btn_power" class="button">
+                    <button id="btn_power" class="button" style="display:none">
                         <svg width="24" height="24" viewBox="0 0 24 24">
                             <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
                         </svg>
@@ -166,14 +229,10 @@
                     </button>
                 </div>
                 {% endif %}
+                {% endif %}
 
                 <div id="movies_overlay" class="hidden">
                     <div id="movies_overlay_content">
-                        <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                            </svg>
-                        </button>
                         <div id="overlay_title">Movies by Person</div>
                         <div id="movies_container"></div>
                     </div>
@@ -189,26 +248,45 @@
             <div id="messageContainer" class="hidden">
                 <!-- This will be populated by JavaScript when needed -->
             </div>
+
+            <div id="now_watching_card" class="now-watching-card hidden">
+            <div class="nw-header">
+                <span class="nw-dot"></span>
+                <span class="nw-label" id="nw_label">Now Watching</span>
+                <span class="nw-service" id="nw_service"></span>
+                <button class="nw-share-btn" id="nw_share_btn" title="Share">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                        <polyline points="16 6 12 2 8 6"/>
+                        <line x1="12" y1="2" x2="12" y2="15"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="nw-body">
+                <img class="nw-poster" id="nw_poster" src="" alt="">
+                <div class="nw-info">
+                    <p class="nw-title" id="nw_title"></p>
+                    <p class="nw-meta" id="nw_meta"></p>
+                    <div class="nw-progress-row">
+                        <div class="nw-progress-track">
+                            <div class="nw-progress-fill" id="nw_progress_fill"></div>
+                        </div>
+                        <span class="nw-pct" id="nw_pct">0%</span>
+                    </div>
+                    <p class="nw-time-left" id="nw_time_left"></p>
+                </div>
+            </div>
+        </div>
         </section>
 
-        <div id="client_prompt" class="hidden">
-            <div id="client_prompt_close" onclick="closeClientPrompt()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
-                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg>
-            </div>
-            <div id="container_list_of_clients">
+        <div id="client_prompt" class="hidden" onclick="closeClientPrompt()">
+            <div id="container_list_of_clients" onclick="event.stopPropagation()">
                 <div id="list_of_clients"></div>
             </div>
         </div>
 
-        <div id="device_prompt" class="hidden">
-            <div id="device_prompt_close" onclick="closeDevicePrompt()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24">
-                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg>
-            </div>
-            <div id="container_list_of_devices">
+        <div id="device_prompt" class="hidden" onclick="closeDevicePrompt()">
+            <div id="container_list_of_devices" onclick="event.stopPropagation()">
                 <div id="list_of_devices"></div>
             </div>
         </div>
@@ -222,7 +300,7 @@
             <iframe id="trailer_iframe" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
         </div>
 
-        <div id="person_details_overlay" class="hidden">
+        <div id="person_details_overlay" class="hidden" onclick="closePersonDetailsOverlay()">
             <div class="person-details-content">
                 <!-- Content will be inserted here dynamically -->
             </div>
@@ -251,22 +329,22 @@
         	<div class="change-password-form">
             	    <h3>Change Password</h3>
             	    <div id="password-error" class="error-message" style="display: none;"></div>
-            
+
             	    <div class="form-group">
                 	<label for="current-password">Current Password</label>
                 	<input type="password" id="current-password" required>
             	    </div>
-            
+
             	    <div class="form-group">
                 	<label for="new-password">New Password</label>
-                	<input type="password" id="new-password" required>
+                	<input type="password" id="new-password" required minlength="8">
             	    </div>
-            
+
             	    <div class="form-group">
                 	<label for="confirm-password">Confirm New Password</label>
-                	<input type="password" id="confirm-password" required>
+                	<input type="password" id="confirm-password" required minlength="8">
             	    </div>
-            
+
             	    <div class="password-actions">
                 	<button type="button" onclick="closeChangePasswordModal()">Cancel</button>
                 	<button type="button" onclick="submitChangePassword()">Update Password</button>
@@ -279,16 +357,14 @@
 
     <nav class="main-nav">
     	<div class="nav-links">
-            <a href="/" class="nav-link movies-link-mobile active">Movies</a>
-            <div class="nav-link media-menu movies-menu-desktop">
+            <div class="nav-link media-menu">
                 <span class="media-menu-trigger">Movies</span>
                 <div class="media-dropdown">
-                    <a href="/" class="dropdown-item active">Movies</a>
                     <a href="/collections" class="dropdown-item">Collections</a>
                 </div>
             </div>
             <a href="/poster" class="nav-link" target="_blank">Movie Poster</a>
-        
+
             {% if auth_enabled %}
             <div class="nav-link user-menu">
             	<span class="user-menu-trigger">
@@ -338,6 +414,8 @@
         }
     </script>
     <script src="/static/js/auth.js"></script>
+    <script src="/static/js/now-watching-share.js"></script>
+    {% if heroui_theme %}<script src="/static/js/main-heroui.js"></script>{% endif %}
 </body>
 
 </html>

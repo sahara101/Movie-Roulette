@@ -2,14 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Movie Grid</title>
     <link rel="stylesheet" href="/static/style/style.css">
     <link rel="stylesheet" href="/static/style/grid.css">
     <link rel="stylesheet" href="/static/style/auth.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style/heroui-theme.css">
+    <link rel="stylesheet" href="/static/style/aceternity-effects.css">
+    {% endif %}
 </head>
-<body>
+<body{% if heroui_theme %} class="heroui-theme"{% endif %}>
     <nav class="main-nav">
     	<div class="nav-links">
             <div class="nav-link media-menu">
@@ -47,16 +54,23 @@
     </nav>
     <div class="container">
         <div class="filters">
-            <select id="genre-filter" class="filter-select">
-                <option value="">All Genres</option>
-            </select>
-            <select id="year-filter" class="filter-select">
-                <option value="">All Years</option>
-            </select>
-            <select id="rating-filter" class="filter-select">
-                <option value="">All Ratings</option>
-            </select>
-            <button id="refresh-btn" class="filter-button">Refresh</button>
+            <div class="filter-selects">
+                <select id="genre-filter" class="filter-select">
+                    <option value="">All Genres</option>
+                </select>
+                <select id="year-filter" class="filter-select">
+                    <option value="">All Years</option>
+                </select>
+                <select id="rating-filter" class="filter-select">
+                    <option value="">All Ratings</option>
+                </select>
+                <button id="clear-filters-btn" class="filter-clear hidden">
+                    <i class="fa-solid fa-xmark"></i> Clear filters
+                </button>
+            </div>
+            <button id="refresh-btn" class="filter-shuffle">
+                <i class="fa-solid fa-shuffle"></i> Shuffle
+            </button>
         </div>
         <div id="movie-grid" class="movie-grid"></div>
     </div>
@@ -71,12 +85,12 @@
         </div>
     </div>
     <div id="movies_overlay" class="hidden">
+        <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
+            </svg>
+        </button>
         <div id="movies_overlay_content">
-            <button id="movies_overlay_close" class="close-button" aria-label="Close overlay">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M24 20.188l-8.315-8.209 8.2-8.282-3.697-3.697-8.212 8.318-8.31-8.203-3.666 3.666 8.312 8.203-8.204 8.278 3.684 3.684 8.215-8.316 8.311 8.202z" />
-                </svg>
-            </button>
             <div id="overlay_title">Movies by Person</div>
             <div id="movies_container"></div>
         </div>
@@ -107,5 +121,6 @@
     <script src="/static/js/script.js"></script>
     <script src="/static/js/grid_view.js"></script>
     <script src="/static/js/auth.js"></script>
+    {% if heroui_theme %}<script src="/static/js/theme-effects.js"></script>{% endif %}
 </body>
 </html>

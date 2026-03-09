@@ -16,10 +16,8 @@ TRAKT_SETTINGS = settings.get('trakt', {})
 TMDB_SETTINGS = settings.get('tmdb', {})
 
 HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
-HARDCODED_CLIENT_SECRET = '3e5c2b9163264d8e9b50b8727c827b49a5ea8cc6cf0331bca931a697c243f508'
 
 TRAKT_CLIENT_ID = os.getenv('TRAKT_CLIENT_ID') or HARDCODED_CLIENT_ID
-TRAKT_CLIENT_SECRET = os.getenv('TRAKT_CLIENT_SECRET') or HARDCODED_CLIENT_SECRET
 TRAKT_ACCESS_TOKEN = os.getenv('TRAKT_ACCESS_TOKEN') or TRAKT_SETTINGS.get('access_token')
 TRAKT_REFRESH_TOKEN = os.getenv('TRAKT_REFRESH_TOKEN') or TRAKT_SETTINGS.get('refresh_token')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY') or TMDB_SETTINGS.get('api_key')
@@ -161,9 +159,8 @@ def refresh_user_trakt_token(user_id=None):
             f'{TRAKT_API_URL}/oauth/token',
             json={
                 'refresh_token': refresh_token,
-                'client_id': TRAKT_CLIENT_ID, 
-                'client_secret': TRAKT_CLIENT_SECRET, 
-                'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob', 
+                'client_id': TRAKT_CLIENT_ID,
+                'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
                 'grant_type': 'refresh_token'
             }
         )
@@ -177,6 +174,18 @@ def refresh_user_trakt_token(user_id=None):
                 'trakt_access_token': new_access_token,
                 'trakt_refresh_token': new_refresh_token
             }
+
+            if user_id == 'global':
+                try:
+                    settings.update('trakt', {
+                        'access_token': new_access_token,
+                        'refresh_token': new_refresh_token
+                    })
+                    print(f"Successfully refreshed and saved Trakt token for global settings")
+                    return True
+                except Exception as save_err:
+                    print(f"Failed to save refreshed Trakt token to global settings: {save_err}")
+                    return False
 
             user_type = None
             if auth_manager.db.get_managed_user_by_username(user_id):
@@ -208,12 +217,13 @@ def refresh_user_trakt_token(user_id=None):
                 user_type = 'local'
             print(f"Trakt token refresh API call failed for user {user_id} (type: {user_type}): {response.status_code} - {response.text}")
             if response.status_code == 401:
-                 print(f"Refresh token for user {user_id} (type: {user_type}) seems invalid. Clearing tokens and disabling.")
-                 clear_data = {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False}
-                 if user_type == 'plex_managed':
-                     auth_manager.db.update_managed_user_data(user_id, clear_data)
-                 elif user_type == 'local':
-                     auth_manager.db.update_user_data(user_id, clear_data)
+                print(f"Refresh token for user {user_id} (type: {user_type}) seems invalid. Clearing tokens and disabling.")
+                if user_id == 'global':
+                    settings.update('trakt', {'enabled': False, 'access_token': None, 'refresh_token': None})
+                elif user_type == 'plex_managed':
+                    auth_manager.db.update_managed_user_data(user_id, {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False})
+                elif user_type == 'local':
+                    auth_manager.db.update_user_data(user_id, {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False})
             return False
     except Exception as e:
         user_type = 'unknown'

@@ -4,22 +4,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const yearFilter = document.getElementById('year-filter');
     const ratingFilter = document.getElementById('rating-filter');
     const refreshBtn = document.getElementById('refresh-btn');
+    const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
     let allMovies = [];
     let filteredMovies = [];
+    let currentPool = [];
 
     const fetchMovies = async () => {
         const url = '/all_movies_grid';
         try {
             const response = await fetch(url);
             const data = await response.json();
+
+            if (response.status === 202 && data.status === 'cache_building') {
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                return;
+            }
+
+            if (!response.ok) {
+                movieGrid.innerHTML = `<p style="color:rgba(255,255,255,0.5);text-align:center;padding:2rem;">${data.error || 'Failed to load movies.'}</p>`;
+                return;
+            }
+
             allMovies = data.movies || [];
             populateFilters();
             renderMovies();
         } catch (error) {
-            console.error('Error fetching movies:', error);
+            movieGrid.innerHTML = `<p style="color:rgba(255,255,255,0.5);text-align:center;padding:2rem;">Failed to load movies.</p>`;
         }
     };
+
+    if (typeof socket !== 'undefined') {
+        socket.on('loading_progress', (data) => {
+            const overlay = document.getElementById('loading-overlay');
+            const progressBar = document.getElementById('loading-progress');
+            const loadingCount = document.querySelector('.loading-count');
+            const loadingStatus = document.querySelector('.loading-status');
+
+            if (overlay) overlay.classList.remove('hidden');
+            if (progressBar) progressBar.style.width = `${data.progress * 100}%`;
+            if (loadingCount) {
+                loadingCount.textContent = data.total === 0 ? 'Initializing...' : `${data.current}/${data.total}`;
+            }
+            if (loadingStatus) {
+                if (data.progress >= 0.95) loadingStatus.textContent = 'Loading into memory';
+                else if (data.progress >= 0.90) loadingStatus.textContent = 'Saving cache to disk';
+                else loadingStatus.textContent = 'Loading movies';
+            }
+        });
+
+        socket.on('loading_complete', fetchMovies);
+    }
 
     const populateFilters = () => {
         const genres = new Set();
@@ -63,6 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const updateClearVisibility = () => {
+        if (!clearFiltersBtn) return;
+        const hasActive = genreFilter.value || yearFilter.value || ratingFilter.value;
+        clearFiltersBtn.classList.toggle('hidden', !hasActive);
+    };
+
     const filterMovies = () => {
         const selectedGenre = genreFilter.value;
         const selectedYear = yearFilter.value;
@@ -81,7 +122,103 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         filteredMovies = movies;
+        updateClearVisibility();
         renderMovies();
+    };
+
+    const createMovieCard = (movie) => {
+        const movieCard = document.createElement('div');
+        movieCard.className = 'movie-card';
+        movieCard.dataset.movieId = movie.id;
+
+        const posterWrap = document.createElement('div');
+        posterWrap.className = 'movie-poster-wrap';
+
+        const posterBg = document.createElement('img');
+        posterBg.src = movie.poster;
+        posterBg.alt = '';
+        posterBg.setAttribute('aria-hidden', 'true');
+        posterBg.className = 'movie-poster-bg';
+        posterWrap.appendChild(posterBg);
+
+        const poster = document.createElement('img');
+        poster.src = movie.poster;
+        poster.alt = movie.title;
+        poster.className = 'movie-poster';
+        posterWrap.appendChild(poster);
+
+        const hoverOverlay = document.createElement('div');
+        hoverOverlay.className = 'movie-card-hover';
+
+        const watchButton = document.createElement('button');
+        watchButton.className = 'watch-button';
+        watchButton.textContent = 'Watch';
+        watchButton.onclick = (e) => {
+            e.stopPropagation();
+            showClients(movie);
+        };
+        hoverOverlay.appendChild(watchButton);
+        posterWrap.appendChild(hoverOverlay);
+        movieCard.appendChild(posterWrap);
+
+        const info = document.createElement('div');
+        info.className = 'movie-card-info';
+
+        const title = document.createElement('div');
+        title.className = 'movie-card-title';
+        title.textContent = movie.title;
+        info.appendChild(title);
+
+        const metaParts = [];
+        if (movie.year) metaParts.push(movie.year);
+        if (movie.contentRating) metaParts.push(movie.contentRating);
+        if (metaParts.length > 0) {
+            const meta = document.createElement('div');
+            meta.className = 'movie-card-meta';
+            meta.textContent = metaParts.join(' · ');
+            info.appendChild(meta);
+        }
+
+        movieCard.appendChild(info);
+
+        movieCard.addEventListener('click', () => {
+            showContextLoadingOverlay('movie');
+            openMovieDataOverlay(movie.tmdb_id);
+        });
+
+        return movieCard;
+    };
+
+    const trimToFit = () => {
+        const firstCard = movieGrid.querySelector('.movie-card');
+        if (!firstCard) return;
+
+        movieGrid.style.paddingTop = '';
+        const columns = getComputedStyle(movieGrid).gridTemplateColumns.split(' ').length;
+        const gap = parseFloat(getComputedStyle(movieGrid).rowGap) || 20;
+        const cardHeight = firstCard.getBoundingClientRect().height;
+        const gridTop = movieGrid.getBoundingClientRect().top;
+        const availableHeight = (window.visualViewport?.height ?? window.innerHeight) - gridTop;
+        const rows = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
+
+        const usedHeight = rows * cardHeight + (rows - 1) * gap;
+        const leftover = availableHeight - usedHeight;
+        if (window.innerWidth <= 768 && leftover > 16) {
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            const maxBoost = isStandalone ? 48 : 24;
+            movieGrid.style.paddingTop = `${Math.min(maxBoost, Math.floor(leftover * 0.35))}px`;
+        }
+
+        const targetCount = Math.min(columns * rows, currentPool.length);
+
+        const cards = movieGrid.querySelectorAll('.movie-card');
+        if (cards.length > targetCount) {
+            [...cards].slice(targetCount).forEach(el => el.remove());
+        } else if (cards.length < targetCount) {
+            currentPool.slice(cards.length, targetCount).forEach(movie => {
+                movieGrid.appendChild(createMovieCard(movie));
+            });
+        }
     };
 
     const renderMovies = () => {
@@ -90,53 +227,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedYear = yearFilter.value;
         const selectedRating = ratingFilter.value;
 
-        let sourceMovies;
+        const sourceMovies = (selectedGenre || selectedYear || selectedRating)
+            ? filteredMovies
+            : allMovies;
 
-        if (selectedGenre || selectedYear || selectedRating) {
-            sourceMovies = filteredMovies;
-        } else {
-            sourceMovies = allMovies;
-        }
+        currentPool = [...sourceMovies].sort(() => 0.5 - Math.random());
 
-        const shuffled = sourceMovies.sort(() => 0.5 - Math.random());
-        const moviesToRender = shuffled.slice(0, 9);
-
-        moviesToRender.forEach(movie => {
-            const movieCard = document.createElement('div');
-            movieCard.className = 'movie-card group';
-            movieCard.dataset.movieId = movie.id;
-
-            const posterContainer = document.createElement('div');
-            posterContainer.className = 'movie-poster-container';
-
-            const poster = document.createElement('img');
-            poster.src = movie.poster;
-            poster.alt = movie.title;
-            poster.className = 'movie-poster';
-            posterContainer.appendChild(poster);
-
-            movieCard.appendChild(posterContainer);
-
-            const cardContent = document.createElement('div');
-            cardContent.className = 'movie-card-content';
-
-            const watchButton = document.createElement('button');
-            watchButton.className = 'watch-button';
-            watchButton.textContent = 'Watch';
-            watchButton.onclick = (e) => {
-                e.stopPropagation();
-                showClients(movie);
-            };
-            cardContent.appendChild(watchButton);
-            movieCard.appendChild(cardContent);
-
-            movieCard.addEventListener('click', () => {
-                showContextLoadingOverlay('movie');
-                openMovieDataOverlay(movie.id);
-            });
-
-            movieGrid.appendChild(movieCard);
+        currentPool.slice(0, 40).forEach(movie => {
+            movieGrid.appendChild(createMovieCard(movie));
         });
+
+        requestAnimationFrame(trimToFit);
     };
 
     const showClients = async (movie) => {
@@ -182,6 +283,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     refreshBtn.addEventListener('click', () => {
         renderMovies();
+    });
+
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', () => {
+            genreFilter.value = '';
+            yearFilter.value = '';
+            ratingFilter.value = '';
+            filteredMovies = [];
+            updateClearVisibility();
+            renderMovies();
+        });
+    }
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => requestAnimationFrame(trimToFit), 150);
     });
 
     fetchMovies();

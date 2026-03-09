@@ -48,7 +48,9 @@ class PlexService:
             self.PLEX_TOKEN = os.getenv('PLEX_TOKEN')
             logger.info("Using ENV for PLEX_TOKEN")
         if not self.PLEX_MOVIE_LIBRARIES:
-            self.PLEX_MOVIE_LIBRARIES = os.getenv('PLEX_MOVIE_LIBRARIES', 'Movies').split(',')
+            env_libraries = os.getenv('PLEX_MOVIE_LIBRARIES', '')
+            if env_libraries:
+                self.PLEX_MOVIE_LIBRARIES = [lib.strip() for lib in env_libraries.split(',') if lib.strip()]
             logger.info("Using ENV for PLEX_MOVIE_LIBRARIES")
 
         if not self.PLEX_URL:
@@ -114,10 +116,7 @@ class PlexService:
 
                 if owner_username and self.username.lower() == owner_username.lower():
                     logger.info(f"Using main Plex instance for owner account: {self.username}")
-                    return self.plex  
-                elif self.username.lower() == 'admin':
-                    logger.info(f"Using main Plex instance for local 'admin' user.")
-                    return self.plex  
+                    return self.plex
 
                 logger.info(f"Attempting to switch to managed user perspective: {self.username}")
                 user_instance = self.plex.switchUser(self.username)
@@ -1207,9 +1206,6 @@ class PlexService:
             
             if movie_data:
                 set_current_movie(movie_data, 'plex', username=username)
-                # from flask import session
-                # session['current_service'] = 'plex'
-
 
             return {"status": "playing", "username": username}  
         except Exception as e:
@@ -1338,7 +1334,6 @@ class PlexService:
                             username = session.user.title if hasattr(session, 'user') and hasattr(session.user, 'title') else None
                             if username:
                                 logger.info(f"Detected movie {item_id} watched >= 90% by user '{username}'.")
-                                # self.update_watched_status(item_id, username)
                             else:
                                 logger.warning(f"Could not determine username for session watching item {item_id}. Cannot update watched status.")
 

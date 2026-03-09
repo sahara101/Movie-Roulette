@@ -8,19 +8,17 @@ on:
       - 'requirements.txt'
       - 'movie_selector.py'
       - '.github/workflows/docker-build.yml'
+    tags: [ 'v*' ]
   workflow_dispatch:
+
 jobs:
-  build:
+  build-amd64:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64,arm
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Install latest rust
@@ -28,13 +26,16 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - name: Cache Docker layers
-        uses: actions/cache@v3
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
+          images: |
+            sahara101/movie-roulette
+            ghcr.io/sahara101/movie-roulette
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=tag
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -47,34 +48,59 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push AMD64
-        #if: false
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64
           push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-arm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64,arm
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            sahara101/movie-roulette
+            ghcr.io/sahara101/movie-roulette
           tags: |
-            sahara101/movie-roulette:latest
-            sahara101/movie-roulette:v5.1.2
-            ghcr.io/sahara101/movie-roulette:latest
-            ghcr.io/sahara101/movie-roulette:v5.1.2
+            type=raw,value=arm-latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=tag,prefix=arm-
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: sahara101
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push ARM
-        #if: false
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.arm
           platforms: linux/arm64,linux/arm/v7
           push: true
-          tags: |
-            sahara101/movie-roulette:arm-latest
-            sahara101/movie-roulette:arm-v5.1.2
-            ghcr.io/sahara101/movie-roulette:arm-latest
-            ghcr.io/sahara101/movie-roulette:arm-v5.1.2
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=arm
+          cache-to: type=gha,scope=arm,mode=max

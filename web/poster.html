@@ -2,10 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Now Playing</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style/poster.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700&display=swap" rel="stylesheet">
+    {% if heroui_theme %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style/heroui-theme.css') }}">
+    {% endif %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         const defaultPosterUrl = "{{ url_for('static', filename='images/default_poster.png') }}";
@@ -33,7 +37,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/poster.js') }}" defer></script>
 </head>
-<body>
+<body{% if heroui_theme %} class="heroui-theme poster-page"{% endif %}>
     <div class="poster-container" id="posterContainer">
         <div class="info-bar movie-info">
             <div class="time-info">
