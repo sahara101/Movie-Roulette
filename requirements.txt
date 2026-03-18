@@ -53,7 +53,7 @@ pyasn1==0.6.2
 pyatv==0.15.1
 pycparser==3.0
 pydantic==2.12.5
-pydantic_core==2.41.5
+pydantic_core==2.42.0
 pyOpenSSL==25.3.0
 pyparsing==3.3.2
 python-dotenv==1.2.1
