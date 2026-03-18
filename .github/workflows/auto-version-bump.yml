@@ -1,0 +1,35 @@
+name: Auto Version Bump on Dependabot
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  bump-version:
+    if: github.event.pull_request.merged == true && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Bump patch version
+        run: |
+          FILE="utils/version.py"
+          CURRENT=$(python3 -c "import re; print(re.search(r'VERSION\s*=\s*[\"\'](.*?)[\"\']', open('$FILE').read()).group(1))")
+          echo "Current version: $CURRENT"
+          NEW=$(python3 -c "parts='$CURRENT'.split('.'); parts[-1]=str(int(parts[-1])+1); print('.'.join(parts))")
+          echo "New version: $NEW"
+          sed -i "s/VERSION = \"$CURRENT\"/VERSION = \"$NEW\"/" $FILE
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add utils/version.py
+          git commit -m "chore: bump version for Dependabot security update"
+          git push
