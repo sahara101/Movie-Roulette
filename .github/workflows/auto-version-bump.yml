@@ -1,8 +1,7 @@
 name: Auto Version Bump on Dependabot
 
 on:
-  pull_request:
-    types: [closed]
+  workflow_dispatch:
 
 jobs:
   bump-version:
