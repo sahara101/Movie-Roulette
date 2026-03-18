@@ -14,7 +14,7 @@ cbor2==5.8.0
 certifi==2026.2.25
 cffi==2.0.0
 chacha20poly1305-reuseable==0.13.2
-charset-normalizer==3.4.4
+charset-normalizer==3.4.6
 click==8.3.1
 configparser==7.2.0
 cryptography==46.0.5
