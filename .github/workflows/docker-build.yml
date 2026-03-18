@@ -5,8 +5,6 @@ on:
     paths:
       - 'Dockerfile'
       - 'Dockerfile.arm'
-      - 'requirements.txt'
-      - 'movie_selector.py'
       - '.github/workflows/docker-build.yml'
       - 'utils/version.py'
   workflow_dispatch:
