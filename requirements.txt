@@ -50,7 +50,7 @@ propcache==0.4.1
 protobuf==7.34.0
 ptyprocess==0.7.0
 pyasn1==0.6.2
-pyatv==0.15.1
+pyatv==0.17.0
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
