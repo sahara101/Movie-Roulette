@@ -54,7 +54,7 @@ pyatv==0.15.1
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
-pyOpenSSL==25.3.0
+pyOpenSSL==26.0.0
 pyparsing==3.3.2
 python-dotenv==1.2.1
 python-engineio==4.13.1
