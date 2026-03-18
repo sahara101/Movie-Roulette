@@ -49,7 +49,7 @@ PlexAPI==4.18.0
 propcache==0.4.1
 protobuf==7.34.0
 ptyprocess==0.7.0
-pyasn1==0.6.2
+pyasn1==0.6.3
 pyatv==0.15.1
 pycparser==3.0
 pydantic==2.12.5
