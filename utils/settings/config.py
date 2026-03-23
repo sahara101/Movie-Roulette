@@ -21,7 +21,9 @@ DEFAULT_SETTINGS = {
     'clients': {
         'apple_tv': {
             'enabled': False,
-            'id': ''
+            'id': '',
+            'name': '',
+            'model': ''
         },
         'tvs': {
             'blacklist': {
@@ -38,15 +40,15 @@ DEFAULT_SETTINGS = {
         'use_next_button': True,
         'mobile_truncation': False,
         'homepage_mode': False,
-        'enable_movie_logos': True, 
-        'load_movie_on_start': False,
+        'enable_movie_logos': False,
+        'load_movie_on_start': True,
         'heroui_theme': True,
         'show_now_watching_card': True,
         'login_backdrop': {
-            'enabled': False
+            'enabled': True
         },
         'timezone': 'UTC',
-        'poster_mode': 'default',  # 'default' or 'screensaver'
+        'poster_mode': 'screensaver',  # 'default' or 'screensaver'
         'screensaver_interval': 300,
         'poster_cinema_overlay': True,
         'default_poster_text': '',

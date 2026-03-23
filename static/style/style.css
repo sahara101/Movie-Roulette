@@ -1,7 +1,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geist', sans-serif;
   font-weight: 900;
   overflow-x: hidden;
   background-color: #282A2D;
@@ -23,7 +23,8 @@ main {
 }
 
 #section {
-  background-color: #3A3C41;
+  background-color: #1A1B1F;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   padding: 20px;
   position: relative;
   margin: 0;
@@ -48,7 +49,7 @@ main {
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover !important;
-  opacity: .15;
+  opacity: .22;
 }
 
 .poster {
@@ -60,11 +61,11 @@ main {
 }
 
 .poster img {
-  border-radius: 5px;
+  border-radius: 8px;
   width: 100%;
   height: auto;
   display: block;
-  background-color: #FFFFFF;
+  background-color: #1C1D20;
 }
 
 .movie_poster, .movie_details, .button_container {
@@ -73,8 +74,23 @@ main {
   z-index: 2;
 }
 
+/* Double-Bezel poster frame — shadow-only, no padding to avoid layout shifts */
+.movie_poster {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.07),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 20px 60px rgba(0,0,0,0.6);
+  transition:
+    transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    box-shadow 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  cursor: pointer;
+}
+
 .movie_poster > img {
   width: 225px;
+  display: block;
 }
 
 .movie_details {
@@ -90,6 +106,7 @@ main {
   margin: 0;
   font-size: 3rem;
   font-weight: 600;
+  font-family: 'Instrument Serif', serif;
 }
 
 #actors {
@@ -143,7 +160,7 @@ main {
 
 .button {
   text-align: center;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geist', sans-serif;
   font-weight: 600;
   font-size: 2em;
   border: 1px;
@@ -291,7 +308,7 @@ main {
   margin: 0;
   text-transform: uppercase;
   font-size: 1.2rem;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geist', sans-serif;
   font-weight: 700;
   line-height: 1.4;
 }
@@ -805,7 +822,7 @@ main, #section, #movieContent {
   border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 700;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geist', sans-serif;
   cursor: pointer;
   transition: background-color 0.2s;
   margin-bottom: 14px;
@@ -1034,7 +1051,7 @@ main, #section, #movieContent {
   cursor: pointer;
   transition: background-color 0.2s;
   width: 100%;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geist', sans-serif;
 }
 
 .movie-card-overlay .request-button:hover {
@@ -1081,13 +1098,25 @@ main, #section, #movieContent {
 
 .movie-card {
     position: relative;
-    background-color: #3A3C41;
-    border-radius: 10px;
-    padding: 10px;
+    background-color: #1C1E23;
+    border-radius: 14px;
+    padding: 8px;
     text-align: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 8px 24px rgba(0,0,0,0.4);
     display: flex;
     flex-direction: column;
+    transition:
+        transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+        box-shadow 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.movie-card:hover {
+    transform: translateY(-5px);
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,0.11),
+        0 20px 48px rgba(0,0,0,0.6);
 }
 
 .year-info {
@@ -1095,6 +1124,7 @@ main, #section, #movieContent {
     color: #EAEAEC;
     margin-top: 5px;
     opacity: 0.8;
+    font-family: 'Geist Mono', monospace;
 }
 
 .rating-info {
@@ -1112,6 +1142,7 @@ main, #section, #movieContent {
 
 .rating-value {
     color: #EAEAEC;
+    font-family: 'Geist Mono', monospace;
 }
 
 .character-info {
@@ -1136,20 +1167,21 @@ main, #section, #movieContent {
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  border-radius: 5px;
-  margin-bottom: 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
   aspect-ratio: 2/3;
   width: 100%;
   position: relative;
-  background-color: #3A3C41;
+  background-color: #111215;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .movie-poster {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 5px;
-  transition: transform 0.3s ease;
+  border-radius: 8px;
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .movie-poster.no-poster {
@@ -1163,8 +1195,8 @@ main, #section, #movieContent {
     padding: 0;
 }
 
-.movie-poster:hover {
-  transform: scale(1.05);
+.movie-card:hover .movie-poster {
+  transform: scale(1.04);
 }
 
 .movie-poster.no-poster:hover {
@@ -1826,7 +1858,7 @@ body.in-iframe main {
     color: #EAEAEC;
     box-sizing: border-box;
     font-size: 0.875rem;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     flex: 1;
     min-width: 0;
     box-sizing: border-box;
@@ -2997,6 +3029,15 @@ body.homepage-mode .movie_details .more-actors {
   border: 1px solid #E5A00D;
 }
 
+.client.web-client {
+  background-color: #2A2C31;
+  color: #EAEAEC;
+}
+
+.client.web-client:hover {
+  background-color: #3D3F45;
+}
+
 body.homepage-mode #description {
     display: block !important;  
     -webkit-line-clamp: unset !important;
@@ -3655,7 +3696,7 @@ body.homepage-mode #description.truncated::after {
     width: 60%;
     padding: 1.5rem;
     color: white;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     display: flex;
     flex-direction: column;
 }
@@ -4622,7 +4663,7 @@ body.homepage-mode #movie-logo-container {
     height: 100%;
     border-radius: 99px;
     width: 0%;
-    background: linear-gradient(90deg, #6366f1, #7c3aed);
+    background: #E5A00D;
     transition: width 1s linear;
 }
 

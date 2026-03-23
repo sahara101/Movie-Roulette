@@ -241,13 +241,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const showClients = async (movie) => {
-        const response = await fetch('/clients');
-        const clients = await response.json();
+        const [clientsResp, webInfoResp] = await Promise.all([
+            fetch('/clients'),
+            fetch('/api/web_client_info')
+        ]);
+        const clients = await clientsResp.json();
+        const webClientInfo = webInfoResp.ok ? await webInfoResp.json() : null;
         const clientPrompt = document.getElementById('client_prompt');
         const clientList = document.getElementById('list_of_clients');
-        
+
         clientList.innerHTML = '';
-        if (clients.length === 0) {
+        const validWebClient = webClientInfo && !webClientInfo.error;
+        if (clients.length === 0 && !validWebClient) {
             clientList.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
         } else {
             clients.forEach(client => {
@@ -261,6 +266,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 clientList.appendChild(clientElement);
             });
+            if (validWebClient) {
+                addWebClientEntry(clientList, webClientInfo, () => {
+                    const webId = (webClientInfo.service === 'emby' && movie.emby_internal_id)
+                        ? movie.emby_internal_id
+                        : movie.id;
+                    const url = buildWebClientUrl(webClientInfo, webId);
+                    if (url) window.open(url, '_blank');
+                    closeClientPrompt();
+                });
+            }
         }
 
         clientPrompt.classList.remove('hidden');

@@ -306,7 +306,7 @@ def scan_for_appletv():
         logger.error(f"Error scanning for Apple TVs: {str(e)}")
         return []
 
-def pair_appletv(device_id):
+def pair_appletv(device_id, address=None):
     """Start pairing process with Apple TV"""
     global _pairing_process
 
@@ -314,8 +314,11 @@ def pair_appletv(device_id):
     clear_pairing(device_id)
 
     try:
-        cmd = f'atvremote --id {device_id} --protocol companion pair'
-        _pairing_process = pexpect.spawn(cmd)  # Remove env parameter since we use symlink
+        if address:
+            cmd = f'atvremote --scan-hosts {address} --id {device_id} --protocol companion pair'
+        else:
+            cmd = f'atvremote --id {device_id} --protocol companion pair'
+        _pairing_process = pexpect.spawn(cmd)
 
         # Wait for PIN prompt
         index = _pairing_process.expect(['Enter PIN on screen:', pexpect.EOF, pexpect.TIMEOUT], timeout=20)
@@ -327,10 +330,12 @@ def pair_appletv(device_id):
                 'message': 'Please enter the PIN shown on your Apple TV'
             }
         else:
-            logger.error("Failed to get PIN prompt")
+            output = _pairing_process.before.decode(errors='replace') if _pairing_process.before else ''
+            reason = 'EOF' if index == 1 else 'TIMEOUT'
+            logger.error(f"Failed to get PIN prompt ({reason}). atvremote output: {output!r}")
             return {
                 'status': 'error',
-                'message': 'Failed to start pairing process'
+                'message': f'Failed to start pairing process ({reason}): {output.strip() or "no output"}'
             }
     except Exception as e:
         logger.error(f"Error during pairing: {str(e)}")

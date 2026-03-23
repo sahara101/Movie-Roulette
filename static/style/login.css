@@ -24,7 +24,7 @@
 }
 
 body {
-    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Geist', sans-serif;
     background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.6;
@@ -72,6 +72,8 @@ body {
     width: 100px;
     height: 100px;
     border-radius: 12px;
+    display: block;
+    object-fit: cover;
 }
 
 .setup-description {
@@ -120,7 +122,7 @@ body {
     color: var(--text-color);
     border-radius: 4px;
     transition: border-color 0.3s;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
 }
 
 .input-with-icon input:focus {
@@ -164,7 +166,7 @@ body {
     justify-content: center;
     align-items: center;
     gap: 10px;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     width: 100%;
 }
 
@@ -246,7 +248,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
 }
 
 .dropdown-toggle:hover {
@@ -302,7 +304,7 @@ body {
     color: var(--text-color);
     cursor: pointer;
     font-size: 16px;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     transition: background-color 0.2s ease;
 }
 
@@ -408,7 +410,7 @@ body {
     cursor: pointer;
     font-weight: 500;
     transition: background-color 0.2s;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
 }
 
 .cancel-button:hover {
@@ -424,7 +426,7 @@ body {
     cursor: pointer;
     font-weight: 500;
     transition: background-color 0.2s;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
 }
 
 .submit-button:hover {
@@ -449,7 +451,7 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: color 0.2s ease, border-color 0.2s ease;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     text-align: center;
 }
 

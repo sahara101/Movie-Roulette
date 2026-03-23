@@ -9,7 +9,7 @@
     const POST_X = Math.round((W - POST_W) / 2);
     const POST_Y = PAD;
 
-    const FONT = 'Inter,-apple-system,BlinkMacSystemFont,sans-serif';
+    const FONT = 'Geist,-apple-system,BlinkMacSystemFont,sans-serif';
 
     const TITLE_SIZE   = 56;
     const TITLE_LINE_H = TITLE_SIZE + 8;

@@ -1474,12 +1474,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     const data = await response.json();
 
                     if (data.has_credentials) {
+                        const currentName = getNestedValue(currentSettings, 'clients.apple_tv.name') || 'Apple TV';
+                        const currentModel = getNestedValue(currentSettings, 'clients.apple_tv.model');
                         const configDisplay = document.createElement('div');
                         configDisplay.className = 'current-config';
                         configDisplay.innerHTML = `
-                            <div class="config-item">Device ID: ${currentId}</div>
+                            <div class="config-item"><i class="fa-brands fa-apple"></i> ${currentName}${currentModel ? ` <span style="opacity:0.6">(${currentModel})</span>` : ''}</div>
                         `;
-                        return configDisplay; 
+                        return configDisplay;
                     }
                 } catch (error) {
                     console.error('Error checking device credentials:', error);
@@ -1502,7 +1504,7 @@ document.addEventListener('DOMContentLoaded', function() {
                	    	<h4>Found Devices</h4>
                	    	<div class="device-list">
                    	    ${devices.map((device, index) => `
-                       	    	<button class="device-option" data-id="${device.identifier}">
+                       	    	<button class="device-option" data-id="${device.identifier}" data-name="${device.name || `Apple TV ${index + 1}`}" data-model="${device.model || ''}">
                            	    <i class="fa-brands fa-apple"></i>
                            	    <div class="device-details">
                                	    	<div class="device-name">${device.name || `Apple TV ${index + 1}`}</div>
@@ -1536,6 +1538,13 @@ document.addEventListener('DOMContentLoaded', function() {
            	    <input type="text" class="setting-input" id="manual-id"
                       	   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
        	    	</div>
+       	    	<input type="hidden" id="manual-name" value="">
+       	    	<input type="hidden" id="manual-model" value="">
+       	    	<div class="manual-input-group">
+           	    <label>IP Address <span style="font-weight:400;opacity:0.6">(required on macOS Docker)</span></label>
+           	    <input type="text" class="setting-input" id="manual-address"
+                      	   placeholder="192.168.1.x">
+       	    	</div>
        	    	<div class="dialog-buttons">
            	    <button class="cancel-button">Cancel</button>
            	    <button class="submit-button">Start Pairing</button>
@@ -1547,13 +1556,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
    	    dialog.querySelectorAll('.device-option').forEach(button => {
        	    	button.addEventListener('click', () => {
-           	    const id = button.dataset.id;
-           	    dialog.querySelector('#manual-id').value = id;
+           	    dialog.querySelector('#manual-id').value = button.dataset.id;
+           	    dialog.querySelector('#manual-name').value = button.dataset.name || '';
+           	    dialog.querySelector('#manual-model').value = button.dataset.model || '';
        	        });
    	    });
 
    	    dialog.querySelector('.submit-button').addEventListener('click', async () => {
        	    	const id = dialog.querySelector('#manual-id').value.trim();
+       	    	const address = dialog.querySelector('#manual-address').value.trim();
+       	    	const name = dialog.querySelector('#manual-name').value.trim() || 'Apple TV';
+       	    	const model = dialog.querySelector('#manual-model').value.trim();
        	    	if (!id) {
            	    showError('Please enter a Device ID');
            	    return;
@@ -1564,14 +1577,15 @@ document.addEventListener('DOMContentLoaded', function() {
            	    submitButton.disabled = true;
            	    submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Starting pairing...';
 
-           	    const pairResponse = await fetch(`/api/appletv/pair/${id}`);
+           	    const url = address ? `/api/appletv/pair/${id}?address=${encodeURIComponent(address)}` : `/api/appletv/pair/${id}`;
+           	    const pairResponse = await fetch(url);
            	    const pairData = await pairResponse.json();
 
            	    if (pairData.status === 'awaiting_pin') {
                	    	submitButton.disabled = false;
                	    	submitButton.innerHTML = 'Start Pairing';
                	    	dialog.remove();
-               	    	setTimeout(() => showPinDialog(id), 100);
+               	    	setTimeout(() => showPinDialog(id, name, model), 100);
            	    } else {
                	    	throw new Error(pairData.message || 'Failed to start pairing');
            	    }
@@ -1588,7 +1602,7 @@ document.addEventListener('DOMContentLoaded', function() {
    	    });
 	}
 
-        function showPinDialog(deviceId) {
+        function showPinDialog(deviceId, deviceName, deviceModel) {
             const dialog = document.createElement('div');
             dialog.className = 'trakt-confirm-dialog pin-input-dialog';
             dialog.innerHTML = `
@@ -1644,6 +1658,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const data = await response.json();
                     if (data.status === 'success') {
                         await handleSettingChange('clients.apple_tv.id', deviceId, true);
+                        await handleSettingChange('clients.apple_tv.name', deviceName || 'Apple TV', true);
+                        await handleSettingChange('clients.apple_tv.model', deviceModel || '', true);
                         await handleSettingChange('clients.apple_tv.enabled', true, true);
                         showSuccess('Apple TV configured successfully');
                         dialog.remove();

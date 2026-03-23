@@ -848,7 +848,7 @@ class PlexService:
             logger.error(f"Error in get_random_movies: {str(e)}")
             return []
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False, exclude_ids=None):
         """Filter movies based on criteria and return a random movie"""
         try:
             start_time = time.time()
@@ -948,6 +948,11 @@ class PlexService:
             if movies_to_filter:
                 if get_all:
                     return movies_to_filter
+                if exclude_ids:
+                    unseen = [m for m in movies_to_filter if str(m.get('id', '')) not in exclude_ids]
+                    if not unseen:
+                        return None
+                    movies_to_filter = unseen
                 movie = random.choice(movies_to_filter)
                 duration = (time.time() - start_time) * 1000
                 logger.info(f"Movie selection took {duration:.2f}ms")

@@ -6,6 +6,8 @@ RUN apt-get update && \
     iputils-ping \
     netcat-openbsd \
     iproute2 \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 WORKDIR /app

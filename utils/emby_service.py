@@ -394,7 +394,10 @@ class EmbyService:
             for movie in movies:
                 all_movies.append({
                     "emby_id": movie['Id'],
-                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb')
+                    "emby_internal_id": str(movie['InternalId']) if movie.get('InternalId') else '',
+                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb'),
+                    "title": movie.get('Name', ''),
+                    "year": movie.get('ProductionYear', '')
                 })
 
             temp_path = f"{self.cache_path}.tmp"
@@ -403,6 +406,12 @@ class EmbyService:
             os.replace(temp_path, self.cache_path)
 
             logger.info(f"Cached {len(all_movies)} total Emby movies")
+
+            from utils.enrichment_cache import enrichment_cache
+            movies_with_tmdb = [m for m in all_movies if m.get('tmdb_id')]
+            if movies_with_tmdb:
+                enrichment_cache.build_for_movies(movies_with_tmdb)
+
             return all_movies
         except Exception as e:
             logger.error(f"Error caching all Emby movies: {e}")
@@ -567,6 +576,7 @@ class EmbyService:
 
         return {
             "id": movie.get('Id', ''),
+            "emby_internal_id": str(movie['InternalId']) if movie.get('InternalId') else '',
             "title": movie.get('Name', ''),
             "year": movie.get('ProductionYear', ''),
             "duration_hours": hours,
@@ -589,7 +599,7 @@ class EmbyService:
             "actors": [a["name"] for a in actors]
         }
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False, exclude_ids=None):
         try:
             movies_url = f"{self.server_url}/Users/{self.user_id}/Items"
             params = {
@@ -624,6 +634,9 @@ class EmbyService:
             if pg_ratings:
                 params['OfficialRatings'] = '|'.join(pg_ratings)
                 logger.info(f"Using ratings in request: {params['OfficialRatings']}")
+
+            if exclude_ids and not get_all:
+                params['ExcludeItemIds'] = ','.join(str(i) for i in exclude_ids)
 
             response = requests.get(movies_url, headers=self.headers, params=params)
             logger.info(f"Response status code: {response.status_code}")

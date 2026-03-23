@@ -21,6 +21,7 @@ let currentFilters = {
 let currentSettings = {};
 let currentService = 'plex';
 let currentMovie = null;
+let sessionKey = crypto.randomUUID();
 let availableServices = [];
 let socket = io({
     transports: ['polling'],
@@ -157,12 +158,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     await syncTraktWatched(false);
     startVersionChecker();
-
-    const originalUpdateMovieDisplay = updateMovieDisplay;
-    window.updateMovieDisplay = function(movieData) {
-        originalUpdateMovieDisplay(movieData);
-        handleCollectionWarning(movieData);
-    };
 
     const closeCollectionModal = document.getElementById('collection_modal_close');
     if (closeCollectionModal) {
@@ -351,6 +346,7 @@ async function loadRandomMovie() {
         if (cacheInitialized) {
             queryParams.append('skip_cache_rebuild', 'true');
         }
+        queryParams.append('session_key', sessionKey);
 
         const response = await fetch(`/random_movie?${queryParams}`);
 
@@ -367,14 +363,13 @@ async function loadRandomMovie() {
         if (data.skip_cache_rebuild) {
             cacheInitialized = true;
         }
+        if (data.pool_reset && data.seen_count > 1) {
+            showToast('All movies seen — starting fresh!', 'success');
+        }
 
         currentMovie = data.movie;
         updateMovieDisplay(currentMovie);
-
-        if (currentMovie && currentMovie.tmdb_id) {
-            fetchMovieDetailsAsync(currentMovie.tmdb_id);
-            fetchTrailerAsync(currentMovie.title, currentMovie.year);
-        }
+        applyEnrichment(currentMovie);
 
     } catch (error) {
         console.error("Error fetching random movie:", error);
@@ -730,13 +725,18 @@ async function performSearch(query) {
 
 async function showClientsForSelected(selectedMovie) {
     try {
-        const response = await fetch(`/clients`);
-        const clients = await response.json();
+        const [clientsResp, webInfoResp] = await Promise.all([
+            fetch('/clients'),
+            fetch('/api/web_client_info')
+        ]);
+        const clients = await clientsResp.json();
+        const webClientInfo = webInfoResp.ok ? await webInfoResp.json() : null;
 
         const listContainer = document.getElementById("list_of_clients");
         listContainer.innerHTML = "";
 
-        if (clients.length === 0) {
+        const validWebClient = webClientInfo && !webClientInfo.error;
+        if (clients.length === 0 && !validWebClient) {
 	        listContainer.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
         } else {
             clients.forEach(client => {
@@ -749,6 +749,16 @@ async function showClientsForSelected(selectedMovie) {
                 };
                 listContainer.appendChild(clientDiv);
             });
+            if (validWebClient) {
+                addWebClientEntry(listContainer, webClientInfo, () => {
+                    const webId = (webClientInfo.service === 'emby' && selectedMovie.emby_internal_id)
+                        ? selectedMovie.emby_internal_id
+                        : selectedMovie.id;
+                    const url = buildWebClientUrl(webClientInfo, webId);
+                    if (url) window.open(url, '_blank');
+                    closeClientPrompt();
+                });
+            }
         }
 
         document.getElementById("client_prompt").classList.remove("hidden");
@@ -897,6 +907,7 @@ function setupFilterEventListeners() {
 }
 
 async function applyFilter() {
+    sessionKey = crypto.randomUUID();
     const genreSelect = document.getElementById('genreSelect');
     const yearSelect = document.getElementById('yearSelect');
     const pgRatingSelect = document.getElementById('pgRatingSelect');
@@ -926,7 +937,8 @@ async function fetchFilteredMovies() {
         if (currentFilters.genres.length) queryParams.append('genres', currentFilters.genres.join(','));
         if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
         if (currentFilters.pgRatings.length) queryParams.append('pg_ratings', currentFilters.pgRatings.join(','));
-	queryParams.append('watch_status', currentFilters.watchStatus);
+        queryParams.append('watch_status', currentFilters.watchStatus);
+        queryParams.append('session_key', sessionKey);
 
         const response = await fetch(`/filter_movies?${queryParams}`);
 
@@ -944,11 +956,7 @@ async function fetchFilteredMovies() {
         currentMovie = data.movie;
         updateMovieDisplay(currentMovie);
         hideFilterDropdown();
-
-        if (currentMovie && currentMovie.tmdb_id) {
-            fetchMovieDetailsAsync(currentMovie.tmdb_id);
-            fetchTrailerAsync(currentMovie.title, currentMovie.year);
-        }
+        applyEnrichment(currentMovie);
 
     } catch (error) {
         console.error("Error applying filter:", error);
@@ -956,7 +964,8 @@ async function fetchFilteredMovies() {
     }
 }
 
-function clearFilter() {
+function clearFilter(skipReload = false) {
+    sessionKey = crypto.randomUUID();
     const genreSelect = document.getElementById('genreSelect');
     const yearSelect = document.getElementById('yearSelect');
     const pgRatingSelect = document.getElementById('pgRatingSelect');
@@ -981,10 +990,32 @@ function clearFilter() {
 
     hideFilterDropdown();
     hideMessage();
-    loadRandomMovie();
+    if (!skipReload) {
+        loadRandomMovie();
+    }
+}
+
+function updateFilterIslandCount() {
+    const countEl = document.getElementById('filterActiveCount');
+    if (!countEl) return;
+    const genreSelect = document.getElementById('genreSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const pgRatingSelect = document.getElementById('pgRatingSelect');
+    let count = 0;
+    if (genreSelect) count += Array.from(genreSelect.selectedOptions).filter(o => o.value).length;
+    if (yearSelect) count += Array.from(yearSelect.selectedOptions).filter(o => o.value).length;
+    if (pgRatingSelect) count += Array.from(pgRatingSelect.selectedOptions).filter(o => o.value).length;
+    if (count > 0) {
+        countEl.textContent = count;
+        countEl.classList.add('active');
+    } else {
+        countEl.textContent = '';
+        countEl.classList.remove('active');
+    }
 }
 
 async function updateFilteredMovieCount() {
+    updateFilterIslandCount();
     const genreSelect = document.getElementById('genreSelect');
     const yearSelect = document.getElementById('yearSelect');
     const pgRatingSelect = document.getElementById('pgRatingSelect');
@@ -1076,6 +1107,7 @@ async function loadNextMovie() {
         if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
         if (currentFilters.pgRatings.length) queryParams.append('pg_ratings', currentFilters.pgRatings.join(','));
         queryParams.append('watch_status', watchStatus);
+        queryParams.append('session_key', sessionKey);
 
         const url = `/next_movie?${queryParams}`;
         console.log("Requesting next movie with URL:", url);
@@ -1089,14 +1121,12 @@ async function loadNextMovie() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        console.log("Loaded next movie from service:", data.service);
+        if (data.pool_reset && data.seen_count > 1) {
+            showToast('All movies seen — starting fresh!', 'success');
+        }
         currentMovie = data.movie;
         updateMovieDisplay(currentMovie);
-
-        if (currentMovie && currentMovie.tmdb_id) {
-            fetchMovieDetailsAsync(currentMovie.tmdb_id);
-            fetchTrailerAsync(currentMovie.title, currentMovie.year);
-        }
+        applyEnrichment(currentMovie);
 
     } catch (error) {
         console.error("Error fetching next movie:", error);
@@ -1394,11 +1424,23 @@ function updateMovieDisplay(movieData) {
                 break;
 
             case "poster_img":
-                element.src = movieData.poster || 'static/images/default_poster.png';
+                if (movieData.poster) {
+                    const newPoster = new Image();
+                    newPoster.onload = () => { element.src = newPoster.src; };
+                    newPoster.src = movieData.poster;
+                } else {
+                    element.src = 'static/images/default_poster.png';
+                }
                 break;
 
             case "img_background":
-                element.style.backgroundImage = movieData.background ? `url(${movieData.background})` : 'none';
+                if (movieData.background) {
+                    const bgImg = new Image();
+                    bgImg.onload = () => { element.style.backgroundImage = `url(${bgImg.src})`; };
+                    bgImg.src = movieData.background;
+                } else {
+                    element.style.backgroundImage = 'none';
+                }
                 break;
 
             case "tmdb_link":
@@ -1419,6 +1461,30 @@ function updateMovieDisplay(movieData) {
     document.getElementById("section").classList.remove("hidden");
     setupDescriptionExpander();
     window.dispatchEvent(new Event('resize'));
+}
+
+function applyEnrichment(movie) {
+    if (movie && movie._enriched) {
+        handleAsyncMovieDetails(movie);
+        handleAsyncTrailer(movie.trailer_url);
+    } else if (movie && movie.tmdb_id) {
+        fetchMovieDetailsAsync(movie.tmdb_id);
+        fetchTrailerAsync(movie.title, movie.year);
+    }
+    if (movie && movie.tmdb_id) {
+        fetchCollectionAsync(movie.tmdb_id);
+    }
+}
+
+async function fetchCollectionAsync(tmdbId) {
+    try {
+        const response = await fetch(`/api/collection_status/${tmdbId}`);
+        if (!response.ok) return;
+        const info = await response.json();
+        handleCollectionWarning({ collection_info: info });
+    } catch (e) {
+        // silent — collection warning is non-critical
+    }
 }
 
 async function fetchMovieDetailsAsync(tmdbId) {
@@ -1632,6 +1698,7 @@ function handleAsyncMovieDetails(details, error = null) {
     } else if (collectionButton) {
          collectionButton.classList.add('hidden');
     }
+
 }
 
 function handleAsyncTrailer(trailerUrl, error = null) {
@@ -1688,8 +1755,8 @@ async function handleCollectionWarning(movieData) {
         otherMovies.forEach(m => { m.is_watched_on_trakt = watchedSet.has(m.id); });
 
         const allHandled =
-            unwatchedMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested) &&
-            otherMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested);
+            unwatchedMovies.every(m => m.is_watched_on_trakt) &&
+            otherMovies.every(m => m.in_library || m.is_watched_on_trakt);
 
         if (allHandled) {
             collectionButton.classList.add('hidden');
@@ -1739,8 +1806,8 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         }
 
         const allMoviesHandled =
-            unwatchedMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested) &&
-            (!otherMovies || otherMovies.every(m => m.in_library || m.is_watched_on_trakt || m.is_requested));
+            unwatchedMovies.every(m => m.is_watched_on_trakt) &&
+            (!otherMovies || otherMovies.every(m => m.in_library || m.is_watched_on_trakt));
 
         if (allMoviesHandled) {
             document.getElementById('collectionButton')?.classList.add('hidden');
@@ -1764,8 +1831,20 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         }
     }
 
+    const sortByYear = (a, b) => {
+        const dateA = a.release_date ? new Date(a.release_date) : new Date('9999-12-31');
+        const dateB = b.release_date ? new Date(b.release_date) : new Date('9999-12-31');
+        return dateA - dateB;
+    };
+    unwatchedMovies.sort(sortByYear);
+    if (otherMovies) otherMovies.sort(sortByYear);
+
+    const displayMovies = traktData.enabled
+        ? unwatchedMovies.filter(m => !m.is_watched_on_trakt)
+        : unwatchedMovies;
+
     const moviesToRequest = [
-        ...unwatchedMovies.filter(movie => !movie.in_library && !movie.is_requested),
+        ...displayMovies.filter(movie => !movie.in_library && !movie.is_requested),
         ...(otherMovies ? otherMovies.filter(movie => !movie.in_library && !movie.is_requested) : [])
     ];
 
@@ -1787,16 +1866,14 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
             <h3>Part of ${collectionInfo.collection_name}</h3>
         </div>
         <div class="unwatched-movies">
-            <p>You have ${unwatchedMovies.length} unwatched previous movie${unwatchedMovies.length > 1 ? 's' : ''} in this collection.</p>
+            <p>You have ${displayMovies.length} unwatched previous movie${displayMovies.length > 1 ? 's' : ''} in this collection.</p>
             <ul class="movie-list">
-                ${unwatchedMovies.map(movie => {
+                ${displayMovies.map(movie => {
                     const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
                     const statusClass = movie.in_library ? 'status-in-library' :
-                                      (movie.is_watched_on_trakt ? 'status-watched' :
-                                      (movie.is_requested ? 'status-requested' : 'status-not-in-library'));
+                                      (movie.is_requested ? 'status-requested' : 'status-not-in-library');
                     const statusText = movie.in_library ? 'In library' :
-                                     (movie.is_watched_on_trakt ? 'Watched on Trakt' :
-                                     (movie.is_requested ? 'Requested' : 'Not in library'));
+                                     (movie.is_requested ? 'Requested' : 'Not in library');
                     const requestIconHTML = createRequestIcon(movie);
                     return `
                         <li class="movie-item">
@@ -1837,7 +1914,7 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
             </div>
         ` : ''}
         <div class="action-buttons">
-            ${unwatchedMovies.some(movie => movie.in_library) ?
+            ${displayMovies.some(movie => movie.in_library) ?
                 `<button class="action-button watch-button" id="watch_collection_movie">Watch Previous Movie</button>` : ''}
             ${moviesToRequest.length > 0 ?
                 `<button class="action-button request-button${!isRequestServiceAvailable ? ' disabled' : ''}"
@@ -1880,7 +1957,7 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     const watchButton = document.getElementById('watch_collection_movie');
     if (watchButton) {
         watchButton.addEventListener('click', () => {
-            const movieToWatch = unwatchedMovies.find(movie => movie.in_library);
+            const movieToWatch = displayMovies.find(movie => movie.in_library);
             if (movieToWatch && typeof showClientsForPoster === 'function') {
                 showClientsForPoster(movieToWatch.id);
                 modalContainer.classList.add('hidden');
@@ -2102,7 +2179,7 @@ function showAllActors(actors) {
             const dialog = document.createElement('div');
             dialog.className = 'cast-dialog';
             const isHeroUI = document.body.classList.contains('heroui-main') || document.body.classList.contains('heroui-theme');
-            const fallbackColor = isHeroUI ? '%234f46e5' : '%23E5A00D';
+            const fallbackColor = '%23E5A00D';
 
             dialog.innerHTML = `
                 <div class="cast-dialog-content">
@@ -2214,7 +2291,7 @@ function showAllDirectors(directors) {
            const dialog = document.createElement('div');
            dialog.className = 'cast-dialog';
            const isHeroUI = document.body.classList.contains('heroui-main');
-           const fallbackColor = isHeroUI ? '%234f46e5' : '%23E5A00D';
+           const fallbackColor = '%23E5A00D';
 
            dialog.innerHTML = `
                <div class="cast-dialog-content">
@@ -2325,7 +2402,7 @@ function showAllWriters(writers) {
            const dialog = document.createElement('div');
            dialog.className = 'cast-dialog';
            const isHeroUI = document.body.classList.contains('heroui-main');
-           const fallbackColor = isHeroUI ? '%234f46e5' : '%23E5A00D';
+           const fallbackColor = '%23E5A00D';
 
            dialog.innerHTML = `
                <div class="cast-dialog-content">
@@ -3083,19 +3160,65 @@ async function requestMovie(movieId, showNotification = true) {
     }
 }
 
+function buildWebClientUrl(info, serviceId) {
+    switch (info.service) {
+        case 'plex':
+            return `${info.url}/web/index.html#!/server/${info.machineId}/details?key=/library/metadata/${serviceId}`;
+        case 'jellyfin':
+            return `${info.url}/web/index.html#!/details?id=${serviceId}`;
+        case 'emby':
+            return `${info.url}/web/index.html#!/item?id=${serviceId}&serverId=${info.systemId}`;
+        default:
+            return null;
+    }
+}
+
+function addWebClientEntry(listContainer, info, onClickFn) {
+    const serviceNames = { plex: 'Plex', jellyfin: 'Jellyfin', emby: 'Emby' };
+    const div = document.createElement('div');
+    div.classList.add('client', 'web-client');
+    div.textContent = `Open in ${serviceNames[info.service] || 'Web'}`;
+    div.onclick = onClickFn;
+    listContainer.appendChild(div);
+}
+
+
+async function resolveServiceId(service, tmdbId) {
+    const endpoints = {
+        plex:     { url: `/api/get_plex_id/${tmdbId}`,     key: 'plexId' },
+        jellyfin: { url: `/api/get_jellyfin_id/${tmdbId}`, key: 'jellyfinId' },
+        emby:     { url: `/api/get_emby_id/${tmdbId}`,     key: 'embyWebId' },
+    };
+    const endpoint = endpoints[service];
+    if (!endpoint) return null;
+    try {
+        const resp = await fetch(endpoint.url);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data[endpoint.key] || null;
+    } catch {
+        return null;
+    }
+}
+
 async function showClients() {
     try {
         document.getElementById("btn_watch").disabled = true;
-        const response = await fetch(`/clients`);
-        const clients = await response.json();
+        const [clientsResp, webInfoResp] = await Promise.all([
+            fetch('/clients'),
+            fetch('/api/web_client_info')
+        ]);
+        const clients = await clientsResp.json();
+        const webClientInfo = webInfoResp.ok ? await webInfoResp.json() : null;
 
         const listContainer = document.getElementById("list_of_clients");
         listContainer.innerHTML = "";
 
-        if (clients.length === 0) {
+        const validWebClient = webClientInfo && !webClientInfo.error;
+        if (clients.length === 0 && !validWebClient) {
 	        listContainer.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
         } else {
-            clients.forEach((client, index) => {
+            clients.forEach((client) => {
                 const clientDiv = document.createElement("div");
                 clientDiv.classList.add("client");
                 clientDiv.textContent = client.title;
@@ -3105,6 +3228,16 @@ async function showClients() {
                 };
                 listContainer.appendChild(clientDiv);
             });
+            if (validWebClient) {
+                addWebClientEntry(listContainer, webClientInfo, () => {
+                    const webId = (webClientInfo.service === 'emby' && currentMovie.emby_internal_id)
+                        ? currentMovie.emby_internal_id
+                        : currentMovie.id;
+                    const url = buildWebClientUrl(webClientInfo, webId);
+                    if (url) window.open(url, '_blank');
+                    closeClientPrompt();
+                });
+            }
         }
 
         document.getElementById("client_prompt").classList.remove("hidden");
@@ -3210,13 +3343,18 @@ async function playMovieFromPoster(clientId, tmdbId) {
 
 async function showClientsForPoster(movieId) {
     try {
-        const response = await fetch(`/clients`);
-        const clients = await response.json();
+        const [clientsResp, webInfoResp] = await Promise.all([
+            fetch('/clients'),
+            fetch('/api/web_client_info')
+        ]);
+        const clients = await clientsResp.json();
+        const webClientInfo = webInfoResp.ok ? await webInfoResp.json() : null;
 
         const listContainer = document.getElementById("list_of_clients");
         listContainer.innerHTML = "";
 
-        if (clients.length === 0) {
+        const validWebClient = webClientInfo && !webClientInfo.error;
+        if (clients.length === 0 && !validWebClient) {
 	        listContainer.innerHTML = "<div class='no-clients-message'>No available clients found.</div>";
         } else {
             clients.forEach(client => {
@@ -3229,6 +3367,15 @@ async function showClientsForPoster(movieId) {
                 };
                 listContainer.appendChild(clientDiv);
             });
+            if (validWebClient) {
+                addWebClientEntry(listContainer, webClientInfo, async () => {
+                    closeClientPrompt();
+                    const serviceId = await resolveServiceId(webClientInfo.service, movieId);
+                    if (!serviceId) return;
+                    const url = buildWebClientUrl(webClientInfo, serviceId);
+                    if (url) window.open(url, '_blank');
+                });
+            }
         }
 
         document.getElementById("client_prompt").classList.remove("hidden");
@@ -3317,8 +3464,12 @@ function updateServiceButton() {
     }
 }
 
+let _switchingService = false;
 async function switchService() {
     if (window.HOMEPAGE_MODE) return;
+    if (_switchingService) return;
+    _switchingService = true;
+    clearFilter(true);
 
     if (availableServices.length > 1) {
         try {
@@ -3326,7 +3477,6 @@ async function switchService() {
             const data = await response.json();
             if (data.service && data.service !== currentService) {
                 currentService = data.service;
-                console.log("Switched to service:", currentService);
                 updateServiceButton();
                 await loadRandomMovie();
                 await loadFilterOptions();
@@ -3336,7 +3486,11 @@ async function switchService() {
             console.error("Error switching service:", error);
             showError("Failed to switch service");
             updateServiceButton();
+        } finally {
+            _switchingService = false;
         }
+    } else {
+        _switchingService = false;
     }
 }
 

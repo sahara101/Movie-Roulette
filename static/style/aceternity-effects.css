@@ -21,7 +21,7 @@ body.heroui-theme .aurora-bg::before {
   height: 700px;
   top: -250px;
   left: -150px;
-  background: radial-gradient(circle, #6366f1, #7c3aed, transparent 70%);
+  background: radial-gradient(circle, #E5A00D, #B87333, transparent 70%);
   animation-duration: 14s;
 }
 
@@ -30,7 +30,7 @@ body.heroui-theme .aurora-bg::after {
   height: 900px;
   bottom: -350px;
   right: -250px;
-  background: radial-gradient(circle, #06b6d4, #6366f1, transparent 70%);
+  background: radial-gradient(circle, #D29000, #8B5E3C, transparent 70%);
   animation-duration: 18s;
   animation-delay: -7s;
 }
@@ -52,7 +52,7 @@ body.heroui-theme .spotlight-overlay {
   pointer-events: none;
   background: radial-gradient(
     700px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(99, 102, 241, 0.05),
+    rgba(229, 160, 13, 0.05),
     transparent 50%
   );
 }
@@ -75,8 +75,8 @@ body.heroui-theme .magic-card::before {
   background: conic-gradient(
     from var(--_border-angle, 0deg),
     transparent 25%,
-    #6366f1 50%,
-    #06b6d4 65%,
+    #E5A00D 50%,
+    #F8D68B 65%,
     transparent 75%
   );
   z-index: -1;
@@ -149,7 +149,7 @@ body.heroui-theme .tilt-card {
   50% {
     box-shadow: var(--shadow-sm),
                 0 0 20px var(--primary-glow),
-                0 0 40px rgba(99, 102, 241, 0.15);
+                0 0 40px rgba(229, 160, 13, 0.15);
   }
 }
 

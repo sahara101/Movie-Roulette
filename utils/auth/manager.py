@@ -127,9 +127,14 @@ class AuthManager:
                 return redirect(url_for('auth.login', next=request.path))
 
             internal_username = user_data['username']
-            session['username'] = internal_username
-            session['is_admin'] = user_data['is_admin']
-            session['service_type'] = user_data.get('service_type', 'local')
+            _is_admin = user_data['is_admin']
+            _service_type = user_data.get('service_type', 'local')
+            if (session.get('username') != internal_username or
+                    session.get('is_admin') != _is_admin or
+                    session.get('service_type') != _service_type):
+                session['username'] = internal_username
+                session['is_admin'] = _is_admin
+                session['service_type'] = _service_type
 
             display_username = internal_username
             if internal_username.startswith('plex_'):
@@ -173,9 +178,15 @@ class AuthManager:
             if not user_data['is_admin']:
                 return {"error": "Admin privileges required"}, 403
 
-            session['username'] = user_data['username']
-            session['is_admin'] = user_data['is_admin']
-            session['service_type'] = user_data.get('service_type', 'local')
+            _username = user_data['username']
+            _is_admin = user_data['is_admin']
+            _service_type = user_data.get('service_type', 'local')
+            if (session.get('username') != _username or
+                    session.get('is_admin') != _is_admin or
+                    session.get('service_type') != _service_type):
+                session['username'] = _username
+                session['is_admin'] = _is_admin
+                session['service_type'] = _service_type
 
             return f(*args, **kwargs)
 

@@ -1,7 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-
 body.heroui-main {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Geist', sans-serif;
   background-color: #09090b;
   color: #fafafa;
   min-height: 100dvh;
@@ -13,10 +11,10 @@ body.heroui-main {
   --surface-hover: rgba(255, 255, 255, 0.07);
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.15);
-  --primary: #6366f1;
-  --primary-hover: #818cf8;
-  --primary-glow: rgba(99, 102, 241, 0.4);
-  --secondary: #7c3aed;
+  --primary: #E5A00D;
+  --primary-hover: #F8D68B;
+  --primary-glow: rgba(229, 160, 13, 0.4);
+  --secondary: #D29000;
   --accent: #06b6d4;
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
@@ -26,7 +24,7 @@ body.heroui-main {
   --radius-lg: 16px;
   --radius-xl: 24px;
   --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.6);
-  --shadow-glow-primary: 0 0 20px rgba(99, 102, 241, 0.4), 0 0 40px rgba(99, 102, 241, 0.2);
+  --shadow-glow-primary: 0 0 20px rgba(229, 160, 13, 0.35), 0 0 40px rgba(229, 160, 13, 0.15);
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -52,7 +50,7 @@ body.heroui-main .aurora-1 {
   height: 80vw;
   top: -25vh;
   left: -15vw;
-  background: radial-gradient(circle at 50% 50%, #6366f1, #4338ca 40%, transparent 70%);
+  background: radial-gradient(circle at 50% 50%, #E5A00D, #B87333 40%, transparent 70%);
   animation: heroui-aurora-circle 26s ease-in-out infinite;
 }
 
@@ -61,7 +59,7 @@ body.heroui-main .aurora-2 {
   height: 65vw;
   top: 30vh;
   right: -15vw;
-  background: radial-gradient(circle at 50% 50%, #7c3aed, #6d28d9 40%, transparent 70%);
+  background: radial-gradient(circle at 50% 50%, #D29000, #8B5E3C 40%, transparent 70%);
   animation: heroui-aurora-circle 20s ease-in-out infinite reverse;
 }
 
@@ -103,7 +101,7 @@ body.heroui-main #spotlight-mask {
   pointer-events: none;
   background: radial-gradient(
     700px circle at var(--mx, -9999px) var(--my, -9999px),
-    rgba(99, 102, 241, 0.07),
+    rgba(229, 160, 13, 0.05),
     transparent 50%
   );
 }
@@ -251,7 +249,7 @@ body.heroui-main .dropdown-item:not(.hidden) {
 
 body.heroui-main .dropdown-item:hover,
 body.heroui-main .dropdown-item.active {
-  background: rgba(99, 102, 241, 0.14) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
   color: #fafafa !important;
 }
 
@@ -278,17 +276,24 @@ body.heroui-main #section {
   box-sizing: border-box !important;
 }
 
-/* ── Filter toolbar ───────────────────────────────────────────── */
+/* ── Filter Floating Island ───────────────────────────────────── */
 body.heroui-main .filter-container {
   position: fixed !important;
-  top: 68px !important;
+  top: 16px !important;
   right: 20px !important;
   z-index: 50 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  background: none !important;
-  padding: 0 !important;
+  gap: 4px !important;
+  background: rgba(9, 9, 11, 0.82) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 999px !important;
+  padding: 5px 8px !important;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.5) !important;
   margin: 0 !important;
 }
 
@@ -308,61 +313,93 @@ body.heroui-main .card-controls .filter-container {
 
 body.heroui-main .filter-button,
 body.heroui-main .search-button {
-  width: 38px !important;
-  height: 38px !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 10px !important;
-  background: rgba(9, 9, 11, 0.7) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  width: 34px !important;
+  height: 34px !important;
+  border: none !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   color: rgba(250, 250, 250, 0.5) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
-  transition: all 0.15s !important;
+  transition: background 0.15s, color 0.15s !important;
   padding: 0 !important;
   font-size: unset !important;
   font-weight: unset !important;
   font-family: unset !important;
   margin: 0 !important;
+  position: relative !important;
 }
 
 body.heroui-main .filter-button:hover,
 body.heroui-main .search-button:hover {
-  background: rgba(99, 102, 241, 0.15) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
-  color: #fafafa !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: transparent !important;
+  color: rgba(250, 250, 250, 0.9) !important;
   transform: none !important;
 }
 
 body.heroui-main .filter-button svg,
-body.heroui-main .search-button svg {
+body.heroui-main .search-button svg,
+body.heroui-main .grid-view-button svg {
   width: 16px !important;
   height: 16px !important;
 }
 
+/* Active count badge on filter island */
+body.heroui-main .filter-count-badge {
+  position: absolute !important;
+  top: 1px !important;
+  right: 1px !important;
+  min-width: 15px !important;
+  height: 15px !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
+  border-radius: 999px !important;
+  font-family: 'Geist Mono', monospace !important;
+  font-size: 0.55rem !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 3px !important;
+  opacity: 0 !important;
+  transform: scale(0.4) !important;
+  transition: opacity 0.15s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  pointer-events: none !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+}
+
+body.heroui-main .filter-count-badge.active {
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
 body.heroui-main .grid-view-button {
-  width: 38px !important;
-  height: 38px !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 10px !important;
-  background: rgba(9, 9, 11, 0.7) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  width: 34px !important;
+  height: 34px !important;
+  border: none !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   color: rgba(250, 250, 250, 0.5) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: all 0.15s !important;
+  transition: background 0.15s, color 0.15s !important;
   text-decoration: none !important;
   flex-shrink: 0 !important;
 }
 
 body.heroui-main .grid-view-button:hover {
-  background: rgba(99, 102, 241, 0.15) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
-  color: #fafafa !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: transparent !important;
+  color: rgba(250, 250, 250, 0.9) !important;
 }
 
 body.heroui-main .collection-button:not(.hidden) {
@@ -426,8 +463,24 @@ body.heroui-main .filter-dropdown {
   z-index: 201 !important;
 }
 
+body.heroui-main .filter-dropdown {
+  transform-origin: top right !important;
+}
+
 body.heroui-main .filter-dropdown.show {
   display: block !important;
+  animation: heroui-dropdown-spring 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+}
+
+@keyframes heroui-dropdown-spring {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 body.heroui-main .filter-dropdown::before {
@@ -468,7 +521,7 @@ body.heroui-main .filter-option select[multiple] {
   font-size: 0.83rem !important;
   transition: border-color 0.15s !important;
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(99, 102, 241, 0.35) transparent !important;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent !important;
 }
 
 body.heroui-main .filter-option select[multiple]::-webkit-scrollbar {
@@ -480,7 +533,7 @@ body.heroui-main .filter-option select[multiple]::-webkit-scrollbar-track {
 }
 
 body.heroui-main .filter-option select[multiple]::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
   border-radius: 4px !important;
 }
 
@@ -493,8 +546,8 @@ body.heroui-main .filter-option select[multiple] option {
 }
 
 body.heroui-main .filter-option select[multiple] option:checked {
-  background: rgba(99, 102, 241, 0.22) !important;
-  color: #a5b4fc !important;
+  background: rgba(229, 160, 13, 0.18) !important;
+  color: #E5A00D !important;
 }
 
 body.heroui-main .filter-option select:not([multiple]) {
@@ -517,7 +570,7 @@ body.heroui-main .filter-option select:not([multiple]) {
 
 body.heroui-main .filter-option select:focus {
   outline: none !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 body.heroui-main .heroui-watch-pills {
@@ -549,9 +602,9 @@ body.heroui-main .heroui-watch-pill:hover {
 }
 
 body.heroui-main .heroui-watch-pill.active {
-  background: rgba(99, 102, 241, 0.2) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
-  color: #a5b4fc !important;
+  background: rgba(229, 160, 13, 0.15) !important;
+  border-color: rgba(229, 160, 13, 0.4) !important;
+  color: #E5A00D !important;
   font-weight: 600 !important;
 }
 
@@ -581,14 +634,14 @@ body.heroui-main #clearFilter {
 
 body.heroui-main #applyFilter {
   margin-bottom: 8px !important;
-  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+  background: #E5A00D !important;
   border: none !important;
-  color: #fff !important;
+  color: #09090b !important;
 }
 
 body.heroui-main #applyFilter:hover {
-  filter: brightness(1.12) !important;
-  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.45) !important;
+  filter: brightness(1.1) !important;
+  box-shadow: 0 4px 18px rgba(229, 160, 13, 0.4) !important;
   transform: translateY(-1px) !important;
 }
 
@@ -626,7 +679,7 @@ body.heroui-main .search-modal-content {
   max-height: calc(100vh - 80px) !important;
   overflow-y: auto !important;
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(99, 102, 241, 0.3) transparent !important;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent !important;
 }
 
 body.heroui-main .search-modal-close {
@@ -658,7 +711,7 @@ body.heroui-main .search-modal-close:hover {
 body.heroui-main .search-modal-content::-webkit-scrollbar { width: 4px !important; }
 body.heroui-main .search-modal-content::-webkit-scrollbar-track { background: transparent !important; }
 body.heroui-main .search-modal-content::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
   border-radius: 4px !important;
 }
 
@@ -676,8 +729,8 @@ body.heroui-main .search-modal-input {
 
 body.heroui-main .search-modal-input:focus {
   outline: none !important;
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(229, 160, 13, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12) !important;
 }
 
 body.heroui-main .search-modal-input::placeholder {
@@ -712,9 +765,9 @@ body.heroui-main #search_results .movie-card {
 
 body.heroui-main #search_results .movie-card:hover {
   background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(99, 102, 241, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
   transform: translateY(-4px) !important;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
 body.heroui-main #search_results .movie-poster-link {
@@ -782,8 +835,8 @@ body.heroui-main #search_results .movie-poster-link:hover .movie-card-hover {
 }
 
 body.heroui-main #search_results .watch-button {
-  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
-  color: #fff !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
   border: none !important;
   padding: 0.55rem 1.4rem !important;
   border-radius: 0.5rem !important;
@@ -794,7 +847,7 @@ body.heroui-main #search_results .watch-button {
 }
 
 body.heroui-main #search_results .watch-button:hover {
-  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+  background: #F8D68B !important;
   transform: scale(1.06) !important;
 }
 
@@ -823,7 +876,7 @@ body.heroui-main #search_results .no-results {
 }
 
 body.heroui-main #search_results .no-results div:first-child {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.7) !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
   margin-bottom: 8px !important;
@@ -848,10 +901,10 @@ body.heroui-main #btn_get_movie.button.large-button {
   border: none !important;
   border-radius: 16px !important;
   cursor: pointer !important;
-  color: white !important;
-  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%) !important;
+  color: #09090b !important;
+  background: #E5A00D !important;
   background-size: 200% 100% !important;
-  box-shadow: 0 0 40px rgba(99, 102, 241, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 0 20px rgba(229, 160, 13, 0.3), 0 8px 32px rgba(0, 0, 0, 0.5) !important;
   transition: transform 0.2s cubic-bezier(0.4,0,0.2,1),
               box-shadow 0.2s cubic-bezier(0.4,0,0.2,1) !important;
   margin: 0 !important;
@@ -889,7 +942,7 @@ body.heroui-main #btn_get_movie.button:hover::after {
 
 body.heroui-main #btn_get_movie.button:hover {
   transform: translateY(-3px) !important;
-  box-shadow: 0 0 60px rgba(99, 102, 241, 0.55), 0 16px 50px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 0 40px rgba(229, 160, 13, 0.45), 0 16px 50px rgba(0, 0, 0, 0.6) !important;
 }
 
 body.heroui-main #btn_get_movie.button:active {
@@ -913,7 +966,7 @@ body.heroui-main .movie-hero-card {
   z-index: 5;
   background: radial-gradient(
     600px circle at var(--card-mx, -9999px) var(--card-my, -9999px),
-    rgba(99, 102, 241, 0.08),
+    rgba(229, 160, 13, 0.06),
     transparent 55%
   ), rgba(255, 255, 255, 0.028);
   backdrop-filter: blur(28px);
@@ -944,16 +997,18 @@ body.heroui-main .poster-col .movie_poster {
   position: relative !important;
   border-radius: 16px !important;
   overflow: hidden !important;
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: #0C0D0F !important;
   aspect-ratio: 2/3;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 30px 80px rgba(0, 0, 0, 0.8),
-    0 0 50px rgba(99, 102, 241, 0.18) !important;
+    inset 0 0 0 5px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 30px 80px rgba(0, 0, 0, 0.8) !important;
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
   z-index: auto !important;
 }
+
 
 body.heroui-main .movie_poster > img,
 body.heroui-main #poster_img {
@@ -980,10 +1035,11 @@ body.heroui-main .movie_details {
 }
 
 body.heroui-main .movie_details #title {
-  font-size: 2rem !important;
-  font-weight: 800 !important;
+  font-family: 'Instrument Serif', serif !important;
+  font-size: 2.2rem !important;
+  font-weight: 400 !important;
   line-height: 1.15 !important;
-  letter-spacing: -0.025em !important;
+  letter-spacing: 0em !important;
   background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
@@ -1009,10 +1065,11 @@ body.heroui-main .movie_details #genres {
 }
 
 body.heroui-main .movie_details #year_duration {
-  font-size: 0.825rem !important;
-  font-weight: 500 !important;
+  font-family: 'Geist Mono', monospace !important;
+  font-size: 0.75rem !important;
+  font-weight: 400 !important;
   color: rgba(250, 250, 250, 0.4) !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
 }
 
@@ -1119,7 +1176,7 @@ body.heroui-main .clickable-person {
 }
 
 body.heroui-main .clickable-person:hover {
-  color: #818cf8;
+  color: #fafafa;
 }
 
 body.heroui-main .more-actors,
@@ -1191,12 +1248,12 @@ body.heroui-main .button_container .button {
 }
 
 body.heroui-main #btn_watch.button {
-  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%) !important;
-  color: white !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
   flex: 1 !important;
   min-width: 0 !important;
   padding: 0 10px !important;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35) !important;
+  box-shadow: 0 4px 20px rgba(229, 160, 13, 0.25) !important;
 }
 
 body.heroui-main #btn_watch.button::after {
@@ -1214,7 +1271,7 @@ body.heroui-main #btn_watch.button:hover::after {
 
 body.heroui-main #btn_watch.button:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 8px 28px rgba(99, 102, 241, 0.5) !important;
+  box-shadow: 0 8px 28px rgba(229, 160, 13, 0.4) !important;
 }
 
 /* Icon buttons (NEXT, POWER) */
@@ -1230,11 +1287,29 @@ body.heroui-main #btn_power.button {
 
 body.heroui-main #btn_next_movie.button:hover,
 body.heroui-main #btn_power.button:hover {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
   color: #fafafa !important;
   transform: translateY(-2px) !important;
+}
+
+body.heroui-main #btn_next_movie.button:hover {
   box-shadow: none !important;
+}
+
+body.heroui-main #btn_power.button:hover {
+  box-shadow: none !important;
+}
+
+body.heroui-main #btn_next_movie.button svg,
+body.heroui-main #btn_power.button svg {
+  transition: transform 0.3s ease;
+}
+
+body.heroui-main #btn_next_movie.button:hover svg,
+body.heroui-main #btn_power.button:hover svg {
+  transform: rotate(360deg);
+  transition: transform 0.6s ease;
 }
 
 body.heroui-main #switch_service.button {
@@ -1250,11 +1325,17 @@ body.heroui-main #switch_service.button {
 body.heroui-main #switch_service .service-logo {
   width: 22px !important;
   height: 22px !important;
+  transition: transform 0.3s ease;
+}
+
+body.heroui-main #switch_service.button:hover .service-logo {
+  transform: rotate(360deg);
+  transition: transform 0.6s ease;
 }
 
 body.heroui-main #switch_service.button:hover {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
   color: #fafafa !important;
   transform: translateY(-2px) !important;
   box-shadow: none !important;
@@ -1305,7 +1386,7 @@ body.heroui-main #loading-bar-container {
 
 body.heroui-main #loading-progress {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #06b6d4, #6366f1);
+  background: linear-gradient(90deg, #E5A00D, #F8D68B, #E5A00D);
   background-size: 200% 100%;
   border-radius: 99px;
   animation: heroui-progress-shimmer 1.5s linear infinite;
@@ -1337,7 +1418,7 @@ body.heroui-main #container_list_of_devices {
 body.heroui-main .client,
 body.heroui-main .device {
   background: transparent !important;
-  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 10px !important;
   padding: 12px 16px !important;
   text-transform: none !important;
@@ -1349,10 +1430,10 @@ body.heroui-main .device {
 
 body.heroui-main .client:hover,
 body.heroui-main .device:hover {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.5) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
   transform: translateX(4px) !important;
-  color: #a5b4fc !important;
+  color: #fafafa !important;
 }
 
 body.heroui-main .no-clients-message {
@@ -1418,7 +1499,7 @@ body.heroui-main .heroui-collection-label {
   font-size: 0.6rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.2em !important;
-  color: rgba(99, 102, 241, 0.75) !important;
+  color: rgba(229, 160, 13, 0.85) !important;
   margin-bottom: 7px !important;
   text-transform: uppercase !important;
 }
@@ -1488,7 +1569,7 @@ body.heroui-main #collection_modal .movie-title-link {
 }
 
 body.heroui-main #collection_modal .movie-title-link:hover {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.9) !important;
 }
 
 body.heroui-main #collection_modal .movie-title {
@@ -1521,8 +1602,8 @@ body.heroui-main #collection_modal .status-in-library {
 }
 
 body.heroui-main #collection_modal .status-requested {
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: #a5b4fc !important;
+  background: rgba(229, 160, 13, 0.12) !important;
+  color: #F8D68B !important;
 }
 
 body.heroui-main #collection_modal .status-not-in-library {
@@ -1537,7 +1618,7 @@ body.heroui-main #collection_modal .movie-item .status-watched {
 }
 
 body.heroui-main #collection_modal .request-icon {
-  fill: #818cf8 !important;
+  fill: #E5A00D !important;
   width: 15px !important;
   height: 15px !important;
   cursor: pointer !important;
@@ -1576,25 +1657,25 @@ body.heroui-main #collection_modal .action-button {
 }
 
 body.heroui-main #collection_modal .action-button.watch-button {
-  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
-  color: #fff !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
   border: none !important;
 }
 
 body.heroui-main #collection_modal .action-button.watch-button:hover {
-  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+  background: #F8D68B !important;
 }
 
 body.heroui-main #collection_modal .action-button.request-button {
   background: transparent !important;
-  color: #a5b4fc !important;
-  border: 1px solid rgba(99, 102, 241, 0.45) !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
 body.heroui-main #collection_modal .action-button.request-button:hover:not(:disabled) {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.65) !important;
-  color: #c7d2fe !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #fafafa !important;
   transform: translateY(-1px) !important;
 }
 
@@ -1689,6 +1770,19 @@ body.heroui-main .close-button:hover {
 }
 
 @media (max-width: 768px) {
+  body.heroui-main #btn_next_movie.button svg,
+  body.heroui-main #btn_power.button svg,
+  body.heroui-main #switch_service.button .service-logo {
+    transition: none !important;
+  }
+
+  body.heroui-main #btn_next_movie.button:hover svg,
+  body.heroui-main #btn_power.button:hover svg,
+  body.heroui-main #switch_service.button:hover .service-logo {
+    transform: none !important;
+    transition: none !important;
+  }
+
   body.heroui-main .close-button svg {
     width: 20px !important;
     height: 20px !important;
@@ -1852,6 +1946,7 @@ body.heroui-main #movie-logo-container {
     text-overflow: unset !important;
   }
 
+
   body.heroui-main #movieContent {
     padding: 0 !important;
     width: 100% !important;
@@ -1871,7 +1966,7 @@ body.heroui-main #movie-logo-container {
     justify-content: center !important;
     align-items: center !important;
     width: 100% !important;
-    padding: 6px 14px 10px !important;
+    padding: 6px 0 10px !important;
     gap: 0 !important;
   }
 
@@ -1964,6 +2059,12 @@ body.heroui-main #movie-logo-container {
 
   body.heroui-main .filter-dropdown.show {
     display: block !important;
+    animation: heroui-filter-sheet-up 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+  }
+
+  @keyframes heroui-filter-sheet-up {
+    from { transform: translateY(100%); opacity: 1; }
+    to   { transform: translateY(0);    opacity: 1; }
   }
 
   body.heroui-main .filter-backdrop {
@@ -2035,7 +2136,7 @@ html.heroui-pwa body.heroui-main main {
 }
 
 html.heroui-pwa body.heroui-main #section {
-  padding-top: calc(50px + env(safe-area-inset-top)) !important;
+  padding-top: max(60px, calc(50px + env(safe-area-inset-top))) !important;
   margin-top: 0 !important;
 }
 
@@ -2043,9 +2144,6 @@ html.heroui-pwa body.heroui-main #movieContent {
   margin-top: 0 !important;
 }
 
-html.heroui-pwa body.heroui-main .filter-container {
-  top: calc(50px + env(safe-area-inset-top)) !important;
-}
 
 /* ── Cast / Directors / Writers dialog ─────────────────────────── */
 body.heroui-main .cast-dialog {
@@ -2100,7 +2198,7 @@ body.heroui-main .cast-dialog-content {
     0 0 0 0.5px rgba(255, 255, 255, 0.04),
     0 40px 100px rgba(0, 0, 0, 0.88) !important;
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(99, 102, 241, 0.35) transparent !important;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent !important;
 }
 
 body.heroui-main .cast-dialog-content::-webkit-scrollbar {
@@ -2112,12 +2210,12 @@ body.heroui-main .cast-dialog-content::-webkit-scrollbar-track {
 }
 
 body.heroui-main .cast-dialog-content::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
   border-radius: 4px !important;
 }
 
 body.heroui-main .cast-dialog-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.55) !important;
+  background: rgba(255, 255, 255, 0.25) !important;
 }
 
 body.heroui-main .cast-dialog-header {
@@ -2143,8 +2241,8 @@ body.heroui-main .cast-count {
   height: 22px !important;
   padding: 0 7px !important;
   border-radius: 99px !important;
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: #a5b4fc !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(250, 250, 250, 0.55) !important;
   font-size: 0.7rem !important;
   font-weight: 600 !important;
   letter-spacing: 0.02em !important;
@@ -2164,8 +2262,8 @@ body.heroui-main .cast-search {
 
 body.heroui-main .cast-search:focus {
   outline: none !important;
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18) !important;
+  border-color: rgba(229, 160, 13, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12) !important;
 }
 
 body.heroui-main .cast-search::placeholder {
@@ -2186,8 +2284,8 @@ body.heroui-main .cast-item {
 }
 
 body.heroui-main .cast-item:hover {
-  background: rgba(99, 102, 241, 0.07) !important;
-  border-color: rgba(99, 102, 241, 0.22) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
 }
@@ -2195,13 +2293,13 @@ body.heroui-main .cast-item:hover {
 body.heroui-main .actor-image {
   width: 52px !important;
   height: 52px !important;
-  border: 2px solid rgba(99, 102, 241, 0.25) !important;
+  border: 2px solid rgba(255, 255, 255, 0.08) !important;
   transition: border-color 0.2s, box-shadow 0.2s !important;
 }
 
 body.heroui-main .cast-item:hover .actor-image {
-  border-color: rgba(99, 102, 241, 0.55) !important;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3) !important;
 }
 
 body.heroui-main .actor-name {
@@ -2211,7 +2309,7 @@ body.heroui-main .actor-name {
 }
 
 body.heroui-main .cast-item:hover .actor-name {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.9) !important;
 }
 
 body.heroui-main .actor-character {
@@ -2252,7 +2350,7 @@ body.heroui-main .heroui-loading-dots span {
   width: 8px !important;
   height: 8px !important;
   border-radius: 50% !important;
-  background: #6366f1 !important;
+  background: #E5A00D !important;
   animation: heroui-dot-pulse 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
 }
 
@@ -2272,7 +2370,7 @@ body.heroui-main .heroui-loading-dots span:nth-child(3) {
   40% {
     opacity: 1;
     transform: scale(1.1);
-    box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 12px rgba(229, 160, 13, 0.5);
   }
 }
 
@@ -2280,11 +2378,11 @@ body.heroui-main .progress-ring {
   width: 56px !important;
   height: 56px !important;
   margin: 16px auto !important;
-  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.3)) !important;
+  filter: drop-shadow(0 0 6px rgba(229, 160, 13, 0.3)) !important;
 }
 
 body.heroui-main .progress-ring circle {
-  stroke: #6366f1 !important;
+  stroke: #E5A00D !important;
   stroke-width: 3 !important;
 }
 
@@ -2390,12 +2488,12 @@ body.heroui-main #movies_overlay_content::-webkit-scrollbar-track {
 }
 
 body.heroui-main #movies_overlay_content::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
   border-radius: 4px !important;
 }
 
 body.heroui-main #movies_overlay_content::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.55) !important;
+  background: rgba(255, 255, 255, 0.25) !important;
 }
 
 body.heroui-main #person_header {
@@ -2417,7 +2515,7 @@ body.heroui-main #person_header h2 {
 body.heroui-main .person-image-link .person-image,
 body.heroui-main #person_header img,
 body.heroui-main #person_header > a > svg.person-image {
-  border-color: rgba(99, 102, 241, 0.55) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
   border-radius: 50% !important;
   transition: border-color 0.2s, box-shadow 0.2s !important;
 }
@@ -2446,16 +2544,16 @@ body.heroui-main .person-header-info h2 {
 }
 
 body.heroui-main .person-image-link:hover .person-image {
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.35) !important;
+  border-color: rgba(229, 160, 13, 0.5) !important;
+  box-shadow: 0 0 16px rgba(229, 160, 13, 0.2) !important;
 }
 
 body.heroui-main .person-movies-count {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.55) !important;
 }
 
 body.heroui-main .rating-star {
-  color: #818cf8 !important;
+  color: #E5A00D !important;
 }
 
 /* Sort + filter bar */
@@ -2483,9 +2581,9 @@ body.heroui-main .filter-dropdown-button:hover {
 
 body.heroui-main .sort-button.active,
 body.heroui-main .filter-dropdown-button.active {
-  background: rgba(99, 102, 241, 0.18) !important;
-  border-color: rgba(99, 102, 241, 0.5) !important;
-  color: #a5b4fc !important;
+  background: rgba(229, 160, 13, 0.12) !important;
+  border-color: rgba(229, 160, 13, 0.4) !important;
+  color: #E5A00D !important;
 }
 
 /* Search input */
@@ -2498,8 +2596,8 @@ body.heroui-main #movies_overlay .search-input {
 
 body.heroui-main #movies_overlay .search-input:focus {
   outline: none !important;
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(229, 160, 13, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12) !important;
 }
 
 body.heroui-main #movies_overlay .search-input::placeholder {
@@ -2521,7 +2619,7 @@ body.heroui-main .filter-dropdown-content label {
 }
 
 body.heroui-main .filter-dropdown-content label:hover {
-  background: rgba(99, 102, 241, 0.08) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
   color: #fafafa !important;
 }
 
@@ -2534,8 +2632,8 @@ body.heroui-main #movies_overlay .movie-card {
 }
 
 body.heroui-main #movies_overlay .movie-card:hover {
-  border-color: rgba(99, 102, 241, 0.35) !important;
-  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25) !important;
   transform: translateY(-2px) !important;
 }
 
@@ -2544,7 +2642,7 @@ body.heroui-main #movies_overlay .movie-card .movie-title {
 }
 
 body.heroui-main #movies_overlay .movie-card:hover .movie-title {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.9) !important;
 }
 
 body.heroui-main #movies_overlay .movie-card .movie-character {
@@ -2553,8 +2651,8 @@ body.heroui-main #movies_overlay .movie-card .movie-character {
 
 /* Request / Watch button */
 body.heroui-main #movies_overlay .request-button.watch-button {
-  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
-  color: #fff !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
   border: none !important;
   border-radius: 8px !important;
   font-weight: 500 !important;
@@ -2562,22 +2660,22 @@ body.heroui-main #movies_overlay .request-button.watch-button {
 }
 
 body.heroui-main #movies_overlay .request-button.watch-button:hover {
-  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+  background: #F8D68B !important;
 }
 
 body.heroui-main #movies_overlay .request-button:not(.watch-button):not(:disabled) {
   background: rgba(10, 10, 20, 0.72) !important;
-  color: #a5b4fc !important;
-  border: 1px solid rgba(99, 102, 241, 0.55) !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 8px !important;
   font-weight: 500 !important;
   transition: all 0.2s !important;
 }
 
 body.heroui-main #movies_overlay .request-button:not(.watch-button):not(:disabled):hover {
-  background: rgba(99, 102, 241, 0.25) !important;
-  border-color: rgba(99, 102, 241, 0.75) !important;
-  color: #c7d2fe !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #fafafa !important;
 }
 
 body.heroui-main #movies_overlay .request-button:disabled,
@@ -2620,7 +2718,7 @@ body.heroui-main .md-meta {
 body.heroui-main .md-rating-badge {
   background: rgba(255, 255, 255, 0.06) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.7) !important;
 }
 
 body.heroui-main .md-rating-service {
@@ -2629,9 +2727,9 @@ body.heroui-main .md-rating-service {
 }
 
 body.heroui-main .md-genre-pill {
-  background: rgba(99, 102, 241, 0.1) !important;
-  color: #a5b4fc !important;
-  border-color: rgba(99, 102, 241, 0.25) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(250, 250, 250, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 body.heroui-main .md-credit {
@@ -2639,7 +2737,7 @@ body.heroui-main .md-credit {
 }
 
 body.heroui-main .md-credit-label {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.55) !important;
 }
 
 body.heroui-main .md-description {
@@ -2647,25 +2745,25 @@ body.heroui-main .md-description {
 }
 
 body.heroui-main #watch_movie_button.md-action-btn {
-  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
-  color: #fff !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
   border: none !important;
 }
 
 body.heroui-main #watch_movie_button.md-action-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+  background: #F8D68B !important;
 }
 
 body.heroui-main .md-action-btn {
   background: transparent !important;
-  color: #a5b4fc !important;
-  border: 1px solid rgba(99, 102, 241, 0.45) !important;
+  color: rgba(250, 250, 250, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
 body.heroui-main .md-action-btn:hover:not(:disabled) {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.65) !important;
-  color: #c7d2fe !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #fafafa !important;
 }
 
 body.heroui-main .md-action-btn:disabled {
@@ -2680,8 +2778,8 @@ body.heroui-main .md-link-btn {
 }
 
 body.heroui-main .md-link-btn:hover {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.3) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 body.heroui-main #trailer_container {
@@ -2894,8 +2992,8 @@ body.heroui-main .nw-progress-fill {
   height: 100%;
   border-radius: 99px;
   width: 0%;
-  background: linear-gradient(90deg, #6366f1, #7c3aed);
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+  background: #E5A00D;
+  box-shadow: 0 0 8px rgba(229, 160, 13, 0.4);
   transition: width 1s linear;
 }
 
@@ -2954,13 +3052,13 @@ body.heroui-main .no-movies-icon {
   width: 56px;
   height: 56px;
   margin: 0 auto 20px;
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #818cf8;
+  color: rgba(250, 250, 250, 0.45);
 }
 
 body.heroui-main .no-movies-icon svg {
@@ -2987,8 +3085,8 @@ body.heroui-main .error-message p {
 
 body.heroui-main .no-movies-message button,
 body.heroui-main .error-message button {
-  background: #6366f1 !important;
-  color: #fff !important;
+  background: #E5A00D !important;
+  color: #09090b !important;
   border: none !important;
   padding: 11px 28px !important;
   font-size: 0.875rem !important;
@@ -3003,7 +3101,7 @@ body.heroui-main .error-message button {
 
 body.heroui-main .no-movies-message button:hover,
 body.heroui-main .error-message button:hover {
-  background: #818cf8 !important;
+  background: #F8D68B !important;
   transform: translateY(-1px) !important;
 }
 

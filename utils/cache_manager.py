@@ -266,6 +266,11 @@ class CacheManager:
 
             self.socketio.emit('loading_complete', namespace='/')
 
+            from utils.enrichment_cache import enrichment_cache
+            with self._cache_lock:
+                movies_snapshot = list(self._movies_memory_cache)
+            enrichment_cache.build_for_movies(movies_snapshot)
+
         except Exception as e:
             logger.error(f"Error building cache: {e}")
             self.socketio.emit('loading_progress', {
@@ -419,6 +424,11 @@ class CacheManager:
             logger.info(f"Completed user cache build for {username}: {len(unwatched_movies)} unwatched of {len(processed_movies)} total")
 
             self.socketio.emit('loading_complete', namespace='/')
+
+            from utils.enrichment_cache import enrichment_cache
+            with self._cache_lock:
+                movies_snapshot = list(self._movies_memory_cache)
+            enrichment_cache.build_for_movies(movies_snapshot)
 
         except Exception as e:
             logger.error(f"Error rebuilding user cache for {username}: {e}")
@@ -639,6 +649,8 @@ class CacheManager:
                         if movies_added:
                             logger.info(f"[{self.username or 'global'}] Calling _save_cache_to_disk (after lock release)...")
                             self._save_cache_to_disk()
+                            from utils.enrichment_cache import enrichment_cache
+                            enrichment_cache.build_for_movies(movies_to_add)
 
             else:
                  logger.info(f"No changes detected in unwatched status for {self.username or 'global'}.")

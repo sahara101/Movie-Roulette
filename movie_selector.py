@@ -30,6 +30,31 @@ from utils.cache_manager import CacheManager
 from utils.youtube_trailer import search_youtube_trailer
 from utils.appletv_discovery import scan_for_appletv, pair_appletv, submit_pin, clear_pairing, ROOT_CONFIG_PATH, turn_on_apple_tv, fix_config_format, check_credentials
 from utils.tmdb_service import tmdb_service
+from utils.enrichment_cache import enrichment_cache
+
+_seen_sessions: dict = {}
+_seen_sessions_lock = threading.Lock()
+
+
+def _get_seen_ids(session_key):
+    if not session_key:
+        return set()
+    with _seen_sessions_lock:
+        return set(_seen_sessions.get(session_key, set()))
+
+
+def _add_seen_id(session_key, movie_id):
+    if not session_key or not movie_id:
+        return
+    with _seen_sessions_lock:
+        _seen_sessions.setdefault(session_key, set()).add(str(movie_id))
+
+
+def _reset_seen(session_key):
+    if not session_key:
+        return
+    with _seen_sessions_lock:
+        _seen_sessions.pop(session_key, None)
 from routes.trakt_routes import trakt_bp
 from utils.emby_service import EmbyService
 from utils.jellyfin_service import JellyfinService 
@@ -259,8 +284,12 @@ def initialize_services():
             if not first_service_initialized:
                 logger.info("Plex is the first service, associating with global cache manager.")
                 if global_cache_manager:
-                    global_cache_manager.plex_service = plex 
+                    global_cache_manager.plex_service = plex
                     global_cache_manager.start()
+                    with global_cache_manager._cache_lock:
+                        movies_snapshot = list(global_cache_manager._movies_memory_cache)
+                    if movies_snapshot:
+                        enrichment_cache.build_for_movies(movies_snapshot)
                 else:
                     logger.error("Cannot associate Plex with global_cache_manager as it's None.")
                 first_service_initialized = True
@@ -291,6 +320,16 @@ def initialize_services():
             JELLYFIN_AVAILABLE = True
             logger.info("Jellyfin service initialized successfully")
 
+            if os.path.exists(jellyfin.cache_path):
+                try:
+                    with open(jellyfin.cache_path) as f:
+                        cached_jellyfin = json.load(f)
+                    movies_for_enrichment = [m for m in cached_jellyfin if m.get('tmdb_id')]
+                    if movies_for_enrichment:
+                        enrichment_cache.build_for_movies(movies_for_enrichment)
+                except Exception as e:
+                    logger.error(f"Error loading Jellyfin cache for enrichment: {e}")
+
             if not first_service_initialized:
                 logger.info("Jellyfin is the first service, associating with global cache manager.")
                 if global_cache_manager:
@@ -320,6 +359,16 @@ def initialize_services():
             app.config['EMBY_SERVICE'] = emby
             EMBY_AVAILABLE = True
             logger.info("Emby service initialized successfully")
+
+            if os.path.exists(emby.cache_path):
+                try:
+                    with open(emby.cache_path) as f:
+                        cached_emby = json.load(f)
+                    movies_for_enrichment = [m for m in cached_emby if m.get('tmdb_id')]
+                    if movies_for_enrichment:
+                        enrichment_cache.build_for_movies(movies_for_enrichment)
+                except Exception as e:
+                    logger.error(f"Error loading Emby cache for enrichment: {e}")
 
             if not first_service_initialized:
                 logger.info("Emby is the first service, associating with global cache manager.")
@@ -904,6 +953,30 @@ def enrich_movie_data(movie_data):
 
     return movie_data
 
+def _merge_enrichment(movie_data):
+    """Merge enrichment cache data into a copy of movie_data. Returns new dict."""
+    tmdb_id = movie_data.get('tmdb_id')
+    if not tmdb_id:
+        return movie_data
+
+    enrichment = enrichment_cache.get(tmdb_id)
+    if not enrichment:
+        enrichment_cache.enrich_on_demand(tmdb_id, movie_data.get('title', ''), movie_data.get('year', ''))
+        return movie_data
+
+    movie = dict(movie_data)
+    movie['credits'] = enrichment.get('credits')
+    movie['tmdb_url'] = enrichment.get('tmdb_url') or movie.get('tmdb_url')
+    movie['trakt_url'] = enrichment.get('trakt_url') or movie.get('trakt_url')
+    movie['imdb_url'] = enrichment.get('imdb_url') or movie.get('imdb_url')
+    movie['trailer_url'] = enrichment.get('trailer_url')
+    if ENABLE_MOVIE_LOGOS:
+        movie['logo_url'] = enrichment.get('logo_url')
+
+    movie['_enriched'] = True
+    return movie
+
+
 def fetch_movie_links_for_overlay(tmdb_id):
     """Get movie links using centralized TMDB service"""
     return tmdb_service.get_movie_links(tmdb_id)
@@ -1321,9 +1394,13 @@ def random_movie():
    current_service = session.get('current_service', get_available_service())
    global all_plex_unwatched_movies, loading_in_progress, movies_loaded_from_cache
    watch_status = request.args.get('watch_status', 'unwatched')
+   session_key = request.args.get('session_key')
+   seen_ids = _get_seen_ids(session_key)
+   pool_reset = False
+   seen_count = 0
 
-   try: 
-       current_plex_service = getattr(g, 'plex_service', plex) 
+   try:
+       current_plex_service = getattr(g, 'plex_service', plex)
 
        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
            if watch_status == 'unwatched':
@@ -1332,18 +1409,41 @@ def random_movie():
                    current_plex_service._initialize_cache()
                    unwatched_movies = current_plex_service._movies_cache
 
-               if loading_in_progress: 
+               if loading_in_progress:
                    return jsonify({"loading_in_progress": True}), 202
                if not unwatched_movies:
                    return jsonify({"error": "No unwatched movies available"}), 404
-               movie_data = random.choice(unwatched_movies)
-           else: 
-               movie_data = current_plex_service.filter_movies(watch_status=watch_status)
+
+               if seen_ids:
+                   unseen = [m for m in unwatched_movies if str(m.get('id', '')) not in seen_ids]
+                   if not unseen:
+                       seen_count = len(seen_ids)
+                       _reset_seen(session_key)
+                       seen_ids = set()
+                       unseen = unwatched_movies
+                       pool_reset = True
+                   movie_data = random.choice(unseen)
+               else:
+                   movie_data = random.choice(unwatched_movies)
+           else:
+               movie_data = current_plex_service.filter_movies(watch_status=watch_status, exclude_ids=seen_ids)
+               if not movie_data and seen_ids:
+                   seen_count = len(seen_ids)
+                   _reset_seen(session_key)
+                   seen_ids = set()
+                   movie_data = current_plex_service.filter_movies(watch_status=watch_status)
+                   pool_reset = bool(movie_data)
                if not movie_data:
                    return jsonify({"error": "No movies available for this status"}), 404
 
        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE:
-           movie_data = jellyfin.filter_movies(watch_status=watch_status)
+           movie_data = jellyfin.filter_movies(watch_status=watch_status, exclude_ids=seen_ids)
+           if not movie_data and seen_ids:
+               seen_count = len(seen_ids)
+               _reset_seen(session_key)
+               seen_ids = set()
+               movie_data = jellyfin.filter_movies(watch_status=watch_status)
+               pool_reset = bool(movie_data)
        elif current_service == 'emby' and EMBY_AVAILABLE:
            emby_instance = None 
            movie_data = None 
@@ -1381,30 +1481,32 @@ def random_movie():
                    except Exception as e: 
                        logger.error(f"Failed to create EmbyService instance for admin from settings: {e}") 
 
-           if emby_instance: 
-               if hasattr(emby_instance, 'get_random_movie'): 
-                    movie_data = emby_instance.get_random_movie() 
-               elif hasattr(emby_instance, 'filter_movies'): 
-                    movie_data = emby_instance.filter_movies(watch_status=watch_status) 
-               else: 
-                    logger.error("EmbyService instance has neither get_random_movie nor filter_movies method.") 
-           else: 
-               logger.error("Could not get random movie: Failed to get Emby service instance for user/admin.") 
-       else: 
-           return jsonify({"error": "No available media service"}), 400 
- 
-       if movie_data: 
-           if 'tmdb_id' not in movie_data: 
-                 logger.warning(f"tmdb_id missing for movie {movie_data.get('title')}. Enrichment skipped.") 
-                 pass 
-           return jsonify({ 
+           if emby_instance:
+               movie_data = emby_instance.filter_movies(watch_status=watch_status, exclude_ids=seen_ids)
+               if not movie_data and seen_ids:
+                   seen_count = len(seen_ids)
+                   _reset_seen(session_key)
+                   seen_ids = set()
+                   movie_data = emby_instance.filter_movies(watch_status=watch_status)
+                   pool_reset = bool(movie_data)
+           else:
+               logger.error("Could not get random movie: Failed to get Emby service instance for user/admin.")
+       else:
+           return jsonify({"error": "No available media service"}), 400
+
+       if movie_data:
+           _add_seen_id(session_key, movie_data.get('id'))
+           movie_data = _merge_enrichment(movie_data)
+           return jsonify({
                "service": current_service,
-               "movie": movie_data, 
+               "movie": movie_data,
                "cache_loaded": movies_loaded_from_cache,
                "loading_in_progress": loading_in_progress,
-               "skip_cache_rebuild": True
+               "skip_cache_rebuild": True,
+               "pool_reset": pool_reset,
+               "seen_count": seen_count
            })
-       else: 
+       else:
            return jsonify({"error": "No movie found"}), 404 
    except Exception as e: 
        logger.error(f"Error in random_movie: {str(e)}", exc_info=True) 
@@ -1418,14 +1520,30 @@ def next_movie():
    years = request.args.get('years', '').split(',') if request.args.get('years') else None
    pg_ratings = request.args.get('pg_ratings', '').split(',') if request.args.get('pg_ratings') else None
    watch_status = request.args.get('watch_status', 'unwatched')
+   session_key = request.args.get('session_key')
+   seen_ids = _get_seen_ids(session_key)
+   pool_reset = False
+   seen_count = 0
 
-   try: 
+   try:
        service_instance = g.media_service
 
        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
-           movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status)
+           movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status, exclude_ids=seen_ids)
+           if not movie_data and seen_ids:
+               seen_count = len(seen_ids)
+               _reset_seen(session_key)
+               seen_ids = set()
+               movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status)
+               pool_reset = bool(movie_data)
        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
-           movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status) 
+           movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status, exclude_ids=seen_ids)
+           if not movie_data and seen_ids:
+               seen_count = len(seen_ids)
+               _reset_seen(session_key)
+               seen_ids = set()
+               movie_data = service_instance.filter_movies(genres, years, pg_ratings, watch_status)
+               pool_reset = bool(movie_data) 
        elif current_service == 'emby' and EMBY_AVAILABLE:
            emby_instance = None 
            movie_data = None 
@@ -1465,22 +1583,29 @@ def next_movie():
                    except Exception as e: 
                        logger.error(f"Failed to create EmbyService instance for admin from settings (next_movie): {e}") 
 
-           if emby_instance: 
-               movie_data = emby_instance.filter_movies(genres, years, pg_ratings, watch_status) 
-           else: 
-               logger.error("Could not get next movie: Failed to get Emby service instance for user/admin.") 
-       else: 
-           return jsonify({"error": "No available media service"}), 400 
- 
-       if movie_data: 
-           if 'tmdb_id' not in movie_data: 
-                logger.warning(f"tmdb_id missing for movie {movie_data.get('title')} in next_movie. Enrichment skipped.") 
-                pass 
-           return jsonify({ 
+           if emby_instance:
+               movie_data = emby_instance.filter_movies(genres, years, pg_ratings, watch_status, exclude_ids=seen_ids)
+               if not movie_data and seen_ids:
+                   seen_count = len(seen_ids)
+                   _reset_seen(session_key)
+                   seen_ids = set()
+                   movie_data = emby_instance.filter_movies(genres, years, pg_ratings, watch_status)
+                   pool_reset = bool(movie_data)
+           else:
+               logger.error("Could not get next movie: Failed to get Emby service instance for user/admin.")
+       else:
+           return jsonify({"error": "No available media service"}), 400
+
+       if movie_data:
+           _add_seen_id(session_key, movie_data.get('id'))
+           movie_data = _merge_enrichment(movie_data)
+           return jsonify({
                "service": current_service,
-               "movie": movie_data 
+               "movie": movie_data,
+               "pool_reset": pool_reset,
+               "seen_count": seen_count
            })
-       else: 
+       else:
            return jsonify({"error": "No movies found matching the criteria"}), 204 
    except Exception as e: 
        logger.error(f"Error in next_movie: {str(e)}") 
@@ -1494,9 +1619,10 @@ def filter_movies():
    years = request.args.get('years', '').split(',') if request.args.get('years') else None
    pg_ratings = request.args.get('pg_ratings', '').split(',') if request.args.get('pg_ratings') else None
    watch_status = request.args.get('watch_status', 'unwatched')
+   session_key = request.args.get('session_key')
 
-   try: 
-       current_plex_service = getattr(g, 'plex_service', plex) 
+   try:
+       current_plex_service = getattr(g, 'plex_service', plex)
 
        if current_service == 'plex' and PLEX_AVAILABLE and current_plex_service:
            movie_data = current_plex_service.filter_movies(genres, years, pg_ratings, watch_status)
@@ -1547,18 +1673,17 @@ def filter_movies():
        else: 
            return jsonify({"error": "No available media service"}), 400 
  
-       if movie_data: 
-           if 'tmdb_id' not in movie_data: 
-                logger.warning(f"tmdb_id missing for movie {movie_data.get('title')} in filter_movies. Enrichment skipped.") 
-                pass 
-           return jsonify({ 
+       if movie_data:
+           _add_seen_id(session_key, movie_data.get('id'))
+           movie_data = _merge_enrichment(movie_data)
+           return jsonify({
                "service": current_service,
-               "movie": movie_data 
+               "movie": movie_data
            })
-       else: 
-           return jsonify({"error": "No movies found matching the filter"}), 204 
-   except Exception as e: 
-       logger.error(f"Error in filter_movies: {str(e)}") 
+       else:
+           return jsonify({"error": "No movies found matching the filter"}), 204
+   except Exception as e:
+       logger.error(f"Error in filter_movies: {str(e)}")
        return jsonify({"error": str(e)}), 500 
 
 @app.route('/get_genres')
@@ -1865,8 +1990,43 @@ def clients():
         logger.error(f"Error in clients: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/web_client_info')
+@auth_manager.require_auth
+def web_client_info():
+    """Return web UI URL and server identifiers for the current media service."""
+    current_service = session.get('current_service', get_available_service())
+    try:
+        if current_service == 'plex' and PLEX_AVAILABLE and plex:
+            return jsonify({
+                'service': 'plex',
+                'url': plex.PLEX_URL,
+                'machineId': plex.plex.machineIdentifier
+            })
+        if current_service == 'jellyfin' and JELLYFIN_AVAILABLE and jellyfin:
+            return jsonify({
+                'service': 'jellyfin',
+                'url': jellyfin.server_url
+            })
+        if current_service == 'emby' and EMBY_AVAILABLE:
+            emby_url = (emby.server_url if emby else None) or settings.get('emby', {}).get('url') or os.getenv('EMBY_URL')
+            emby_api_key = (emby.api_key if emby else None) or settings.get('emby', {}).get('api_key') or os.getenv('EMBY_API_KEY')
+            if not emby_url or not emby_api_key:
+                return jsonify({'error': 'Emby not configured'}), 400
+            resp = requests.get(
+                f'{emby_url}/System/Info',
+                headers={'X-Emby-Token': emby_api_key},
+                timeout=5
+            )
+            resp.raise_for_status()
+            system_id = resp.json().get('Id', '')
+            return jsonify({'service': 'emby', 'url': emby_url, 'systemId': system_id})
+        return jsonify({'error': 'No service available'}), 400
+    except Exception as e:
+        logger.error(f"Error getting web client info: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/play_movie/<client_id>')
-@auth_manager.require_auth 
+@auth_manager.require_auth
 def play_movie(client_id):
     movie_id = request.args.get('movie_id')
     if not movie_id:
@@ -2440,7 +2600,10 @@ def get_emby_id(tmdb_id):
 
         for movie in all_movies:
             if str(movie.get('tmdb_id')) == str(tmdb_id):
-                return jsonify({"embyId": movie['emby_id']})
+                return jsonify({
+                    "embyId": movie['emby_id'],
+                    "embyWebId": movie.get('emby_internal_id') or movie['emby_id']
+                })
 
         return jsonify({"error": "Movie not found in Emby"}), 404
 
@@ -2531,7 +2694,8 @@ def scan_for_appletv_devices():
 def start_appletv_pairing(device_id):
     """Start pairing process with Apple TV"""
     try:
-        result = pair_appletv(device_id)
+        address = request.args.get('address')
+        result = pair_appletv(device_id, address=address)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error starting pairing: {str(e)}")
@@ -2677,6 +2841,15 @@ def test_media_connection():
 
         return jsonify({'ok': False, 'error': f'Unknown service: {service}'}), 400
 
+    except requests.exceptions.ConnectionError as e:
+        err_str = str(e)
+        if any(k in err_str for k in ('Name or service not known', 'getaddrinfo failed', 'nodename nor servname', 'Errno -2', 'Errno 11001')):
+            return jsonify({'ok': False, 'error': 'Cannot resolve hostname. If the URL works in your browser, the Docker container may be using a different DNS — try using an IP address instead.'})
+        return jsonify({'ok': False, 'error': 'Connection refused or unreachable — check the URL and network.'})
+    except requests.exceptions.Timeout:
+        return jsonify({'ok': False, 'error': 'Connection timed out.'})
+    except requests.exceptions.HTTPError as e:
+        return jsonify({'ok': False, 'error': f'Server returned HTTP {e.response.status_code}.'})
     except Exception as e:
         logger.warning(f"Connection test failed for {data.get('service', '?')}: {e}")
         return jsonify({'ok': False, 'error': str(e)})
@@ -3219,6 +3392,18 @@ def movie_details(movie_id):
         logger.error(f"Error getting movie details: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch movie details"}), 500
 
+@app.route('/api/collection_status/<int:tmdb_id>')
+@auth_manager.require_auth
+def collection_status(tmdb_id):
+    """Lightweight endpoint to check collection membership for a given TMDb ID."""
+    try:
+        current_service = session.get('current_service', get_available_service())
+        info = collection_service.check_collection_status(tmdb_id, current_service)
+        return jsonify(info)
+    except Exception as e:
+        logger.error(f"Error getting collection status for tmdb_id={tmdb_id}: {e}")
+        return jsonify({'is_in_collection': False, 'previous_movies': []}), 200
+
 @app.route('/api/movie_external_ids/<person_id>')
 @auth_manager.require_auth
 def get_person_external_ids(person_id):
@@ -3733,9 +3918,15 @@ def schedule_cache_updates():
                     logger.error(f"Scheduler: Error updating global cache: {e}", exc_info=True)
             logger.info("Scheduler job finished.")
 
+    def clear_tmdb_caches():
+        tmdb_service.clear_cache()
+        collection_service.get_collection_info.cache_clear()
+        logger.info("Weekly TMDb lru_cache cleared — collection structures will be re-fetched on next request.")
+
     scheduler = BackgroundScheduler()
     first_run = datetime.now() + timedelta(minutes=5)
     scheduler.add_job(job, 'interval', hours=12, next_run_time=first_run)
+    scheduler.add_job(clear_tmdb_caches, 'interval', weeks=1)
     scheduler.start()
     logger.info(f"Cache update scheduler started, first run at {first_run.strftime('%H:%M:%S')}, then every 12 hours.")
 

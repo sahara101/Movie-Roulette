@@ -1,27 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="csrf-token" content="{{ csrf_token() }}"> 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Settings - Movie Roulette</title>
     <link href="/static/style/style.css" rel="stylesheet">
     <link href="/static/style/settings.css" rel="stylesheet">
     <link href="/static/style/auth.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     {% if heroui_theme %}
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style/heroui-theme.css">
     <link rel="stylesheet" href="/static/style/aceternity-effects.css">
     {% endif %}
 </head>
-<body{% if heroui_theme %} class="heroui-theme"{% endif %}>
+<body{% if heroui_theme %} class="heroui-theme" {% endif %}>
     {% if settings_disabled %}
-        {% if heroui_theme %}<div class="settings-disabled-heroui-wrap">{% endif %}
+    {% if heroui_theme %}<div class="settings-disabled-heroui-wrap">{% endif %}
         {% if no_services_configured %}
         <div class="settings-disabled">
             <h1>Service Configuration Required</h1>
-            <p>Settings disabled. No media services are configured. Movie Roulette requires either Plex, Jellyfin or Emby to be configured through environment variables:</p>
+            <p>Settings disabled. No media services are configured. Movie Roulette requires either Plex, Jellyfin or
+                Emby to be configured through environment variables:</p>
             <div class="config-help">
                 <p>Required environment variables for Plex:</p>
                 <pre>
@@ -55,47 +61,49 @@ EMBY_USER_ID=your-user-id</pre>
             </a>
         </div>
         {% endif %}
-        {% if heroui_theme %}</div>{% endif %}
+        {% if heroui_theme %}
+    </div>{% endif %}
     {% else %}
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-		    	<div class="flash-message {{ category }} show">
-                            <div class="flash-content">
-                                <i class="fas fa-exclamation-circle"></i>
-                                {{ message }}
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-        <div id="settings-root"></div>
-        <!-- Load settings.js first as it defines helper functions -->
-        <script src="/static/js/settings.js"></script>
-        <script src="/static/js/settings_passkeys.js"></script> <!-- Include new passkey JS -->
-        <script src="/static/js/settings_managed_users.js"></script> 
-        <script src="/static/js/auth.js"></script>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash-message {{ category }} show">
+            <div class="flash-content">
+                <i class="fas fa-exclamation-circle"></i>
+                {{ message }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    <div id="settings-root"></div>
+    <script src="/static/js/settings.js"></script>
+    <script src="/static/js/settings_passkeys.js"></script>
+    <script src="/static/js/settings_managed_users.js"></script>
+    <script src="/static/js/auth.js"></script>
     {% endif %}
     <div class="bottom-links">
-    	<a href="https://github.com/sahara101/Movie-Roulette" target="_blank" class="version-label">
+        <a href="https://github.com/sahara101/Movie-Roulette" target="_blank" class="version-label">
             <i class="fab fa-github"></i>
             <span>v{{ version }}</span>
-    	</a>
+        </a>
     </div>
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-    	document.querySelectorAll('.flash-message').forEach(flash => {
-            setTimeout(() => {
-            	if (flash && flash.classList.contains('show')) {
-                    flash.classList.remove('show');
-                    setTimeout(() => flash.remove(), 300);
-            	}
-            }, 5000);
-    	});
-    });
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.flash-message').forEach(flash => {
+                setTimeout(() => {
+                    if (flash && flash.classList.contains('show')) {
+                        flash.classList.remove('show');
+                        setTimeout(() => flash.remove(), 300);
+                    }
+                }, 5000);
+            });
+        });
     </script>
-    {% if heroui_theme %}<script src="/static/js/theme-effects.js"></script>{% endif %}
-</body>
+    {% if heroui_theme %}
+    <script src="/static/js/theme-effects.js"></script>{% endif %}
+    </body>
+
 </html>

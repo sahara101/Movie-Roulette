@@ -13,13 +13,14 @@
     --description-font-size: clamp(0.8rem, 1.6vh, 1.8rem);
 }
 
-body, html {
+body,
+html {
     margin: 0;
     padding: 0;
     height: 100vh;
     background-color: #000;
     color: #FFD700;
-    font-family: 'Montserrat', Arial, sans-serif;
+    font-family: 'Geist', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -49,7 +50,10 @@ body, html {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     padding: 10px;
     width: 100%;
     box-sizing: border-box;
@@ -81,9 +85,17 @@ body, html {
     margin: 0 20px;
 }
 
-.paused { color: #FFA500; }
-.ending { color: #FF4500; }
-.stopped { color: #DC143C; }
+.paused {
+    color: #FFA500;
+}
+
+.ending {
+    color: #FF4500;
+}
+
+.stopped {
+    color: #DC143C;
+}
 
 .progress-container {
     width: 100%;
@@ -95,8 +107,8 @@ body, html {
 .progress-bar {
     width: 0%;
     height: 100%;
-    background-color: #FFD700;
-    transition: width 0.5s ease;
+    background-color: #E5A00D;
+    transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Poster image */
@@ -116,7 +128,10 @@ body, html {
     justify-content: center;
     align-items: center;
     padding: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
     width: 100%;
     box-sizing: border-box;
     z-index: 2;
@@ -161,17 +176,10 @@ body, html {
     color: white;
     line-height: 1.2;
     white-space: pre-wrap;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
     word-break: break-word;
     margin: 0;
 }
-
-/* ==========================================================================
-   Cinema Overlays (Director / Description) — Three-Zone Layout
-   Zone 1: .cinema-overlay-top  → pinned to top via order: -1
-   Zone 2: .poster-image        → fills center via flex: 1
-   Zone 3: .cinema-overlay-bottom → pinned to bottom via order: 1
-   ========================================================================== */
 
 .cinema-overlay {
     display: none;
@@ -206,9 +214,27 @@ body, html {
     color: #fff;
     font-weight: 300;
     font-size: var(--director-font-size);
-    letter-spacing: clamp(0.15em, 0.4vw, 0.35em);
+    font-family: 'Instrument Serif', serif;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3em;
+}
+
+.director-role {
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.42em;
+    font-weight: 400;
+    letter-spacing: 0.5em;
     text-transform: uppercase;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.director-name {
+    letter-spacing: clamp(0.1em, 0.3vw, 0.25em);
+    text-transform: uppercase;
+    line-height: 1.2;
 }
 
 .tagline-text {
@@ -219,7 +245,7 @@ body, html {
     letter-spacing: 0.05em;
     line-height: 1.6;
     margin: 0;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
     max-width: 80%;
     text-align: center;
 }
@@ -233,6 +259,9 @@ body, html {
     text-transform: uppercase;
     text-align: center;
     max-width: 90%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tech-text {
@@ -250,7 +279,6 @@ body, html {
     display: block;
 }
 
-/* Cinema-info mode: activate three-zone layout via flex order */
 .poster-container.cinema-info .cinema-overlay {
     display: flex;
 }
@@ -274,6 +302,42 @@ body, html {
     height: auto;
     min-height: 0;
     max-height: none;
+    position: relative;
+    z-index: 2;
+}
+
+.poster-backdrop {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: blur(50px) brightness(0.3) saturate(1.8);
+    transform: scale(1.08);
+    opacity: 0;
+    transition: opacity 0.7s ease;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.poster-container.cinema-info .poster-backdrop {
+    opacity: 1;
+}
+
+.poster-container.cinema-info::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 65% 65% at center,
+            transparent 30%,
+            rgba(0, 0, 0, 0.45) 75%,
+            rgba(0, 0, 0, 0.72) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.poster-container.cinema-info .cinema-overlay {
+    z-index: 3;
 }
 
 /* Default Poster Mode */
@@ -390,13 +454,12 @@ body, html {
         --description-font-size: clamp(1.2rem, 1.8vw, 2.5rem);
     }
 
-    /* Labels: yellow, Values: white */
     .time-label,
     .info-label {
         font-size: clamp(0.8em, 1.4vh, 4rem);
         color: #FFD700;
         font-weight: 500;
-	letter-spacing: 0.5em;
+        letter-spacing: 0.5em;
         opacity: 0.7;
         text-transform: uppercase;
     }
@@ -528,7 +591,6 @@ body, html {
         }
     }
 
-    /* Handle orientation changes */
     @media screen and (orientation: portrait) {
         .poster-container:not(.default-poster):not(.screensaver):not(.cinema-info) .poster-image {
             max-height: calc(100vh - var(--total-info-height-portrait));

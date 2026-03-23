@@ -7,10 +7,10 @@ body.heroui-theme {
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.15);
 
-  --primary: #6366f1;
-  --primary-hover: #818cf8;
-  --primary-glow: rgba(99, 102, 241, 0.4);
-  --secondary: #7c3aed;
+  --primary: #e5a00d;
+  --primary-hover: #f8d68b;
+  --primary-glow: rgba(229, 160, 13, 0.4);
+  --secondary: #d29000;
   --accent: #06b6d4;
   --accent-glow: rgba(6, 182, 212, 0.3);
 
@@ -35,14 +35,14 @@ body.heroui-theme {
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.6);
-  --shadow-glow-primary: 0 0 20px var(--primary-glow), 0 0 40px rgba(99, 102, 241, 0.2);
+  --shadow-glow-primary: 0 0 20px var(--primary-glow), 0 0 40px rgba(229, 160, 13, 0.15);
   --shadow-glow-gold: 0 0 20px var(--brand-gold-glow), 0 0 40px rgba(229, 160, 13, 0.2);
 
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Geist', sans-serif;
 }
 
 /* --- Base --- */
@@ -180,8 +180,8 @@ body.heroui-theme .movie-card {
 
 body.heroui-theme .movie-card:hover {
   transform: translateY(-6px) scale(1.01);
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: var(--shadow-lg), 0 0 30px rgba(99, 102, 241, 0.15);
+  border-color: rgba(229, 160, 13, 0.25);
+  box-shadow: var(--shadow-lg), 0 0 30px rgba(255, 255, 255, 0.08);
 }
 
 body.heroui-theme .watch-button {
@@ -219,7 +219,7 @@ body.heroui-theme select:focus,
 body.heroui-theme textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12);
 }
 
 /* --- Settings Tabs --- */
@@ -244,7 +244,7 @@ body.heroui-theme .tab:hover {
 
 body.heroui-theme .tab.active {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(255, 255, 255, 0.05);
   border-bottom-color: var(--primary);
 }
 
@@ -262,7 +262,7 @@ body.heroui-theme #container_list_of_clients {
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg), 0 0 60px rgba(99, 102, 241, 0.08);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(255, 255, 255, 0.05);
 }
 
 body.heroui-theme .client,
@@ -306,7 +306,7 @@ body.heroui-theme .setup-card {
   border-radius: var(--radius-xl);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: var(--shadow-lg), 0 0 80px rgba(99, 102, 241, 0.12);
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(255, 255, 255, 0.07);
 }
 
 body.heroui-theme .login-button {
@@ -343,7 +343,7 @@ body.heroui-theme .login-button:hover {
 
 body.heroui-theme .input-with-icon input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12);
 }
 
 body.heroui-theme .media-server-dropdown .dropdown-toggle,
@@ -397,7 +397,7 @@ body.heroui-theme .collection-card {
 
 body.heroui-theme .collection-grid .collection-card:hover {
   border-color: var(--primary);
-  box-shadow: 0 0 24px rgba(99, 102, 241, 0.15), var(--shadow-lg);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.08), var(--shadow-lg);
   transform: translateY(-4px);
 }
 
@@ -434,7 +434,7 @@ body.heroui-theme.poster-page .info-bar {
 }
 
 body.heroui-theme.poster-page #progress-bar {
-  background: linear-gradient(90deg, var(--primary), var(--accent));
+  background: var(--primary);
 }
 
 /* --- Scrollbar --- */
@@ -488,7 +488,7 @@ body.heroui-theme .settings-container {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.04),
     0 24px 64px rgba(0, 0, 0, 0.65),
-    0 0 120px rgba(99, 102, 241, 0.06);
+    0 0 120px rgba(229, 160, 13, 0.04);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   position: relative;
@@ -617,7 +617,7 @@ body.heroui-theme .tab.active {
   color: #fff;
   font-weight: 600;
   border-bottom: none;
-  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 2px 12px rgba(229, 160, 13, 0.3);
 }
 
 body.heroui-theme .settings-section {
@@ -818,7 +818,7 @@ body.heroui-main .dialog-content {
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg), 0 0 60px rgba(99, 102, 241, 0.1);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(255, 255, 255, 0.05);
 }
 
 body.heroui-theme .dialog-content h3,
@@ -829,8 +829,10 @@ body.heroui-main .dialog-content h3 {
 }
 
 body.heroui-theme .dialog-content p,
+body.heroui-theme .dialog-content li,
 body.heroui-theme .custom-modal-content p,
-body.heroui-main .dialog-content p {
+body.heroui-main .dialog-content p,
+body.heroui-main .dialog-content li {
   color: var(--text-secondary);
 }
 
@@ -970,7 +972,7 @@ body.heroui-theme .manual-button {
 body.heroui-theme .manual-button:hover {
   border-color: var(--primary);
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.06);
+  background: rgba(229, 160, 13, 0.04);
 }
 
 body.heroui-theme .disconnect-button {
@@ -1040,7 +1042,7 @@ body.heroui-theme .custom-modal-input {
 
 body.heroui-theme .custom-modal-input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12);
   outline: none;
 }
 
@@ -1065,7 +1067,7 @@ body.heroui-theme .setting-input {
 
 body.heroui-theme .setting-input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12);
 }
 
 body.heroui-theme .setting-input:disabled {
@@ -1087,7 +1089,7 @@ body.heroui-theme .device-option:hover,
 body.heroui-theme .tv-option:hover {
   background: var(--surface-hover);
   border-color: var(--primary);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.05);
 }
 
 body.heroui-theme .device-option i,
@@ -1116,7 +1118,7 @@ body.heroui-theme .user-select {
 
 body.heroui-theme .library-option:hover,
 body.heroui-theme .user-option:hover {
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 body.heroui-theme .library-option input[type="checkbox"],
@@ -1141,8 +1143,8 @@ body.heroui-theme .config-item {
 
 /* --- Setup Message --- */
 body.heroui-theme .setup-message {
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(229, 160, 13, 0.12);
   border-radius: var(--radius-sm);
 }
 
@@ -1170,7 +1172,7 @@ body.heroui-theme .pin-code {
   border: 1px solid var(--border);
   color: var(--primary);
   border-radius: var(--radius-sm);
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: 'Geist Mono', monospace;
   letter-spacing: 0.3em;
 }
 
@@ -1248,7 +1250,7 @@ body.heroui-theme .timezone-option {
 }
 
 body.heroui-theme .timezone-option:hover {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 body.heroui-theme .timezone-option.selected {
@@ -1273,7 +1275,7 @@ body.heroui-theme .settings-disabled {
   border-radius: var(--radius-xl);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: var(--shadow-lg), 0 0 80px rgba(99, 102, 241, 0.12);
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(255, 255, 255, 0.07);
   padding: 40px;
   max-width: 700px;
   width: 100%;
@@ -1360,7 +1362,7 @@ body.heroui-theme .section-service-header {
   gap: 16px;
   padding: 18px 24px;
   border-bottom: 1px solid var(--border);
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 body.heroui-theme .settings-section[data-service="plex"] .section-service-header {
@@ -1591,7 +1593,7 @@ body.heroui-theme .tab.active {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 2px 10px rgba(229, 160, 13, 0.25);
 }
 
 body.heroui-theme .tab.active i {
@@ -1705,9 +1707,9 @@ body.heroui-theme .service-type-badge {
 }
 
 body.heroui-theme .service-type-badge.local {
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--primary-light);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(229, 160, 13, 0.12);
 }
 
 body.heroui-theme .service-type-badge.plex {
@@ -2040,9 +2042,9 @@ body.heroui-theme .lib-pill {
   border-radius: 20px;
   font-size: 0.78rem;
   font-weight: 500;
-  background: rgba(99, 102, 241, 0.12);
-  color: #a5b4fc;
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(250, 250, 250, 0.6);
+  border: 1px solid rgba(229, 160, 13, 0.15);
 }
 
 /* ── Loading overlay ─────────────────────────────────────── */
@@ -2115,7 +2117,7 @@ body.heroui-theme #search-collections::placeholder {
 body.heroui-theme #search-collections:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.12);
   position: relative;
   z-index: 1;
 }
@@ -2149,7 +2151,7 @@ body.heroui-theme #random-collection-btn {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   border: none;
   color: #fff;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 2px 8px rgba(229, 160, 13, 0.25);
   position: relative;
   overflow: hidden;
   transition: all var(--transition-base);
@@ -2280,7 +2282,7 @@ body.heroui-theme .heroui-collection-label {
   font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.2em;
-  color: rgba(99, 102, 241, 0.75);
+  color: rgba(229, 160, 13, 0.65);
   margin-bottom: 7px;
   text-transform: uppercase;
 }
@@ -2354,7 +2356,7 @@ body.heroui-theme #collection_modal .movie-title-link {
 }
 
 body.heroui-theme #collection_modal .movie-title-link:hover {
-  color: #a5b4fc;
+  color: rgba(250, 250, 250, 0.6);
 }
 
 body.heroui-theme #collection_modal .movie-title {
@@ -2386,8 +2388,8 @@ body.heroui-theme #collection_modal .status-in-library {
 }
 
 body.heroui-theme #collection_modal .status-requested {
-  background: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(250, 250, 250, 0.6);
 }
 
 body.heroui-theme #collection_modal .status-not-in-library {
@@ -2553,9 +2555,9 @@ body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions 
 }
 
 body.heroui-theme #collection_modal .modal-movie-card .collection-movie-actions .movie-status.status-requested {
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: #a5b4fc !important;
-  border: 1px solid rgba(99, 102, 241, 0.28) !important;
+  background: rgba(229, 160, 13, 0.12) !important;
+  color: #f8d68b !important;
+  border: 1px solid rgba(229, 160, 13, 0.25) !important;
 }
 
 /* ── Client prompt close button ──────────────────────────── */
@@ -2624,7 +2626,7 @@ body.heroui-theme #loading-bar-container {
 
 body.heroui-theme #loading-progress {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #06b6d4, #6366f1) !important;
+  background: linear-gradient(90deg, #e5a00d, #f8d68b, #e5a00d) !important;
   background-size: 200% 100% !important;
   animation: heroui-progress-shimmer 1.6s linear infinite !important;
 }
@@ -2655,7 +2657,7 @@ body.heroui-theme .heroui-loading-dots span {
   width: 8px !important;
   height: 8px !important;
   border-radius: 50% !important;
-  background: #6366f1 !important;
+  background: #e5a00d !important;
   animation: heroui-dot-pulse 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
 }
 
@@ -2676,17 +2678,17 @@ body.heroui-theme .progress-ring {
   width: 56px !important;
   height: 56px !important;
   margin: 16px auto !important;
-  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.3)) !important;
+  filter: drop-shadow(0 0 6px rgba(229, 160, 13, 0.3)) !important;
 }
 
 body.heroui-theme .progress-ring circle {
-  stroke: #6366f1 !important;
+  stroke: #e5a00d !important;
   stroke-width: 3 !important;
 }
 
 @keyframes heroui-dot-pulse {
   0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
-  40%            { opacity: 1;    transform: scale(1.1); box-shadow: 0 0 12px rgba(99, 102, 241, 0.5); }
+  40%            { opacity: 1;    transform: scale(1.1); box-shadow: 0 0 12px rgba(229, 160, 13, 0.5); }
 }
 
 /* ── Movie data overlay ──────────────────────────────────── */
@@ -2736,9 +2738,9 @@ body.heroui-theme .md-rating-service {
 }
 
 body.heroui-theme .md-genre-pill {
-  background: rgba(99, 102, 241, 0.1) !important;
-  color: #a5b4fc !important;
-  border-color: rgba(99, 102, 241, 0.2) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(250, 250, 250, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 body.heroui-theme .md-credit {
@@ -2746,7 +2748,7 @@ body.heroui-theme .md-credit {
 }
 
 body.heroui-theme .md-credit-label {
-  color: #a5b4fc !important;
+  color: rgba(250, 250, 250, 0.55) !important;
 }
 
 body.heroui-theme .md-description {
@@ -2754,12 +2756,12 @@ body.heroui-theme .md-description {
 }
 
 body.heroui-theme .md-action-btn {
-  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
-  color: #fff !important;
+  background: #e5a00d !important;
+  color: #09090b !important;
 }
 
 body.heroui-theme .md-action-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #818cf8, #8b5cf6) !important;
+  background: #f8d68b !important;
 }
 
 body.heroui-theme .md-action-btn:disabled {
@@ -2773,8 +2775,8 @@ body.heroui-theme .md-link-btn {
 }
 
 body.heroui-theme .md-link-btn:hover {
-  background: rgba(99, 102, 241, 0.12) !important;
-  border-color: rgba(99, 102, 241, 0.3) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 @media (max-width: 520px) {

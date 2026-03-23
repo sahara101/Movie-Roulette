@@ -101,7 +101,9 @@ class JellyfinService:
             for movie in movies:
                 all_movies.append({
                     "jellyfin_id": movie['Id'],
-                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb')  
+                    "tmdb_id": movie.get('ProviderIds', {}).get('Tmdb'),
+                    "title": movie.get('Name', ''),
+                    "year": movie.get('ProductionYear', '')
                 })
 
             temp_path = f"{self.cache_path}.tmp"
@@ -110,6 +112,12 @@ class JellyfinService:
             os.replace(temp_path, self.cache_path)
 
             logger.info(f"Cached {len(all_movies)} total Jellyfin movies")
+
+            from utils.enrichment_cache import enrichment_cache
+            movies_with_tmdb = [m for m in all_movies if m.get('tmdb_id')]
+            if movies_with_tmdb:
+                enrichment_cache.build_for_movies(movies_with_tmdb)
+
             return all_movies
         except Exception as e:
             logger.error(f"Error caching all Jellyfin movies: {e}")
@@ -160,7 +168,7 @@ class JellyfinService:
             logger.error(f"Error fetching random movie: {e}")
             return None
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None, get_all=False):
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None, get_all=False, exclude_ids=None):
         try:
             target_user_id, _, headers = self._get_request_details(user_id, api_key)
             movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
@@ -189,6 +197,9 @@ class JellyfinService:
                 params['Years'] = years
             if pg_ratings:
                 params['OfficialRatings'] = pg_ratings
+
+            if exclude_ids and not get_all:
+                params['ExcludeItemIds'] = ','.join(str(i) for i in exclude_ids)
 
             logger.debug(f"Jellyfin API request params: {params}")
 

@@ -16,18 +16,47 @@
     <link rel="icon" href="/static/icons/favicon.ico" sizes="any">
     <link rel="icon" href="/static/icons/icon-192x192.png" type="image/png" sizes="192x192">
     <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    {% if not homepage_mode and use_links %}
+    <link rel="preload" href="/static/logos/tmdb_logo.svg" as="image" type="image/svg+xml">
+    <link rel="preload" href="/static/logos/trakt_logo.svg" as="image" type="image/svg+xml">
+    <link rel="preload" href="/static/logos/imdb_logo.svg" as="image" type="image/svg+xml">
+    <link rel="preload" href="/static/logos/youtube_logo.svg" as="image" type="image/svg+xml">
+    {% endif %}
     <link rel="stylesheet" href="/static/style/style.css">
     <link rel="stylesheet" href="/static/style/auth.css">
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     {% if heroui_theme %}
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style/main-heroui.css">
     {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/ios-pwa-splash@1.0.0/cdn.min.js"></script>
     <script>iosPWASplash('/static/icons/icon.png', '#222222');</script>
+    <style>
+        #splash-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            overflow: hidden;
+            background: #222222;
+            transition: opacity 0.5s ease;
+        }
+        #splash-overlay.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #splash-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: clamp(120px, 30vmin, 200px);
+            height: clamp(120px, 30vmin, 200px);
+            border-radius: 22%;
+        }
+    </style>
 </head>
 
 <body{% if homepage_mode and heroui_theme %} class="homepage-mode heroui-main"{% elif homepage_mode %} class="homepage-mode"{% elif heroui_theme %} class="heroui-main"{% endif %}>
@@ -35,6 +64,28 @@
     if (window !== window.parent) {
         document.body.classList.add('in-iframe');
     }
+</script>
+<div id="splash-overlay">
+    <img id="splash-icon" src="/static/icons/icon-512x512.png" alt="">
+</div>
+<script>
+(function() {
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                       window.navigator.standalone === true;
+    if (sessionStorage.getItem('splashShown') || !isStandalone) {
+        document.getElementById('splash-overlay').remove();
+        return;
+    }
+    var overlay = document.getElementById('splash-overlay');
+    function dismiss() {
+        if (overlay._dismissed) return;
+        overlay._dismissed = true;
+        sessionStorage.setItem('splashShown', '1');
+        overlay.classList.add('fade-out');
+        setTimeout(function() { overlay.remove(); }, 500);
+    }
+    setTimeout(dismiss, 1500);
+})();
 </script>
 
 {% if heroui_theme %}
@@ -79,6 +130,7 @@
                     <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
                     </svg>
+                    <span class="filter-count-badge" id="filterActiveCount"></span>
                 </button>
 		<button id="searchButton" class="search-button" aria-label="Search">
         	    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

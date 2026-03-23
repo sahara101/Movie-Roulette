@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Now Playing</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style/poster.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     {% if heroui_theme %}
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style/heroui-theme.css') }}">
     {% endif %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
@@ -39,6 +40,7 @@
 </head>
 <body{% if heroui_theme %} class="heroui-theme poster-page"{% endif %}>
     <div class="poster-container" id="posterContainer">
+        <div id="posterBackdrop" class="poster-backdrop"></div>
         <div class="info-bar movie-info">
             <div class="time-info">
                 <span class="time-label">Start Time</span>

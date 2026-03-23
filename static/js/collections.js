@@ -524,43 +524,57 @@ async function requestPreviousMovies(movies) {
     }
 }
 
-function showClientsForPoster(movieId) {
+async function showClientsForPoster(movieId) {
     const clientPrompt = document.getElementById('client_prompt');
     if (!clientPrompt) {
         console.error('Client prompt not found');
         return;
     }
 
-    fetch('/clients')
-        .then(response => response.json())
-        .then(clients => {
-            const listContainer = document.getElementById('list_of_clients');
-            if (!listContainer) {
-                console.error('List of clients container not found');
-                return;
-            }
-            listContainer.innerHTML = '';
+    try {
+        const [clientsResp, webInfoResp] = await Promise.all([
+            fetch('/clients'),
+            fetch('/api/web_client_info')
+        ]);
+        const clients = await clientsResp.json();
+        const webClientInfo = webInfoResp.ok ? await webInfoResp.json() : null;
 
-            if (clients.length === 0) {
-                listContainer.innerHTML = '<div class="no-clients-message">No available clients found.</div>';
-            } else {
-                clients.forEach(client => {
-                    const clientDiv = document.createElement('div');
-                    clientDiv.classList.add('client');
-                    clientDiv.textContent = client.title;
-                    clientDiv.onclick = function() {
-                        playMovieFromPoster(client.id, movieId);
-                        clientPrompt.classList.add('hidden');
-                    };
-                    listContainer.appendChild(clientDiv);
+        const listContainer = document.getElementById('list_of_clients');
+        if (!listContainer) {
+            console.error('List of clients container not found');
+            return;
+        }
+        listContainer.innerHTML = '';
+
+        const validWebClient = webClientInfo && !webClientInfo.error;
+        if (clients.length === 0 && !validWebClient) {
+            listContainer.innerHTML = '<div class="no-clients-message">No available clients found.</div>';
+        } else {
+            clients.forEach(client => {
+                const clientDiv = document.createElement('div');
+                clientDiv.classList.add('client');
+                clientDiv.textContent = client.title;
+                clientDiv.onclick = function() {
+                    playMovieFromPoster(client.id, movieId);
+                    clientPrompt.classList.add('hidden');
+                };
+                listContainer.appendChild(clientDiv);
+            });
+            if (validWebClient) {
+                addWebClientEntry(listContainer, webClientInfo, async () => {
+                    clientPrompt.classList.add('hidden');
+                    const serviceId = await resolveServiceId(webClientInfo.service, movieId);
+                    if (!serviceId) return;
+                    const url = buildWebClientUrl(webClientInfo, serviceId);
+                    if (url) window.open(url, '_blank');
                 });
             }
-            clientPrompt.classList.remove('hidden');
-        })
-        .catch(error => {
-            console.error('Error fetching clients:', error);
-            alert('Failed to fetch clients. Please try again.');
-        });
+        }
+        clientPrompt.classList.remove('hidden');
+    } catch (error) {
+        console.error('Error fetching clients:', error);
+        alert('Failed to fetch clients. Please try again.');
+    }
 }
 
 async function playMovieFromPoster(clientId, tmdbId) {

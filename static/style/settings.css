@@ -33,7 +33,7 @@
     right: 0;
     background-color: #3A3C41;
     min-width: 160px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
     border-radius: 8px;
     z-index: 1;
     margin-top: 0;
@@ -68,7 +68,8 @@
 }
 
 /* Header Buttons */
-.donate-button, .back-button {
+.donate-button,
+.back-button {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -82,11 +83,13 @@
     white-space: nowrap;
 }
 
-.donate-button, .back-button {
+.donate-button,
+.back-button {
     font-size: 1rem;
 }
 
-.donate-button i, .back-button svg {
+.donate-button i,
+.back-button svg {
     width: 20px;
     height: 20px;
 }
@@ -101,7 +104,8 @@
     background-color: #2ea043;
 }
 
-.donate-button i, .back-button i {
+.donate-button i,
+.back-button i {
     font-size: 1.25rem;
 }
 
@@ -196,13 +200,13 @@
 }
 
 /* Separation for direct-child setting fields */
-.settings-section > .setting-field {
+.settings-section>.setting-field {
     padding-bottom: 16px;
     margin-bottom: 16px;
     border-bottom: 1px solid #4A4C51;
 }
 
-.settings-section > .setting-field:last-child {
+.settings-section>.setting-field:last-child {
     border-bottom: none;
     margin-bottom: 0;
     padding-bottom: 0;
@@ -223,7 +227,7 @@
 .setting-input,
 .env-override,
 .current-config {
-    width: calc(100% - 2px);  
+    width: calc(100% - 2px);
     max-width: 100%;
     margin-left: 0;
     margin-right: 0;
@@ -290,13 +294,13 @@
     transition: all 0.2s, transform 0.1s ease-out;
     margin-bottom: 16px;
     height: 35px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .discover-button:hover {
     background-color: #F8D68B;
     transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .discover-button:disabled {
@@ -330,7 +334,9 @@
     box-sizing: border-box;
 }
 
-.error-message, .success-message, .info-message {
+.error-message,
+.success-message,
+.info-message {
     position: fixed;
     top: 20px;
     left: 50%;
@@ -372,7 +378,6 @@
     transition: all 0.2s;
 }
 
-/* Toggle rows: horizontal layout (label+desc left, toggle right) */
 .setting-toggle-row {
     display: flex;
     flex-direction: row;
@@ -427,12 +432,12 @@
     margin-bottom: 4px;
 }
 
-.feature-group > .setting-field {
+.feature-group>.setting-field {
     padding: 12px 4px;
     border-bottom: 1px solid #3A3C41;
 }
 
-.feature-group > .setting-field:last-child {
+.feature-group>.setting-field:last-child {
     border-bottom: none;
 }
 
@@ -470,10 +475,10 @@
     font-size: 0.9em;
     margin-top: 16px;
     margin-bottom: 16px;
-    display: flex; 
+    display: flex;
     align-items: center;
-    gap: 8px; 
-    opacity: 0.9; 
+    gap: 8px;
+    opacity: 0.9;
     line-height: 1.4;
 }
 
@@ -483,7 +488,8 @@
 }
 
 /* Dialog Styles */
-.trakt-confirm-dialog, .appletv-dialog {
+.trakt-confirm-dialog,
+.appletv-dialog {
     position: fixed;
     top: 0;
     left: 0;
@@ -519,7 +525,8 @@
     line-height: 1.5;
 }
 
-.dialog-content .input-group {
+.dialog-content .input-group,
+.dialog-content .manual-input-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -562,7 +569,7 @@
     padding: 24px;
     max-width: 500px;
     width: 90%;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
 .custom-modal-content h3 {
@@ -627,6 +634,7 @@
     background-color: #E5A00D;
     color: #282A2D;
 }
+
 .custom-modal-button.primary:hover {
     background-color: #F8D68B;
 }
@@ -635,13 +643,16 @@
     background-color: #4A4C51;
     color: #EAEAEC;
 }
+
 .custom-modal-button.secondary:hover {
     background-color: #5A5C61;
 }
+
 .custom-modal-button.danger {
     background-color: #DC2626;
     color: white;
 }
+
 .custom-modal-button.danger:hover {
     background-color: #EF4444;
 }
@@ -713,14 +724,16 @@
 }
 
 /* Device/TV Lists */
-.device-list, .tv-list {
+.device-list,
+.tv-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
     margin: 16px 0;
 }
 
-.device-option, .tv-option {
+.device-option,
+.tv-option {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -734,26 +747,31 @@
     transition: all 0.2s;
 }
 
-.device-option:hover, .tv-option:hover {
+.device-option:hover,
+.tv-option:hover {
     background: #3A3C41;
     border-color: #E5A00D;
 }
 
-.device-option i, .tv-option i {
+.device-option i,
+.tv-option i {
     font-size: 24px;
     color: #E5A00D;
 }
 
-.device-details, .tv-details {
+.device-details,
+.tv-details {
     flex: 1;
 }
 
-.device-name, .tv-name {
+.device-name,
+.tv-name {
     font-weight: 600;
     color: #EAEAEC;
 }
 
-.device-info, .tv-info {
+.device-info,
+.tv-info {
     font-size: 0.9em;
     color: #9CA3AF;
 }
@@ -796,7 +814,7 @@
 }
 
 .pin-code {
-    font-family: monospace;
+    font-family: 'Geist Mono', monospace;
     font-size: 24px;
     letter-spacing: 8px;
     text-align: center;
@@ -820,44 +838,44 @@
 }
 
 @media (max-width: 640px) {
-   .settings-header {
-       flex-direction: column;
-       align-items: flex-start;
-   }
+    .settings-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 
-   .header-controls {
-       width: 100%;
-       display: flex;
-       justify-content: space-between;
-       gap: 16px;
-   }
+    .header-controls {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+    }
 
-   .header-controls .dropdown,
-   .header-controls .dropdown .donate-button,
-   .header-controls .back-button {
-       width: auto !important;
-       min-width: 0 !important;
-       flex: 1 !important;
-   }
+    .header-controls .dropdown,
+    .header-controls .dropdown .donate-button,
+    .header-controls .back-button {
+        width: auto !important;
+        min-width: 0 !important;
+        flex: 1 !important;
+    }
 
-   .header-controls .dropdown-content {
-       width: 100% !important;
-       min-width: 0 !important;
-       max-width: none !important;
-   }
+    .header-controls .dropdown-content {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
 
-   .discover-button {
-       width: 100%;
-   }
+    .discover-button {
+        width: 100%;
+    }
 
-   .settings-section {
-       padding: 16px;
-   }
+    .settings-section {
+        padding: 16px;
+    }
 
-   .dialog-content {
-       width: calc(100% - 32px);
-       margin: 16px;
-   }
+    .dialog-content {
+        width: calc(100% - 32px);
+        margin: 16px;
+    }
 
     .dropdown:hover .dropdown-content {
         display: none;
@@ -885,7 +903,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 12rem;  
+    width: 12rem;
     gap: 8px;
     background-color: #E5A00D;
     color: #282A2D;
@@ -965,7 +983,7 @@
 }
 
 .pin-code {
-    font-family: monospace;
+    font-family: 'Geist Mono', monospace;
     font-size: 32px;
     letter-spacing: 4px;
     color: #E5A00D;
@@ -996,7 +1014,7 @@
     margin-bottom: 16px;
 }
 
-.plex-libraries-wrapper > .discover-button {
+.plex-libraries-wrapper>.discover-button {
     margin-top: 10px;
 }
 
@@ -1137,7 +1155,7 @@
     margin: 8px 0;
     overflow-x: auto;
     color: #EAEAEC;
-    font-family: monospace;
+    font-family: 'Geist Mono', monospace;
     font-size: 0.9rem;
     border: 1px solid #4A4C51;
 }
@@ -1474,10 +1492,10 @@ select.setting-input option {
     color: #EAEAEC;
     min-width: 60px;
     font-size: 0.9em;
-    margin: 0;  
-    display: flex;  
-    align-items: center;  
-    line-height: 1;  
+    margin: 0;
+    display: flex;
+    align-items: center;
+    line-height: 1;
 }
 
 .tv-action {
@@ -1646,7 +1664,7 @@ select.setting-input option {
 
 .blacklist-mac {
     color: #EAEAEC;
-    font-family: monospace;
+    font-family: 'Geist Mono', monospace;
     font-size: 0.9em;
 }
 
@@ -1779,8 +1797,9 @@ select.setting-input option {
     pointer-events: none;
 }
 
-.download-badge, .version-label {
-    pointer-events: auto;  
+.download-badge,
+.version-label {
+    pointer-events: auto;
     display: inline-flex;
     align-items: center;
     gap: 2px;
@@ -1795,7 +1814,8 @@ select.setting-input option {
     transition: all 0.2s;
 }
 
-.download-badge:hover, .version-label:hover {
+.download-badge:hover,
+.version-label:hover {
     background-color: rgba(240, 246, 252, 0.1);
     border-color: rgba(240, 246, 252, 0.3);
 }
@@ -1944,17 +1964,17 @@ select.setting-input option {
 }
 
 .service-type-badge.plex {
-    background-color: #e5a00d; 
+    background-color: #e5a00d;
     color: #282A2D;
 }
 
 .service-type-badge.jellyfin {
-    background-color: #7b4697; 
+    background-color: #7b4697;
     color: #ffffff;
 }
 
 .service-type-badge.emby {
-    background-color: #52b54b; 
+    background-color: #52b54b;
     color: #ffffff;
 }
 
@@ -1993,7 +2013,8 @@ select.setting-input option {
     color: #EF4444;
 }
 
-.loading-users, .no-users {
+.loading-users,
+.no-users {
     text-align: center;
     color: #9CA3AF;
     padding: 20px;
@@ -2008,16 +2029,16 @@ select.setting-input option {
     font-weight: 600;
     margin-left: 8px;
     vertical-align: middle;
-    line-height: 1.4; 
+    line-height: 1.4;
 }
 
 .role-badge.admin {
-    background-color: #DC2626; 
+    background-color: #DC2626;
     color: white;
 }
 
 .role-badge.owner {
-    background-color: #D97706; 
+    background-color: #D97706;
     color: white;
 }
 
@@ -2038,7 +2059,7 @@ select.setting-input option {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75); 
+    background-color: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2051,28 +2072,28 @@ select.setting-input option {
     padding: 24px;
     max-width: 500px;
     width: 90%;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
 .settings-modal .input-group {
-    margin-bottom: 16px; 
+    margin-bottom: 16px;
 }
 
 .settings-modal .input-group label {
     display: block;
     color: #EAEAEC;
-    margin-bottom: 6px; 
+    margin-bottom: 6px;
     font-weight: 500;
     font-size: 0.9em;
 }
 
 .settings-modal .setting-input {
-    width: 100%; 
-    box-sizing: border-box; 
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .settings-modal .error-message {
-    padding: 10px 14px; 
+    padding: 10px 14px;
     margin-bottom: 16px;
     font-size: 0.9em;
 }
@@ -2081,7 +2102,7 @@ select.setting-input option {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 24px; 
+    margin-top: 24px;
 }
 
 .settings-modal .cancel-button,
@@ -2120,7 +2141,7 @@ select.setting-input option {
 
 .cache-service-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 12px;
     margin-bottom: 14px;
 }
@@ -2131,6 +2152,8 @@ select.setting-input option {
     border-radius: 8px;
     padding: 12px;
     transition: border-color 0.2s;
+    display: flex;
+    flex-direction: column;
 }
 
 .cache-service-card:hover {
@@ -2194,7 +2217,8 @@ select.setting-input option {
 .cache-service-card .user-actions {
     display: flex;
     gap: 6px;
-    margin-top: 10px;
+    margin-top: auto;
+    padding-top: 10px;
 }
 
 .cache-admin-actions {
@@ -2241,4 +2265,3 @@ body.heroui-theme .cache-stat-row {
 body.heroui-theme .cache-stat-label {
     color: var(--text-muted);
 }
-

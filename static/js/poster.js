@@ -10,6 +10,7 @@ const customText = document.getElementById('custom-text');
 const cinemaOverlayTop = document.getElementById('cinemaOverlayTop');
 const cinemaOverlayBottom = document.getElementById('cinemaOverlayBottom');
 const directorText = document.getElementById('directorText');
+const posterBackdrop = document.getElementById('posterBackdrop');
 const taglineText = document.getElementById('taglineText');
 const cinemaCast = document.getElementById('cinemaCast');
 const cinemaTechInfo = document.getElementById('cinemaTechInfo');
@@ -31,6 +32,15 @@ let infoRotationInterval;
 let currentInfoIndex = 0;
 const infoItems = [];
 let currentPlaybackPositionSeconds = 0;
+
+if (posterBackdrop) {
+    posterImage.addEventListener('load', function() {
+        posterBackdrop.style.backgroundImage = `url('${posterImage.src}')`;
+    });
+    if (posterImage.complete && posterImage.naturalWidth > 0) {
+        posterBackdrop.style.backgroundImage = `url('${posterImage.src}')`;
+    }
+}
 
 const socket = io('/poster', {
     transports: ['websocket'],
@@ -337,7 +347,15 @@ function updateCinemaOverlays() {
         posterContainer.classList.add('cinema-info');
 
         if (movieDirectors && movieDirectors.length > 0) {
-            directorText.textContent = 'A FILM BY ' + movieDirectors[0].toUpperCase();
+            const roleEl = document.createElement('span');
+            roleEl.className = 'director-role';
+            roleEl.textContent = 'A film by';
+            const nameEl = document.createElement('span');
+            nameEl.className = 'director-name';
+            nameEl.textContent = movieDirectors[0];
+            directorText.innerHTML = '';
+            directorText.appendChild(roleEl);
+            directorText.appendChild(nameEl);
         } else {
             directorText.textContent = '';
         }

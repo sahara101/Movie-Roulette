@@ -269,20 +269,16 @@ body.heroui-theme .filter-select {
 }
 
 body.heroui-theme .filter-select:focus {
-    border-color: rgba(99, 102, 241, 0.5);
-}
-
-body.heroui-theme .filter-select:focus {
-    border-color: rgba(99, 102, 241, 0.5);
+    border-color: rgba(229, 160, 13, 0.5);
 }
 
 body.heroui-theme .filter-shuffle {
-    background: linear-gradient(135deg, #6366f1, #7c3aed);
-    color: #fff;
+    background: #E5A00D;
+    color: #09090b;
 }
 
 body.heroui-theme .filter-shuffle:hover {
-    background: linear-gradient(135deg, #818cf8, #8b5cf6);
+    background: #F8D68B;
 }
 
 body.heroui-theme .filter-clear {
@@ -302,17 +298,17 @@ body.heroui-theme .movie-card {
 }
 
 body.heroui-theme .movie-card:hover {
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 0 12px 32px rgba(99, 102, 241, 0.15);
+    border-color: rgba(229, 160, 13, 0.4);
+    box-shadow: 0 12px 32px rgba(229, 160, 13, 0.15);
 }
 
 body.heroui-theme .watch-button {
-    background: linear-gradient(135deg, #6366f1, #7c3aed);
-    color: #fff;
+    background: #E5A00D;
+    color: #09090b;
 }
 
 body.heroui-theme .watch-button:hover {
-    background: linear-gradient(135deg, #818cf8, #8b5cf6);
+    background: #F8D68B;
 }
 
 body.heroui-theme .movie-card-title {
@@ -327,19 +323,19 @@ body.heroui-theme #client_prompt_content {
     background: var(--bg-2);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg), 0 0 60px rgba(99, 102, 241, 0.08);
+    box-shadow: var(--shadow-lg), 0 0 60px rgba(229, 160, 13, 0.08);
     padding: 20px;
     color: #fafafa;
 }
 
 body.heroui-theme .client {
-    border-color: rgba(99, 102, 241, 0.3);
+    border-color: rgba(255, 255, 255, 0.12);
     color: #fafafa;
 }
 
 body.heroui-theme .client:hover {
-    background-color: rgba(99, 102, 241, 0.12);
-    color: #a5b4fc;
+    background-color: rgba(255, 255, 255, 0.07);
+    color: #fafafa;
 }
 
 /* ── Collection Grid (shared with collections page) ──────── */
@@ -390,7 +386,7 @@ body.heroui-theme .client:hover {
     height: 100%;
     padding: 1rem 2rem;
     color: white;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     display: flex;
     flex-direction: column;
 }
@@ -426,7 +422,7 @@ body.heroui-theme .client:hover {
 
 .read-more-link {
     text-decoration: none;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-size: 14px;
     color: #ffda00;
     margin-top: 10px;
