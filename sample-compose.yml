@@ -43,6 +43,7 @@ services:
       ENABLE_MOBILE_TRUNCATION: "FALSE"  # Truncate descriptions on mobile
       SHOW_NOW_WATCHING_CARD: "TRUE"     # Show live Now Watching card on main page
       USE_HEROUI_THEME: "FALSE"          # Enable HeroUI theme
+      PLEX_WATCH_TOGETHER: "FALSE"       # Enable Watch Together mode (Plex only) — Watchlist: intersect plex.tv watchlists; Library: intersect watch-status caches for much larger pool
       ENABLE_MOVIE_LOGOS: "TRUE"         # Show movie titles as logos
       LOAD_MOVIE_ON_START: "FALSE"       # Adds a button to get a random movie
 

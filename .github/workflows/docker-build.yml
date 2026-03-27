@@ -67,10 +67,10 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            sahara101/movie-roulette:latest
-            sahara101/movie-roulette:${{ steps.version.outputs.version }}
-            ghcr.io/sahara101/movie-roulette:latest
-            ghcr.io/sahara101/movie-roulette:${{ steps.version.outputs.version }}
+            sahara101/movie-roulette:latest-amd64
+            sahara101/movie-roulette:${{ steps.version.outputs.version }}-amd64
+            ghcr.io/sahara101/movie-roulette:latest-amd64
+            ghcr.io/sahara101/movie-roulette:${{ steps.version.outputs.version }}-amd64
 
       - name: Build and push ARM
         uses: docker/build-push-action@v5
@@ -82,10 +82,25 @@ jobs:
           tags: |
             sahara101/movie-roulette:arm-latest
             sahara101/movie-roulette:arm-${{ steps.version.outputs.version }}
+            sahara101/movie-roulette:latest-arm
+            sahara101/movie-roulette:${{ steps.version.outputs.version }}-arm
             ghcr.io/sahara101/movie-roulette:arm-latest
             ghcr.io/sahara101/movie-roulette:arm-${{ steps.version.outputs.version }}
+            ghcr.io/sahara101/movie-roulette:latest-arm
+            ghcr.io/sahara101/movie-roulette:${{ steps.version.outputs.version }}-arm
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Create and push multi-arch manifests
+        run: |
+          for REPO in "sahara101/movie-roulette" "ghcr.io/sahara101/movie-roulette"; do
+            docker buildx imagetools create -t ${REPO}:latest \
+              ${REPO}:latest-amd64 \
+              ${REPO}:latest-arm
+            docker buildx imagetools create -t ${REPO}:${{ steps.version.outputs.version }} \
+              ${REPO}:${{ steps.version.outputs.version }}-amd64 \
+              ${REPO}:${{ steps.version.outputs.version }}-arm
+          done
 
       - name: Move cache
         run: |

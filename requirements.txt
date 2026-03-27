@@ -10,7 +10,7 @@ bidict==0.23.1
 blinker==1.9.0
 bottle==0.13.4
 bottle-websocket==0.2.9
-cbor2==5.8.0
+cbor2==5.9.0
 certifi==2026.2.25
 cffi==2.0.0
 chacha20poly1305-reuseable==0.13.2
@@ -61,7 +61,7 @@ python-engineio==4.13.1
 python-socketio==5.16.1
 pytz==2025.2
 pywebostv==0.8.9
-requests==2.32.5
+requests==2.33.0
 rsa==4.9.1
 setuptools==82.0.0
 simple-websocket==1.1.0

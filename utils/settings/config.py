@@ -3,7 +3,8 @@ DEFAULT_SETTINGS = {
         'enabled': False,
         'url': '',
         'token': '',
-        'movie_libraries': []
+        'movie_libraries': [],
+        'watch_together_enabled': False
     },
     'jellyfin': {
         'enabled': False,
@@ -123,6 +124,8 @@ ENV_MAPPINGS = {
     'PLEX_URL': ('plex', 'url', str),
     'PLEX_TOKEN': ('plex', 'token', str),
     'PLEX_MOVIE_LIBRARIES': ('plex', 'movie_libraries', lambda x: [s.strip() for s in x.split(',')]),
+    'PLEX_WATCH_TOGETHER': ('plex', 'watch_together_enabled', lambda x: x.upper() == 'TRUE'),
+    'PLEX_SHARED_WATCHLIST': ('plex', 'watch_together_enabled', lambda x: x.upper() == 'TRUE'),  # backward compat alias
 
     # Jellyfin ENV
     'JELLYFIN_URL': ('jellyfin', 'url', str),

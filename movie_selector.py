@@ -64,6 +64,7 @@ from utils.auth import auth_bp, auth_manager
 from utils.auth.managed_user_routes import managed_user_routes
 from utils.auth.passkey_routes import register_passkey_routes
 from routes.user_cache_routes import user_cache_bp
+from routes.watchlist_routes import watchlist_bp
 from utils.collection_service import CollectionService
 
 logging.basicConfig(level=logging.INFO) 
@@ -129,6 +130,7 @@ MOBILE_TRUNCATION = False
 EMBY_AVAILABLE = False
 ENABLE_MOVIE_LOGOS = True
 HEROUI_THEME = False
+PLEX_WATCH_TOGETHER_ENABLED = False
 
 all_plex_unwatched_movies = []
 movies_loaded_from_cache = False
@@ -146,6 +148,7 @@ def load_settings():
     global PLEX_SETTINGS, JELLYFIN_SETTINGS, EMBY_SETTINGS
     global HOMEPAGE_MODE, USE_LINKS, USE_FILTER, USE_GRID_VIEW, USE_WATCH_BUTTON, USE_NEXT_BUTTON, ENABLE_MOVIE_LOGOS, HEROUI_THEME
     global PLEX_AVAILABLE, JELLYFIN_AVAILABLE, EMBY_AVAILABLE, MOBILE_TRUNCATION
+    global PLEX_WATCH_TOGETHER_ENABLED
 
     FEATURE_SETTINGS = settings.get('features', {})
     CLIENT_SETTINGS = settings.get('clients', {})
@@ -163,6 +166,7 @@ def load_settings():
     MOBILE_TRUNCATION = FEATURE_SETTINGS.get('mobile_truncation', False)
     ENABLE_MOVIE_LOGOS = FEATURE_SETTINGS.get('enable_movie_logos', True)
     HEROUI_THEME = FEATURE_SETTINGS.get('heroui_theme', False)
+    PLEX_WATCH_TOGETHER_ENABLED = bool(PLEX_SETTINGS.get('watch_together_enabled'))
 
     PLEX_AVAILABLE = (
         bool(PLEX_SETTINGS.get('enabled')) or
@@ -741,8 +745,12 @@ def get_user_cache_manager(internal_username=None, plex_user_id=None, user_type=
             logger.info(f"All movies cache missing for {display_username} at {user_cm.all_movies_cache_path}. Triggering build.")
             socketio.start_background_task(user_cm.cache_all_plex_movies)
 
-        if user_cm.cache_file_path and not os.path.exists(user_cm.cache_file_path):
-            logger.info(f"Unwatched cache missing for {display_username} at {user_cm.cache_file_path}. Triggering build.")
+        cache_missing_or_empty = (
+            user_cm.cache_file_path and
+            (not os.path.exists(user_cm.cache_file_path) or os.path.getsize(user_cm.cache_file_path) <= 2)
+        )
+        if cache_missing_or_empty:
+            logger.info(f"Unwatched cache missing or empty for {display_username} at {user_cm.cache_file_path}. Triggering build.")
             if global_cache_manager and user_cm != global_cache_manager:
                  global_cache_manager._initializing = False
             socketio.start_background_task(user_cm.start_cache_build)
@@ -1045,6 +1053,7 @@ app.register_blueprint(poster_bp)
 app.register_blueprint(trakt_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(user_cache_bp)
+app.register_blueprint(watchlist_bp)
 app.register_blueprint(managed_user_routes)
 register_passkey_routes(app)
 
@@ -1147,6 +1156,7 @@ def index():
         load_movie_on_start=load_movie_on_start,
         settings_disabled=settings.get('system', {}).get('disable_settings', False),
         heroui_theme=HEROUI_THEME,
+        plex_watch_together=PLEX_AVAILABLE and PLEX_WATCH_TOGETHER_ENABLED,
     )
 
 @app.route('/start_loading')
@@ -3528,65 +3538,65 @@ def dismiss_update():
 @app.route('/search_movies')
 @auth_manager.require_auth
 def search_movies():
-    """Search for movies in the current active service"""
+    """Search movies against local cache — no external API calls, instant response"""
     try:
         current_service = session.get('current_service', get_available_service())
-        query = request.args.get('query', '').strip()
+        query = request.args.get('query', '').strip().lower()
 
         if not query:
             return jsonify({"error": "No search query provided"}), 400
 
-        logger.info(f"Searching movies in {current_service} with query: {query}")
+        results = []
 
-        service_instance = g.media_service
-        results = [] 
+        if current_service == 'plex' and PLEX_AVAILABLE:
+            movies = g.cache_manager.get_all_plex_movies() if g.cache_manager else []
+            results = [m for m in movies if query in m.get('title', '').lower()][:20]
 
-        if current_service == 'plex' and PLEX_AVAILABLE and service_instance:
-            try:
-                library_search_results = []
-                unique_movie_ids = set()
+        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and g.media_service:
+            svc = g.media_service
+            _, api_key = get_current_jellyfin_user_creds()
+            api_key = api_key or svc.admin_api_key
+            cache_path = '/app/data/jellyfin_all_movies.json'
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r') as f:
+                    all_movies = json.load(f)
+                matches = [m for m in all_movies if query in m.get('title', '').lower()][:20]
+                results = [
+                    {
+                        'id': m['jellyfin_id'],
+                        'title': m['title'],
+                        'year': m.get('year', ''),
+                        'tmdb_id': m.get('tmdb_id'),
+                        'poster': f"{svc.server_url}/Items/{m['jellyfin_id']}/Images/Primary?api_key={api_key}",
+                    }
+                    for m in matches
+                ]
 
-                plex_search_instance = service_instance._get_user_plex_instance()
+        elif current_service == 'emby' and EMBY_AVAILABLE and g.media_service:
+            svc = g.media_service
+            cache_path = '/app/data/emby_all_movies.json'
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r') as f:
+                    all_movies = json.load(f)
+                matches = [m for m in all_movies if query in m.get('title', '').lower()][:20]
+                results = [
+                    {
+                        'id': m['emby_id'],
+                        'title': m['title'],
+                        'year': m.get('year', ''),
+                        'tmdb_id': m.get('tmdb_id'),
+                        'poster': f"{svc.server_url}/Items/{m['emby_id']}/Images/Primary?api_key={svc.api_key}",
+                    }
+                    for m in matches
+                ]
 
-                logger.debug(f"Performing Plex library search for query '{query}' using perspective of service_instance (user: {service_instance.username or 'N/A'}).")
-
-                for library_name in service_instance.library_names:
-                    try:
-                        library = plex_search_instance.library.section(library_name.strip())
-                        library_results = library.search(title=query, libtype='movie', limit=50)
-                        for item in library_results:
-                            if item.ratingKey not in unique_movie_ids:
-                                unique_movie_ids.add(item.ratingKey)
-                                library_search_results.append(item)
-                    except Exception as lib_err:
-                        logger.warning(f"Error searching library '{library_name}': {lib_err}")
-                        continue
-
-                logger.info(f"Found {len(library_search_results)} unique movies via library search for query: {query}")
-                results = [service_instance.get_movie_data(movie) for movie in library_search_results]
-
-            except Exception as search_error:
-                logger.error(f"Plex search failed: {search_error}", exc_info=True)
-                results = [] 
-        elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and service_instance:
-            user_id, api_key = get_current_jellyfin_user_creds()
-            results = service_instance.search_movies(query, user_id=user_id, api_key=api_key)
-        elif current_service == 'emby' and EMBY_AVAILABLE and service_instance:
-            results = service_instance.search_movies(query)
         else:
-            logger.error(f"No available media service (current: {current_service})")
             return jsonify({"error": "No available media service"}), 400
 
-        if results:
-            logger.info(f"Found {len(results)} movies matching query: {query}")
-            enriched_results = [enrich_movie_data(movie) for movie in results]
-            return jsonify({
-                "service": current_service,
-                "results": enriched_results
-            })
+        if not results:
+            return jsonify({"error": "No movies found"}), 404
 
-        logger.info(f"No movies found for query: {query}")
-        return jsonify({"error": "No movies found"}), 404
+        return jsonify({"service": current_service, "results": results})
 
     except Exception as e:
         logger.error(f"Error in search_movies: {str(e)}")

@@ -50,6 +50,7 @@ This project was extended with the assistance of AI tools. The core functionalit
 -  **Cinema Poster Mode**: Digital movie poster display with real-time progress
 -  **Collections Page**: Find al collections with missing watched movies. Optional connect Trakt to include more data
 -  **Smart Discovery**: Filter by watch status, genre, year, and rating
+-  **Watch With** (Plex): Pick a random movie from a shared pool — *Watchlist* mode intersects plex.tv watchlists (no app account needed for partner), *Library* mode finds movies neither user has seen from the full library (partner must have logged in once)
 -  **PWA Support**: Install as app on mobile and desktop
 -  **Device Control**: Power on Apple TV and TV devices directly in the selected service application
 -  **Service Integration**: 
@@ -80,14 +81,14 @@ This project was extended with the assistance of AI tools. The core functionalit
 
 ## Container Images
 
-| Registry | Architecture | Version | Image Path |
-|----------|--------------|----------|------------|
-| Docker Hub | AMD64 | Latest | `sahara101/movie-roulette:latest` |
-| Docker Hub | ARM64/ARMv7 | Latest | `sahara101/movie-roulette:arm-latest` |
-| GHCR | AMD64 | Latest | `ghcr.io/sahara101/movie-roulette:latest` |
-| GHCR | ARM64/ARMv7 | Latest | `ghcr.io/sahara101/movie-roulette:arm-latest` |
+| Registry | Architecture | Image Path |
+|----------|--------------|------------|
+| Docker Hub | AMD64 + ARM64 + ARMv7 | `sahara101/movie-roulette:latest` |
+| Docker Hub | ARM64/ARMv7 (legacy) | `sahara101/movie-roulette:arm-latest` |
+| GHCR | AMD64 + ARM64 + ARMv7 | `ghcr.io/sahara101/movie-roulette:latest` |
+| GHCR | ARM64/ARMv7 (legacy) | `ghcr.io/sahara101/movie-roulette:arm-latest` |
 
-Instead of latest you can also use the version number. 
+`latest` is a multi-arch manifest — Docker and Kubernetes will automatically pull the correct image for your node's architecture. Instead of `latest` you can also use the version number (e.g. `v5.3.0`).
 
 ```yaml
 services:
@@ -241,6 +242,7 @@ Movie Roulette offers two ways to configure the application:
 | `ENABLE_MOBILE_TRUNCATION` | Choose if descriptions are truncated on mobile | FALSE | ✅ Settings |
 | `SHOW_NOW_WATCHING_CARD` | Show live Now Watching card on main page | TRUE | ✅ Settings |
 | `USE_HEROUI_THEME` | Enable HeroUI theme | FALSE | ✅ Settings |
+| `PLEX_WATCH_TOGETHER` | Enable Watch Together mode — Watchlist & Library partner modes (Plex only) | FALSE | ✅ Settings |
 
 ### Request Service (Optional)
 | Variable | Description | Default | UI Alternative |

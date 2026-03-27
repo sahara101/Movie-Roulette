@@ -477,8 +477,13 @@ body {
 
 /* Media Queries */
 @media (max-width: 480px) {
+    body {
+        justify-content: center;
+    }
+
     .login-container {
         padding: 10px;
+        margin-right: 0;
     }
 
     .login-card {

@@ -19,6 +19,10 @@ class PlexService:
     _cache_build_in_progress = False
     _cache_lock = threading.Lock()
     _initializing = False
+    _watchlist_pool_cache: dict = {}
+    _WATCHLIST_CACHE_TTL = 900  # 15 minutes idle timeout (sliding)
+    _library_intersection_cache: dict = {}
+    _LIBRARY_CACHE_TTL = 300  # 5 minutes sliding
 
     def __init__(self, url=None, token=None, libraries=None, username=None, cache_manager=None):
         logger.info("Initializing PlexService")
@@ -93,6 +97,10 @@ class PlexService:
         self._movies_cache = []
         self._cache_loaded = False
         self._initializing = False
+        self._managed_user_server = None
+        self.plex_account_id = None
+        if self.username:
+            self._connect_managed_user()
 
         start_time = time.time()
         if self._load_from_disk_cache():
@@ -104,28 +112,54 @@ class PlexService:
 
         logger.info("PlexService initialization completed successfully")
 
-    def _get_user_plex_instance(self):
-        """Get the appropriate Plex instance based on username, handling owner account."""
-        if hasattr(self, 'username') and self.username:
+    def _connect_managed_user(self):
+        """For Plex Home restricted users, establish a per-user PlexServer via resource.connect().
+        After Plex's security patch, switchUser()/get_token() no longer works for managed home
+        users. The correct approach is switchHomeUser() + resource.connect() which discovers the
+        local .plex.direct address that accepts the managed user token.
+        """
+        try:
+            account = self.plex.myPlexAccount()
+            if self.username.lower() == account.username.lower():
+                return  # owner — no special handling needed
+            user = account.user(self.username)
+            self.plex_account_id = user.id
+
+            # Try switchUser first (works for shared/friend users)
             try:
-                try:
-                    owner_username = self.plex.myPlexAccount().username
-                except Exception as owner_err:
-                    logger.warning(f"Could not get owner username from myPlexAccount: {owner_err}. Proceeding with switchUser attempt.")
-                    owner_username = None 
+                self._managed_user_server = self.plex.switchUser(self.username)
+                logger.info(f"Established user perspective for {self.username} via switchUser")
+                return
+            except Exception:
+                pass  # fall through to switchHomeUser for managed home users
 
-                if owner_username and self.username.lower() == owner_username.lower():
-                    logger.info(f"Using main Plex instance for owner account: {self.username}")
-                    return self.plex
+            # switchHomeUser + resource.connect() for Plex Home restricted users
+            user_account = account.switchHomeUser(self.username)
+            machine_id = self.plex.machineIdentifier
+            server_resource = next(
+                (r for r in user_account.resources() if r.clientIdentifier == machine_id),
+                None
+            )
+            if server_resource:
+                self._managed_user_server = server_resource.connect()
+                logger.info(f"Established managed home user perspective for {self.username} via resource.connect()")
+            else:
+                logger.warning(f"Server not found in {self.username}'s resources — will use admin perspective")
+        except Exception as e:
+            logger.warning(f"Could not establish managed user perspective for {self.username}: {e}")
 
-                logger.info(f"Attempting to switch to managed user perspective: {self.username}")
-                user_instance = self.plex.switchUser(self.username)
-                logger.info(f"Successfully switched to user perspective: {self.username}")
-                return user_instance
-            except Exception as e:
-                logger.error(f"Error getting user perspective for {self.username}: {e}")
-                raise e
-        logger.info("Using default Plex instance (no username specified).")
+    def _get_user_plex_instance(self):
+        """Return the per-user PlexServer for managed/shared users, or the admin instance."""
+        if hasattr(self, 'username') and self.username:
+            if self._managed_user_server is not None:
+                return self._managed_user_server
+            try:
+                owner_username = self.plex.myPlexAccount().username
+            except Exception:
+                owner_username = None
+            if owner_username and self.username.lower() == owner_username.lower():
+                return self.plex
+            logger.warning(f"No managed user server available for {self.username}, using admin perspective")
         return self.plex
 
     def _verify_cache_validity(self):
@@ -487,6 +521,7 @@ class PlexService:
 
             movie_data = {
                 "id": movie.ratingKey,
+                "plex_guid": getattr(movie, 'guid', None),
                 "tmdb_id": tmdb_id,
                 "title": movie.title,
                 "year": movie.year,
@@ -848,7 +883,152 @@ class PlexService:
             logger.error(f"Error in get_random_movies: {str(e)}")
             return []
 
-    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False, exclude_ids=None):
+    def _get_requester_watchlist_guids(self, admin_token: str) -> set:
+        """Fetch admin's own watchlist from plex.tv REST API, return set of plex guids."""
+        from plexapi.myplex import MyPlexAccount
+        account = MyPlexAccount(token=admin_token)
+        return {item.guid for item in account.watchlist(libtype='movie')}
+
+    def _get_friend_watchlist_guids(self, partner_uuid: str, admin_token: str) -> set:
+        """Fetch a friend's watchlist via Plex GraphQL (admin token only), return set of plex guids."""
+        import requests as _requests
+        query = '''
+        query GetWatchlistHub($uuid: ID!, $first: PaginationInt!, $after: String) {
+          user(id: $uuid) {
+            watchlist(first: $first, after: $after) {
+              nodes { id type }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+        '''
+        guids = set()
+        variables = {'uuid': partner_uuid, 'first': 100}
+        while True:
+            resp = _requests.post(
+                'https://community.plex.tv/api',
+                json={'query': query, 'variables': variables},
+                headers={'X-Plex-Token': admin_token, 'Content-Type': 'application/json'},
+                timeout=15
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            user_node = (data.get('data') or {}).get('user') or {}
+            watchlist = user_node.get('watchlist') or {}
+            for node in watchlist.get('nodes', []):
+                if node.get('type') == 'MOVIE':
+                    guids.add(f"plex://movie/{node['id']}")
+            page_info = watchlist.get('pageInfo', {})
+            if not page_info.get('hasNextPage'):
+                break
+            variables['after'] = page_info['endCursor']
+        return guids
+
+    def get_shared_watchlist_pool(self, admin_token: str, partner_uuid: str) -> list:
+        """
+        Intersect admin's watchlist with a friend's watchlist (via GraphQL, no user token needed).
+        Matches against local library by plex_guid. Falls back to tmdb_id for older cache entries.
+        Result cached 5 minutes.
+        """
+        cache_key = f"{admin_token[:8]}:{partner_uuid}"
+        now = time.time()
+        cached = PlexService._watchlist_pool_cache.get(cache_key)
+        if cached and now - cached[1] < PlexService._WATCHLIST_CACHE_TTL:
+            PlexService._watchlist_pool_cache[cache_key] = (cached[0], now)  # slide TTL
+            logger.info("Shared watchlist pool (cached): %d movies", len(cached[0]))
+            return cached[0]
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as _ex:
+            f_req = _ex.submit(self._get_requester_watchlist_guids, admin_token)
+            f_par = _ex.submit(self._get_friend_watchlist_guids, partner_uuid, admin_token)
+            requester_guids = f_req.result()
+            partner_guids = f_par.result()
+
+        shared_guids = requester_guids & partner_guids
+        logger.info("Shared watchlist: requester=%d partner=%d intersection=%d",
+                    len(requester_guids), len(partner_guids), len(shared_guids))
+
+        if not shared_guids:
+            PlexService._watchlist_pool_cache[cache_key] = ([], now)
+            return []
+
+        all_movies_path = getattr(g.cache_manager, 'all_movies_cache_path', None) if hasattr(g, 'cache_manager') else None
+        if not all_movies_path or not os.path.exists(all_movies_path):
+            logger.warning("Shared watchlist: all_movies cache not ready at %s", all_movies_path)
+            return []
+
+        with open(all_movies_path) as f:
+            all_movies = json.load(f)
+
+        # Primary: match by plex_guid (O(1) lookup); fallback: tmdb_id for old cache entries
+        guid_index = {m['plex_guid']: m for m in all_movies if m.get('plex_guid')}
+        pool = [guid_index[guid] for guid in shared_guids if guid in guid_index]
+        if not pool:
+            # Cache predates plex_guid field — fall back to hex_id substring match
+            shared_tmdb = set()
+            for guid in shared_guids:
+                hex_id = guid.replace('plex://movie/', '')
+                for m in all_movies:
+                    if str(m.get('tmdb_id', '')) and hex_id in str(m.get('plex_guid', '')):
+                        shared_tmdb.add(str(m['tmdb_id']))
+            pool = [m for m in all_movies if str(m.get('tmdb_id', '')) in shared_tmdb]
+
+        logger.info("Shared watchlist pool: %d movies in library", len(pool))
+        PlexService._watchlist_pool_cache[cache_key] = (pool, now)
+        return pool
+
+    def get_library_intersection_pool(self, partner_internal_username: str, watch_status: str = 'unwatched') -> list:
+        """
+        Return movies from the shared Plex library that match the watch_status for BOTH users.
+        Uses local JSON caches only — no API calls.
+        Result cached 5 minutes (sliding TTL).
+        """
+        current_path = getattr(g.cache_manager, 'all_movies_cache_path', None) if hasattr(g, 'cache_manager') else None
+        if not current_path or not os.path.exists(current_path):
+            logger.warning("Library intersection: current user cache not available")
+            return []
+
+        partner_path = f'/app/data/user_data/{partner_internal_username}/plex_all_movies.json'
+        if not os.path.exists(partner_path):
+            logger.warning("Library intersection: partner cache not found at %s", partner_path)
+            return []
+
+        cache_key = f"{current_path}:{partner_internal_username}:{watch_status}"
+        now = time.time()
+        cached = PlexService._library_intersection_cache.get(cache_key)
+        if cached and now - cached[1] < PlexService._LIBRARY_CACHE_TTL:
+            PlexService._library_intersection_cache[cache_key] = (cached[0], now)
+            logger.info("Library intersection pool (cached): %d movies", len(cached[0]))
+            return cached[0]
+
+        with open(current_path) as f:
+            current_movies = json.load(f)
+        with open(partner_path) as f:
+            partner_movies = json.load(f)
+
+        partner_index = {str(m.get('id', '')): m for m in partner_movies if m.get('id')}
+
+        pool = []
+        for movie in current_movies:
+            movie_id = str(movie.get('id', ''))
+            if not movie_id or movie_id not in partner_index:
+                continue
+            partner_movie = partner_index[movie_id]
+            current_watched = movie.get('watched', False)
+            partner_watched = partner_movie.get('watched', False)
+            if watch_status == 'unwatched' and not current_watched and not partner_watched:
+                pool.append(movie)
+            elif watch_status == 'watched' and current_watched and partner_watched:
+                pool.append(movie)
+            elif watch_status == 'all':
+                pool.append(movie)
+
+        logger.info("Library intersection pool: %d movies (watch_status=%s)", len(pool), watch_status)
+        PlexService._library_intersection_cache[cache_key] = (pool, now)
+        return pool
+
+    def filter_movies(self, genres=None, years=None, pg_ratings=None, watch_status='unwatched', get_all=False, exclude_ids=None, movies_pool=None):
         """Filter movies based on criteria and return a random movie"""
         try:
             start_time = time.time()
@@ -914,7 +1094,13 @@ class PlexService:
             
             logger.info(f"Movies available for filtering: {len(movies_to_filter)} from source: {source_description}")
 
-            if not movies_to_filter:
+            if movies_pool is not None:
+                movies_to_filter = list(movies_pool)
+                if watch_status == 'unwatched':
+                    movies_to_filter = [m for m in movies_to_filter if not m.get('watched', False)]
+                elif watch_status == 'watched':
+                    movies_to_filter = [m for m in movies_to_filter if m.get('watched', False)]
+            elif not movies_to_filter:
                 cache_manager_initializing = False
                 if hasattr(g, 'cache_manager') and g.cache_manager:
                     cache_manager_initializing = getattr(g.cache_manager, '_initializing', False)

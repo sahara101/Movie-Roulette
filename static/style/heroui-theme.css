@@ -2268,6 +2268,12 @@ body.heroui-theme .collection-modal-content .close-button {
   right: 18px;
 }
 
+@media (max-width: 480px) {
+  body.heroui-theme .collection-modal-content .close-button {
+    display: none;
+  }
+}
+
 body.heroui-theme .collection-info-header {
   display: flex;
   flex-direction: column;
@@ -2878,6 +2884,35 @@ body.heroui-theme .md-link-btn:hover {
   body.heroui-theme .test-error-label {
     max-width: 100%;
     white-space: normal;
+  }
+
+  body.heroui-theme .user-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  body.heroui-theme .user-item .user-name {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+  }
+
+  body.heroui-theme .user-item .user-name > span:first-child {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.heroui-theme .user-item .user-name .role-badge,
+  body.heroui-theme .user-item .user-name .service-type-badge {
+    flex-shrink: 0;
+  }
+
+  body.heroui-theme .user-meta {
+    display: none;
   }
 }
 

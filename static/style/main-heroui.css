@@ -445,42 +445,59 @@ body.heroui-main .collection-button:not(.hidden) .badge {
   line-height: 1 !important;
 }
 
-body.heroui-main .filter-dropdown {
-  display: none !important;
+body.heroui-main .filter-backdrop {
+  display: none;
   position: fixed !important;
-  width: 220px !important;
-  max-height: 70dvh !important;
-  overflow-y: auto !important;
-  background: rgba(10, 10, 14, 0.96) !important;
-  backdrop-filter: blur(32px) !important;
-  -webkit-backdrop-filter: blur(32px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 14px !important;
-  padding: 14px 16px !important;
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.04),
-    0 20px 50px rgba(0, 0, 0, 0.75) !important;
-  z-index: 201 !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  z-index: 200 !important;
+  opacity: 0;
+  transition: opacity 0.25s ease !important;
+}
+
+body.heroui-main .filter-backdrop.show {
+  display: block;
+  opacity: 1;
 }
 
 body.heroui-main .filter-dropdown {
-  transform-origin: top right !important;
+  display: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 300px !important;
+  max-height: 100dvh !important;
+  overflow-y: auto !important;
+  background: rgba(10, 10, 14, 0.98) !important;
+  backdrop-filter: blur(40px) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
+  border: none !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0 !important;
+  padding: 28px 20px 24px !important;
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.6) !important;
+  z-index: 201 !important;
 }
 
 body.heroui-main .filter-dropdown.show {
   display: block !important;
-  animation: heroui-dropdown-spring 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+  animation: heroui-filter-slide-in 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
 }
 
-@keyframes heroui-dropdown-spring {
-  from {
-    opacity: 0;
-    transform: scale(0.88) translateY(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+@keyframes heroui-filter-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+body.heroui-main .filter-dropdown.closing {
+  display: block !important;
+  animation: heroui-filter-slide-out 0.22s cubic-bezier(0.55, 0.055, 0.675, 0.19) both !important;
+}
+
+@keyframes heroui-filter-slide-out {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
 }
 
 body.heroui-main .filter-dropdown::before {
@@ -608,17 +625,17 @@ body.heroui-main .heroui-watch-pill.active {
   font-weight: 600 !important;
 }
 
-body.heroui-main .filter-dropdown > div:last-child {
+body.heroui-main .filter-actions {
   display: flex !important;
+  flex-direction: column !important;
   gap: 8px !important;
-  margin-top: 16px !important;
+  margin-top: 20px !important;
   padding-top: 14px !important;
   border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 body.heroui-main #applyFilter,
 body.heroui-main #clearFilter {
-  flex: 1 !important;
   padding: 9px 0 !important;
   border-radius: 10px !important;
   font-size: 0.8rem !important;
@@ -633,7 +650,6 @@ body.heroui-main #clearFilter {
 }
 
 body.heroui-main #applyFilter {
-  margin-bottom: 8px !important;
   background: #E5A00D !important;
   border: none !important;
   color: #09090b !important;
@@ -683,19 +699,7 @@ body.heroui-main .search-modal-content {
 }
 
 body.heroui-main .search-modal-close {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  align-self: flex-end !important;
-  width: 36px !important;
-  height: 36px !important;
-  margin-bottom: 10px !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 50% !important;
-  color: rgba(250, 250, 250, 0.7) !important;
-  cursor: pointer !important;
-  flex-shrink: 0 !important;
+  display: none !important;
 }
 
 body.heroui-main .search-modal-close svg {
@@ -1485,6 +1489,12 @@ body.heroui-main .collection-modal-content .close-button {
   right: 18px !important;
 }
 
+@media (max-width: 480px) {
+  body.heroui-main .collection-modal-content .close-button {
+    display: none !important;
+  }
+}
+
 body.heroui-main .collection-info-header {
   display: flex !important;
   flex-direction: column !important;
@@ -1985,30 +1995,10 @@ body.heroui-main #movie-logo-container {
     border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
   }
 
-  body.heroui-main #search_modal {
-    padding: 0 !important;
-    align-items: flex-start !important;
-  }
-
-  body.heroui-main .search-modal-content {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    padding: max(16px, env(safe-area-inset-top)) 16px 16px !important;
-    box-sizing: border-box !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
-
   body.heroui-main #search_results {
-    flex: 1 !important;
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 0.5rem !important;
     padding: 0.5rem 0 !important;
-    overflow-y: auto !important;
   }
 
   body.heroui-main #search_results .movie-card {
@@ -2067,19 +2057,14 @@ body.heroui-main #movie-logo-container {
     to   { transform: translateY(0);    opacity: 1; }
   }
 
-  body.heroui-main .filter-backdrop {
-    display: none;
-    position: fixed !important;
-    inset: 0 !important;
-    background: rgba(0, 0, 0, 0.5) !important;
-    z-index: 200 !important;
-    opacity: 0;
-    transition: opacity 0.28s ease !important;
+  body.heroui-main .filter-dropdown.closing {
+    display: block !important;
+    animation: heroui-filter-sheet-down 0.22s cubic-bezier(0.55, 0.055, 0.675, 0.19) both !important;
   }
 
-  body.heroui-main .filter-backdrop.show {
-    display: block;
-    opacity: 1;
+  @keyframes heroui-filter-sheet-down {
+    from { transform: translateY(0); }
+    to   { transform: translateY(100%); }
   }
 
   body.heroui-main .filter-dropdown::before {
@@ -2099,9 +2084,11 @@ body.heroui-main #movie-logo-container {
     height: 54px !important;
   }
 
-  body.heroui-main .filter-dropdown > div:last-child {
+  body.heroui-main .filter-actions {
     margin-top: 12px !important;
     padding-top: 10px !important;
+    flex-direction: row !important;
+    gap: 8px !important;
   }
 }
 
@@ -2111,7 +2098,7 @@ body.heroui-main #movie-logo-container {
   }
 
   body.heroui-main #search_results {
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 0.4rem !important;
   }
 
@@ -3122,4 +3109,54 @@ body.heroui-main .error-message button:hover {
     text-align: center;
     pointer-events: auto;
   }
+}
+
+/* ── Toast notifications (HeroUI override) ──────────────────────────────── */
+body.heroui-main .toast {
+  background: rgba(14, 14, 20, 0.88) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 4px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  color: #e8e8f0 !important;
+}
+
+body.heroui-main .toast.success {
+  border-left-color: #4ade80 !important;
+}
+
+body.heroui-main .toast.error {
+  border-left-color: #f87171 !important;
+}
+
+/* ── Watch mode pill toggle (HeroUI override) ───────────────────────────── */
+body.heroui-main .watch-mode-pills {
+  display: flex;
+  gap: 6px;
+}
+
+body.heroui-main .watch-mode-pill {
+  padding: 5px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #8a8a9a !important;
+  cursor: pointer;
+  font-size: 0.8em !important;
+  font-family: inherit !important;
+  letter-spacing: 0.03em !important;
+  transition: all 0.15s !important;
+}
+
+body.heroui-main .watch-mode-pill.active {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: #e0e0f0 !important;
+}
+
+body.heroui-main .watch-mode-pill:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #b8b8cc !important;
 }

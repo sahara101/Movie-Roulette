@@ -331,7 +331,6 @@
         var sel = document.getElementById('watchStatusSelect');
         if (!sel) return;
 
-        var LABELS = { unwatched: 'Unwatched', all: 'All', watched: 'Watched' };
         var pillBox = document.createElement('div');
         pillBox.className = 'heroui-watch-pills';
 
@@ -341,6 +340,7 @@
             });
         }
 
+        var LABELS = { unwatched: 'Unwatched', all: 'All', watched: 'Watched' };
         ['unwatched', 'all', 'watched'].forEach(function (val) {
             var pill = document.createElement('button');
             pill.type = 'button';

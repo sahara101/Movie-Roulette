@@ -30,6 +30,8 @@ let socket = io({
 
 let cacheInitialized = false;
 let initialMovieLoaded = false;
+let watchPartners = {};
+let currentWatchMode = 'watchlist';
 
 let _bodyScrollLockDepth = 0;
 
@@ -77,6 +79,48 @@ window.closePersonDetailsOverlay = closePersonDetailsOverlay;
 window.openMovieDataOverlay = openMovieDataOverlay;
 
 document.addEventListener('DOMContentLoaded', async function() {
+    if (window.PLEX_WATCH_TOGETHER) {
+        fetch('/api/plex/watch_partners')
+            .then(r => r.ok ? r.json() : { partners: [] })
+            .then(data => {
+                const sel = document.getElementById('sharedPartnerSelect');
+                if (!sel) return;
+                watchPartners = {};
+                (data.partners || []).forEach(p => {
+                    watchPartners[p.display_name] = p;
+                    const opt = document.createElement('option');
+                    opt.value = p.display_name;
+                    opt.textContent = p.display_name;
+                    sel.appendChild(opt);
+                });
+
+                document.querySelectorAll('.watch-mode-pill').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        currentWatchMode = btn.dataset.mode;
+                        document.querySelectorAll('.watch-mode-pill').forEach(b => b.classList.toggle('active', b.dataset.mode === currentWatchMode));
+                        updateFilteredMovieCount();
+                    });
+                });
+
+                sel.addEventListener('change', () => {
+                    const partner = watchPartners[sel.value];
+                    const pill = document.getElementById('watchModeFilter');
+                    if (pill) {
+                        const hasBoth = partner && partner.modes.length > 1;
+                        pill.style.display = hasBoth ? '' : 'none';
+                        if (!hasBoth && partner) currentWatchMode = partner.modes[0];
+                        if (!partner) currentWatchMode = 'watchlist';
+                    }
+                    const params = getActivePartnerParams();
+                    if (params) {
+                        fetch(`/api/shared_watchlist_movie?count_only=true&watch_status=all&partner_username=${encodeURIComponent(params.partner_username)}&partner_mode=${params.partner_mode}`).catch(() => {});
+                    }
+                    updateFilteredMovieCount();
+                });
+            })
+            .catch(() => {});
+    }
+
     await getAvailableServices();
     await getCurrentService();
     const isMobile = window.matchMedia('(max-width: 767px)').matches;
@@ -318,6 +362,7 @@ async function getCurrentService() {
         if (data.service !== currentService) {
             currentService = data.service;
             console.log("Service changed to:", currentService);
+            updateWatchWithVisibility();
             await loadFilterOptions();
 	    console.log("Current and available services:", {
                 current: currentService,
@@ -328,6 +373,33 @@ async function getCurrentService() {
     } catch (error) {
         console.error("Error getting current service:", error);
     }
+}
+
+function updateWatchWithVisibility() {
+    const filterEl = document.getElementById('sharedWatchlistFilter');
+    const modeEl   = document.getElementById('watchModeFilter');
+    const sel      = document.getElementById('sharedPartnerSelect');
+    if (!filterEl) return;
+    if (currentService !== 'plex') {
+        filterEl.style.display = 'none';
+        if (modeEl) modeEl.style.display = 'none';
+        if (sel) sel.value = '';
+        currentWatchMode = 'watchlist';
+    } else {
+        filterEl.style.display = '';
+    }
+}
+
+function getActivePartnerParams() {
+    if (currentService !== 'plex') return null;
+    const sel = document.getElementById('sharedPartnerSelect');
+    const displayName = sel?.value || '';
+    if (!displayName) return null;
+    const partner = watchPartners[displayName];
+    if (!partner) return null;
+    const id = currentWatchMode === 'library' ? partner.library_id : partner.watchlist_id;
+    if (!id) return null;
+    return { partner_username: id, partner_mode: currentWatchMode };
 }
 
 async function loadRandomMovie() {
@@ -348,11 +420,17 @@ async function loadRandomMovie() {
         }
         queryParams.append('session_key', sessionKey);
 
-        const response = await fetch(`/random_movie?${queryParams}`);
+        const partnerParams = getActivePartnerParams();
+        const baseUrl = partnerParams ? '/api/shared_watchlist_movie' : '/random_movie';
+        if (partnerParams) {
+            queryParams.append('partner_username', partnerParams.partner_username);
+            queryParams.append('partner_mode', partnerParams.partner_mode);
+        }
+        const response = await fetch(`${baseUrl}?${queryParams}`);
 
         if (!response.ok) {
             if (response.status === 404) {
-                console.log('No movies available yet');
+                if (partnerParams) showNoMoviesMessage();
                 return;
             }
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -613,7 +691,7 @@ function setupEventListeners() {
             	} else {
                     document.getElementById('search_results').innerHTML = '';
             	}
-            }, 300);
+            }, 150);
         });
 
         document.addEventListener('keydown', (e) => {
@@ -811,6 +889,7 @@ function setupFilterEventListeners() {
         if (yearSelect) yearSelect.addEventListener('change', updateFilteredMovieCount);
         if (pgRatingSelect) pgRatingSelect.addEventListener('change', updateFilteredMovieCount);
 
+
         if (watchStatusSelect) {
             watchStatusSelect.addEventListener('change', async function(event) {
                 const newValue = event.target.value;
@@ -822,7 +901,6 @@ function setupFilterEventListeners() {
         }
 
         const isHeroui = document.body.classList.contains('heroui-main');
-        const isMobileHeroui = isHeroui && (window.innerWidth <= 768 || window.navigator.standalone);
         let filterBackdrop = document.querySelector('.filter-backdrop');
 
         if (isHeroui && !filterDropdown.dataset.movedToBody) {
@@ -830,27 +908,17 @@ function setupFilterEventListeners() {
             filterDropdown.dataset.movedToBody = '1';
         }
 
-        if (!filterBackdrop && isMobileHeroui) {
+        if (!filterBackdrop && isHeroui) {
             filterBackdrop = document.createElement('div');
             filterBackdrop.className = 'filter-backdrop';
             document.body.appendChild(filterBackdrop);
         }
 
         function closeFilterDropdown() {
-            filterDropdown.classList.remove('show');
-            if (filterBackdrop) filterBackdrop.classList.remove('show');
+            hideFilterDropdown();
         }
 
         function openFilterDropdown() {
-            if (isHeroui && !isMobileHeroui) {
-                const btnRect = newFilterButton.getBoundingClientRect();
-                const ddWidth = 220;
-                const margin = 8;
-                let left = btnRect.right - ddWidth;
-                left = Math.max(margin, Math.min(left, window.innerWidth - ddWidth - margin));
-                filterDropdown.style.top = (btnRect.bottom + margin) + 'px';
-                filterDropdown.style.left = left + 'px';
-            }
             filterDropdown.classList.add('show');
             if (filterBackdrop) filterBackdrop.classList.add('show');
         }
@@ -926,13 +994,25 @@ async function applyFilter() {
 
 function hideFilterDropdown() {
     const dd = document.getElementById("filterDropdown");
-    if (dd) dd.classList.remove("show");
     const bd = document.querySelector('.filter-backdrop');
-    if (bd) bd.classList.remove("show");
+    const isHeroui = document.body.classList.contains('heroui-main');
+    if (dd && isHeroui && dd.classList.contains('show')) {
+        dd.classList.add('closing');
+        if (bd) bd.classList.remove('show');
+        setTimeout(() => dd.classList.remove('show', 'closing'), 220);
+    } else {
+        if (dd) dd.classList.remove('show');
+        if (bd) bd.classList.remove('show');
+    }
 }
 
 async function fetchFilteredMovies() {
     try {
+        if (getActivePartnerParams()) {
+            await loadRandomMovie();
+            return;
+        }
+
         const queryParams = new URLSearchParams();
         if (currentFilters.genres.length) queryParams.append('genres', currentFilters.genres.join(','));
         if (currentFilters.years.length) queryParams.append('years', currentFilters.years.join(','));
@@ -982,6 +1062,12 @@ function clearFilter(skipReload = false) {
     if (yearSelect) Array.from(yearSelect.options).forEach(option => option.selected = option.value === "");
     if (pgRatingSelect) Array.from(pgRatingSelect.options).forEach(option => option.selected = option.value === "");
     if (watchStatusSelect) watchStatusSelect.value = "unwatched";
+    const sharedPartnerSelect = document.getElementById('sharedPartnerSelect');
+    if (sharedPartnerSelect) sharedPartnerSelect.value = '';
+    currentWatchMode = 'watchlist';
+    const pill = document.getElementById('watchModeFilter');
+    if (pill) pill.style.display = 'none';
+    document.querySelectorAll('.watch-mode-pill').forEach(b => b.classList.toggle('active', b.dataset.mode === 'watchlist'));
 
     updateFilteredMovieCount();
     if (applyFilterButton) {
@@ -1005,7 +1091,11 @@ function updateFilterIslandCount() {
     if (genreSelect) count += Array.from(genreSelect.selectedOptions).filter(o => o.value).length;
     if (yearSelect) count += Array.from(yearSelect.selectedOptions).filter(o => o.value).length;
     if (pgRatingSelect) count += Array.from(pgRatingSelect.selectedOptions).filter(o => o.value).length;
-    if (count > 0) {
+    const sharedActive = !!getActivePartnerParams();
+    if (sharedActive) {
+        countEl.textContent = 'W';
+        countEl.classList.add('active');
+    } else if (count > 0) {
         countEl.textContent = count;
         countEl.classList.add('active');
     } else {
@@ -1025,6 +1115,31 @@ async function updateFilteredMovieCount() {
     if (!genreSelect || !yearSelect || !pgRatingSelect || !watchStatusSelect || !applyFilterButton) {
         console.warn("Required filter elements not found, skipping count update.");
         if (applyFilterButton) applyFilterButton.textContent = 'Apply Filter';
+        return;
+    }
+
+    const partnerParams = getActivePartnerParams();
+    if (partnerParams) {
+        const sharedParams = new URLSearchParams({
+            count_only: 'true',
+            watch_status: watchStatusSelect.value,
+            partner_username: partnerParams.partner_username,
+            partner_mode: partnerParams.partner_mode,
+        });
+        Array.from(genreSelect.selectedOptions).map(o => o.value).filter(Boolean)
+            .forEach(g => sharedParams.append('genres', g));
+        Array.from(yearSelect.selectedOptions).map(o => o.value).filter(Boolean)
+            .forEach(y => sharedParams.append('years', y));
+        Array.from(pgRatingSelect.selectedOptions).map(o => o.value).filter(Boolean)
+            .forEach(r => sharedParams.append('pg_ratings', r));
+        applyFilterButton.textContent = 'Apply Filter (...)';
+        try {
+            const resp = await fetch(`/api/shared_watchlist_movie?${sharedParams}`);
+            const d = resp.ok ? await resp.json() : { count: 0 };
+            applyFilterButton.textContent = `Apply Filter (${d.count ?? 0})`;
+        } catch {
+            applyFilterButton.textContent = 'Apply Filter (Error)';
+        }
         return;
     }
 
@@ -1109,11 +1224,15 @@ async function loadNextMovie() {
         queryParams.append('watch_status', watchStatus);
         queryParams.append('session_key', sessionKey);
 
-        const url = `/next_movie?${queryParams}`;
-        console.log("Requesting next movie with URL:", url);
-        const response = await fetch(url);
+        const partnerParams = getActivePartnerParams();
+        const baseUrl = partnerParams ? '/api/shared_watchlist_movie' : '/next_movie';
+        if (partnerParams) {
+            queryParams.append('partner_username', partnerParams.partner_username);
+            queryParams.append('partner_mode', partnerParams.partner_mode);
+        }
+        const response = await fetch(`${baseUrl}?${queryParams}`);
 
-        if (response.status === 204) {
+        if (response.status === 204 || (response.status === 404 && partnerParams)) {
             showNoMoviesMessage();
             return;
         }
@@ -3477,6 +3596,7 @@ async function switchService() {
             const data = await response.json();
             if (data.service && data.service !== currentService) {
                 currentService = data.service;
+                updateWatchWithVisibility();
                 updateServiceButton();
                 await loadRandomMovie();
                 await loadFilterOptions();

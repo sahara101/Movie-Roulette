@@ -1936,7 +1936,7 @@ select.setting-input option {
     gap: 4px;
 }
 
-.user-name {
+.user-item .user-name {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2011,6 +2011,40 @@ select.setting-input option {
 
 .user-action.delete:hover {
     color: #EF4444;
+}
+
+@media (max-width: 640px) {
+    .user-meta {
+        display: none;
+    }
+
+    .user-item {
+        gap: 8px;
+    }
+
+    .user-info {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .user-item .user-name {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .user-item .user-name > span:first-child {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .user-item .user-name .role-badge,
+    .user-item .user-name .service-type-badge {
+        flex-shrink: 0;
+    }
 }
 
 .loading-users,

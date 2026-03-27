@@ -555,33 +555,16 @@ class CacheManager:
 
             current_unwatched = set()
 
-            plex_instance = self.plex_service.plex
+            plex_instance = self.plex_service._get_user_plex_instance()
+            logger.info(f"Using Plex instance perspective for cache update: {self.username or self.plex_user_id or 'admin'}")
             owner_username = None
             try:
-                 owner_username = self.plex_service.plex.myPlexAccount().username
+                owner_username = self.plex_service.plex.myPlexAccount().username
             except Exception as owner_err:
-                 logger.warning(f"Could not determine Plex owner username: {owner_err}.")
-
-            plex_user_to_switch_to = None
-            if self.user_type == 'plex' and self.username and self.username.startswith('plex_'):
-                plex_user_to_switch_to = self.username[len('plex_'):]
-            elif self.user_type == 'plex_managed' and self.username:
-                plex_user_to_switch_to = self.username
-
-            if plex_user_to_switch_to and owner_username and plex_user_to_switch_to.lower() != owner_username.lower():
-                try:
-                    logger.info(f"Attempting to switch to user perspective for cache update: {plex_user_to_switch_to} (CM User DisplayName: {self.username}, Plex User ID: {self.plex_user_id}, Type: {self.user_type}, Plex Owner: {owner_username})")
-                    plex_instance = self.plex_service.plex.switchUser(plex_user_to_switch_to)
-                    logger.info(f"Successfully switched to user perspective for cache update: {plex_user_to_switch_to}")
-                except Exception as e:
-                    logger.error(f"Error switching to user {plex_user_to_switch_to} (Plex User ID: {self.plex_user_id}) for cache update: {e}")
-                    logger.warning(f"Using admin perspective for cache update - results may not be accurate")
-                    plex_instance = self.plex_service.plex
-            elif self.user_type == 'plex' or self.user_type == 'plex_managed':
-                logger.info(f"Using current Plex instance perspective for {self.username or self.plex_user_id} (Type: {self.user_type}, Plex Owner: {owner_username}).")
+                logger.warning(f"Could not determine Plex owner username: {owner_err}.")
 
             for library_name in self.plex_service.library_names:
-                logger.info(f"Checking library '{library_name}' for unwatched movies (Perspective: {plex_user_to_switch_to or owner_username or 'default'})...")
+                logger.info(f"Checking library '{library_name}' for unwatched movies (Perspective: {self.username or 'admin'})...")
                 try:
                     fresh_library = plex_instance.library.section(library_name)
                     for movie in fresh_library.search(unwatched=True):

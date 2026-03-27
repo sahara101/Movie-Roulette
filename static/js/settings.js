@@ -1076,7 +1076,8 @@ document.addEventListener('DOMContentLoaded', function() {
             		    label: 'Movie Libraries',
             		    type: 'custom',
             		    render: renderPlexLibrariesConfig
-        		}
+        		},
+                        { key: 'plex.watch_together_enabled', label: 'Watch Together', type: 'switch' },
                     ]
                 },
                 {

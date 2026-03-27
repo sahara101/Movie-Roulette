@@ -30,6 +30,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     {% if heroui_theme %}
     <link rel="stylesheet" href="/static/style/main-heroui.css">
+    <link rel="stylesheet" href="/static/style/heroui-theme.css">
+    <link rel="stylesheet" href="/static/style/aceternity-effects.css">
     {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/ios-pwa-splash@1.0.0/cdn.min.js"></script>
@@ -164,8 +166,25 @@
             		    <option value="watched">Watched Movies</option>
         		</select>
     		    </div>
-    		              <button id="applyFilter">Apply Filter</button>
-    		              <button id="clearFilter">Clear Filter</button>
+    		    {% if plex_watch_together %}
+    		    <div id="sharedWatchlistFilter" class="filter-option">
+    		        <label for="sharedPartnerSelect">Watch with:</label>
+    		        <select id="sharedPartnerSelect">
+    		            <option value="">off</option>
+    		        </select>
+    		    </div>
+    		    <div id="watchModeFilter" class="filter-option watch-mode-filter" style="display:none">
+    		        <label>Mode</label>
+    		        <div class="watch-mode-pills">
+    		            <button class="watch-mode-pill active" data-mode="watchlist">Watchlist</button>
+    		            <button class="watch-mode-pill" data-mode="library">Library</button>
+    		        </div>
+    		    </div>
+    		    {% endif %}
+    		    <div class="filter-actions">
+    		        <button id="applyFilter">Apply Filter</button>
+    		        <button id="clearFilter">Clear Filter</button>
+    		    </div>
     		          </div>
             </div>
             {% endif %}
@@ -268,6 +287,7 @@
                         </svg>
                     </button>
                     {% endif %}
+                    <button id="btn_watch_together" class="button hidden">Watch Together</button>
                     <button id="btn_power" class="button" style="display:none">
                         <svg width="24" height="24" viewBox="0 0 24 24">
                             <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z" fill="currentColor"/>
@@ -453,6 +473,7 @@
         var MOBILE_TRUNCATION = {{ mobile_truncation | tojson }};
         var ENABLE_MOVIE_LOGOS = {{ enable_movie_logos | tojson }};
         var LOAD_MOVIE_ON_START = {{ load_movie_on_start | tojson }};
+        var PLEX_WATCH_TOGETHER = {{ plex_watch_together | tojson }};
     </script>
     <script>
         if ('serviceWorker' in navigator) {
