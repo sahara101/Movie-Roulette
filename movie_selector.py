@@ -19,7 +19,7 @@ from flask import Flask, jsonify, render_template, send_from_directory, request,
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect 
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from utils.poster_view import set_current_movie, poster_bp, init_socket
+from utils.poster_view import set_current_movie, poster_bp, init_socket, get_poster_proxy_url, get_backdrop_proxy_url
 from utils.default_poster_manager import init_default_poster_manager, default_poster_manager
 from utils.playback_monitor import PlaybackMonitor
 from utils.fetch_movie_links import fetch_movie_links
@@ -985,6 +985,14 @@ def _merge_enrichment(movie_data):
     return movie
 
 
+def _apply_image_proxy(movie_data, service):
+    """Convert raw media-server image URLs to same-origin proxy URLs."""
+    if service in ('jellyfin', 'emby'):
+        movie_data['poster'] = get_poster_proxy_url(movie_data.get('poster', ''), service)
+        movie_data['background'] = get_backdrop_proxy_url(movie_data.get('background', ''), service)
+    return movie_data
+
+
 def fetch_movie_links_for_overlay(tmdb_id):
     """Get movie links using centralized TMDB service"""
     return tmdb_service.get_movie_links(tmdb_id)
@@ -1507,6 +1515,7 @@ def random_movie():
        if movie_data:
            _add_seen_id(session_key, movie_data.get('id'))
            movie_data = _merge_enrichment(movie_data)
+           movie_data = _apply_image_proxy(movie_data, current_service)
            return jsonify({
                "service": current_service,
                "movie": movie_data,
@@ -1517,10 +1526,10 @@ def random_movie():
                "seen_count": seen_count
            })
        else:
-           return jsonify({"error": "No movie found"}), 404 
-   except Exception as e: 
-       logger.error(f"Error in random_movie: {str(e)}", exc_info=True) 
-       return jsonify({"error": str(e)}), 500 
+           return jsonify({"error": "No movie found"}), 404
+   except Exception as e:
+       logger.error(f"Error in random_movie: {str(e)}", exc_info=True)
+       return jsonify({"error": str(e)}), 500
 
 @app.route('/next_movie')
 @auth_manager.require_auth 
@@ -1609,6 +1618,7 @@ def next_movie():
        if movie_data:
            _add_seen_id(session_key, movie_data.get('id'))
            movie_data = _merge_enrichment(movie_data)
+           movie_data = _apply_image_proxy(movie_data, current_service)
            return jsonify({
                "service": current_service,
                "movie": movie_data,
@@ -1616,10 +1626,10 @@ def next_movie():
                "seen_count": seen_count
            })
        else:
-           return jsonify({"error": "No movies found matching the criteria"}), 204 
-   except Exception as e: 
-       logger.error(f"Error in next_movie: {str(e)}") 
-       return jsonify({"error": str(e)}), 500 
+           return jsonify({"error": "No movies found matching the criteria"}), 204
+   except Exception as e:
+       logger.error(f"Error in next_movie: {str(e)}")
+       return jsonify({"error": str(e)}), 500
 
 @app.route('/filter_movies')
 @auth_manager.require_auth 
@@ -1686,6 +1696,7 @@ def filter_movies():
        if movie_data:
            _add_seen_id(session_key, movie_data.get('id'))
            movie_data = _merge_enrichment(movie_data)
+           movie_data = _apply_image_proxy(movie_data, current_service)
            return jsonify({
                "service": current_service,
                "movie": movie_data
@@ -1694,7 +1705,7 @@ def filter_movies():
            return jsonify({"error": "No movies found matching the filter"}), 204
    except Exception as e:
        logger.error(f"Error in filter_movies: {str(e)}")
-       return jsonify({"error": str(e)}), 500 
+       return jsonify({"error": str(e)}), 500
 
 @app.route('/get_genres')
 @auth_manager.require_auth 
@@ -3676,6 +3687,8 @@ def random_movies_grid():
             return jsonify({"error": "No available media service"}), 400
 
         if movies_data:
+            if current_service in ('jellyfin', 'emby'):
+                movies_data = [_apply_image_proxy(m, current_service) for m in movies_data]
             return jsonify({
                 "service": current_service,
                 "movies": movies_data
@@ -3783,6 +3796,8 @@ def all_movies_grid():
             return jsonify({"error": "No available media service"}), 400
 
         if movies_data:
+            if current_service in ('jellyfin', 'emby'):
+                movies_data = [_apply_image_proxy(m, current_service) for m in movies_data]
             return jsonify({
                 "service": current_service,
                 "movies": movies_data
