@@ -21,7 +21,7 @@ let currentFilters = {
 let currentSettings = {};
 let currentService = 'plex';
 let currentMovie = null;
-let sessionKey = crypto.randomUUID();
+let sessionKey = (crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
 let availableServices = [];
 let socket = io({
     transports: ['polling'],
@@ -975,7 +975,7 @@ function setupFilterEventListeners() {
 }
 
 async function applyFilter() {
-    sessionKey = crypto.randomUUID();
+    sessionKey = (crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
     const genreSelect = document.getElementById('genreSelect');
     const yearSelect = document.getElementById('yearSelect');
     const pgRatingSelect = document.getElementById('pgRatingSelect');
@@ -1045,7 +1045,7 @@ async function fetchFilteredMovies() {
 }
 
 function clearFilter(skipReload = false) {
-    sessionKey = crypto.randomUUID();
+    sessionKey = (crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
     const genreSelect = document.getElementById('genreSelect');
     const yearSelect = document.getElementById('yearSelect');
     const pgRatingSelect = document.getElementById('pgRatingSelect');
