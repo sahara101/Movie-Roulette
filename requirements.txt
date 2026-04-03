@@ -45,7 +45,7 @@ multidict==6.7.1
 mutagen==1.47.0
 packaging==26.0
 pexpect==4.9.0
-PlexAPI==4.18.0
+PlexAPI==4.18.1
 propcache==0.4.1
 protobuf==7.34.0
 ptyprocess==0.7.0
