@@ -56,7 +56,7 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 pyOpenSSL==26.0.0
 pyparsing==3.3.2
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 python-engineio==4.13.1
 python-socketio==5.16.1
 pytz==2025.2
