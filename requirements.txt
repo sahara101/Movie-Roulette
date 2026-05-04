@@ -1,6 +1,6 @@
 adb_shell==0.4.4
 aiohappyeyeballs==2.6.1
-aiohttp==3.13.3
+aiohttp==3.13.4
 aiosignal==1.4.0
 annotated-types==0.7.0
 APScheduler==3.11.2
@@ -17,7 +17,7 @@ chacha20poly1305-reuseable==0.13.2
 charset-normalizer==3.4.4
 click==8.3.1
 configparser==7.2.0
-cryptography==46.0.5
+cryptography==46.0.7
 dnspython==2.8.0
 Eel==0.18.2
 eventlet==0.40.4
@@ -56,7 +56,7 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 pyOpenSSL==26.0.0
 pyparsing==3.3.2
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 python-engineio==4.13.1
 python-socketio==5.16.1
 pytz==2025.2
