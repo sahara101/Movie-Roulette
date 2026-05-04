@@ -3624,6 +3624,7 @@ socket.on('movie_removed', function(data) {
 
 let nowWatchingTimer = null;
 let nowWatchingData = null;
+let nowWatchingOverlayOpen = false;
 
 function _nwShow(card) {
     if (card.classList.contains('nw-visible')) return;
@@ -3641,6 +3642,50 @@ function _nwHide(card) {
     });
 }
 
+function getNowWatchingMovieId() {
+    const tmdbId = Number(nowWatchingData && nowWatchingData.tmdb_id);
+    return Number.isInteger(tmdbId) && tmdbId > 0 ? tmdbId : null;
+}
+
+function syncNowWatchingCardInteractivity() {
+    const card = document.getElementById('now_watching_card');
+    if (!card) return;
+
+    const movieId = getNowWatchingMovieId();
+    const clickable = Boolean(movieId);
+
+    card.classList.toggle('nw-clickable', clickable);
+    card.tabIndex = clickable ? 0 : -1;
+    card.setAttribute('role', clickable ? 'button' : 'group');
+    card.setAttribute('aria-disabled', clickable ? 'false' : 'true');
+}
+
+async function openNowWatchingMovie() {
+    const movieId = getNowWatchingMovieId();
+    if (!movieId || nowWatchingOverlayOpen) return;
+
+    nowWatchingOverlayOpen = true;
+    try {
+        await openMovieDataOverlay(movieId);
+    } catch (error) {
+        console.error('Error opening now watching movie details:', error);
+    } finally {
+        nowWatchingOverlayOpen = false;
+    }
+}
+
+function handleNowWatchingCardClick(event) {
+    if (event.target.closest('#nw_share_btn')) return;
+    openNowWatchingMovie();
+}
+
+function handleNowWatchingCardKeydown(event) {
+    if (event.target.closest('#nw_share_btn')) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openNowWatchingMovie();
+}
+
 function updateNowWatchingCard(data) {
     const card = document.getElementById('now_watching_card');
     if (!card) return;
@@ -3651,6 +3696,7 @@ function updateNowWatchingCard(data) {
         clearInterval(nowWatchingTimer);
         nowWatchingTimer = null;
         nowWatchingData = null;
+        syncNowWatchingCardInteractivity();
         return;
     }
     if (nowWatchingData && nowWatchingData.active && data.title === undefined) {
@@ -3662,6 +3708,7 @@ function updateNowWatchingCard(data) {
         nowWatchingData.start_time = new Date(Date.now() - data.position_seconds * 1000).toISOString();
     }
     if (!nowWatchingData.title) return;
+    syncNowWatchingCardInteractivity();
 
     const status = nowWatchingData.status || 'PLAYING';
     card.classList.toggle('nw-paused',  status === 'PAUSED');
@@ -3709,6 +3756,14 @@ function updateNowWatchingCard(data) {
             }
         }
     }).observe(movieContent, { attributes: true });
+}());
+
+(function() {
+    const card = document.getElementById('now_watching_card');
+    if (!card) return;
+    card.addEventListener('click', handleNowWatchingCardClick);
+    card.addEventListener('keydown', handleNowWatchingCardKeydown);
+    syncNowWatchingCardInteractivity();
 }());
 
 function updateNowWatchingProgress() {

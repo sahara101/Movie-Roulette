@@ -37,6 +37,8 @@ USER_DATA_DIR = os.path.join(DATA_DIR, 'user_data')
 DEFAULT_WATCHED_FILE = os.path.join(DATA_DIR, 'trakt_watched_movies.json')
 UPDATE_INTERVAL = 600  
 TRAKT_API_URL = 'https://api.trakt.tv'
+TRAKT_WATCHED_PAGE_LIMIT = 250
+TRAKT_WATCHED_PAGE_SAFETY_MAX = 10000
 
 token_lock = Lock()
 
@@ -340,17 +342,59 @@ def get_watched_movies(user_id=None):
     if not is_trakt_enabled_for_user(user_id):
         return []
 
-    response = make_trakt_request('GET', 'sync/watched/movies', user_id)
-    if not response or not response.ok:
-        print(f"Trakt API error getting watched movies for user {user_id}: {response.status_code if response else 'No response'}")
-        return []
-
-    watched_movies = response.json()
     tmdb_ids = []
-    for movie in watched_movies:
-        tmdb_id = movie['movie']['ids'].get('tmdb')
-        if tmdb_id:
-            tmdb_ids.append(tmdb_id)
+    seen_tmdb_ids = set()
+    page = 1
+    total_pages = None
+
+    while page <= TRAKT_WATCHED_PAGE_SAFETY_MAX:
+        response = make_trakt_request(
+            'GET',
+            'sync/watched/movies',
+            user_id,
+            params={'page': page, 'limit': TRAKT_WATCHED_PAGE_LIMIT},
+        )
+        if not response or not response.ok:
+            print(
+                f"Trakt API error getting watched movies for user {user_id} "
+                f"on page {page}: {response.status_code if response else 'No response'}"
+            )
+            return None
+
+        watched_movies = response.json()
+        if not isinstance(watched_movies, list):
+            print(
+                f"Unexpected watched movies payload for user {user_id} on page {page}: "
+                f"{type(watched_movies).__name__}"
+            )
+            return None
+
+        if not watched_movies:
+            break
+
+        for movie in watched_movies:
+            tmdb_id = ((movie.get('movie') or {}).get('ids') or {}).get('tmdb')
+            if tmdb_id and tmdb_id not in seen_tmdb_ids:
+                seen_tmdb_ids.add(tmdb_id)
+                tmdb_ids.append(tmdb_id)
+
+        if total_pages is None:
+            try:
+                total_pages = int(response.headers.get('X-Pagination-Page-Count', ''))
+            except (TypeError, ValueError):
+                total_pages = None
+
+        if total_pages is not None and page >= total_pages:
+            break
+
+        page += 1
+
+    if page > TRAKT_WATCHED_PAGE_SAFETY_MAX:
+        print(
+            f"Stopped watched movie sync for user {user_id} after "
+            f"{TRAKT_WATCHED_PAGE_SAFETY_MAX} pages"
+        )
+
     return tmdb_ids
 
 def get_trakt_rating(tmdb_id, user_id=None):
@@ -390,7 +434,13 @@ def sync_watched_status(user_id=None):
     if not is_trakt_enabled_for_user(user_id):
         return [] 
 
-    watched_movies = get_watched_movies(user_id) 
+    watched_movies = get_watched_movies(user_id)
+    if watched_movies is None:
+        logger.warning(
+            "Skipping watched cache overwrite for user %s because Trakt pagination fetch failed",
+            user_id,
+        )
+        return get_local_watched_movies(user_id)
 
     directory_key = user_id
     watched_file = DEFAULT_WATCHED_FILE

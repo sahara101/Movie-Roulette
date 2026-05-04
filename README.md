@@ -88,7 +88,7 @@ This project was extended with the assistance of AI tools. The core functionalit
 | GHCR | AMD64 + ARM64 + ARMv7 | `ghcr.io/sahara101/movie-roulette:latest` |
 | GHCR | ARM64/ARMv7 (legacy) | `ghcr.io/sahara101/movie-roulette:arm-latest` |
 
-`latest` is a multi-arch manifest — Docker and Kubernetes will automatically pull the correct image for your node's architecture. Instead of `latest` you can also use the version number (e.g. `v5.3.0`).
+`latest` is a multi-arch manifest — Docker and Kubernetes will automatically pull the correct image for your node's architecture. Instead of `latest` you can also use the version number (e.g. `v5.4.3`).
 
 ```yaml
 services:

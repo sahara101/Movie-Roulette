@@ -4514,6 +4514,15 @@ body.homepage-mode #movie-logo-container {
     transform: translateY(0);
 }
 
+.now-watching-card.nw-clickable {
+    cursor: pointer;
+}
+
+.now-watching-card.nw-clickable:focus-visible {
+    outline: 2px solid #E5A00D;
+    outline-offset: 3px;
+}
+
 .nw-header {
     display: flex;
     align-items: center;
