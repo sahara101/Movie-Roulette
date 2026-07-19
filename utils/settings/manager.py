@@ -222,6 +222,17 @@ class Settings:
                 return has_trakt_env
             return False
 
+        elif parts[0] == 'simkl':
+            if len(parts) > 1:
+                if parts[1] == 'client_id':
+                    return bool(os.getenv('SIMKL_CLIENT_ID'))
+                if parts[1] == 'access_token':
+                    return bool(os.getenv('SIMKL_ACCESS_TOKEN'))
+            return bool(os.getenv('SIMKL_CLIENT_ID') or os.getenv('SIMKL_ACCESS_TOKEN'))
+
+        elif parts[0] == 'tracking':
+            return bool(os.getenv('TRACKING_PROVIDER'))
+
         elif parts[0] == 'tmdb':
             has_tmdb_env = bool(os.getenv('TMDB_API_KEY'))
             if len(parts) > 1:

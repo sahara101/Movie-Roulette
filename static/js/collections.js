@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let allCollections = [];
     let currentService = null;
+    let trackingProviderLabel = 'Tracker';
 
     function fetchCollections() {
         fetch('/current_service')
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                     .then(data => {
                         if (data && data.collections) {
+                            trackingProviderLabel = data.tracking_provider_label || 'Tracker';
                             allCollections = data.collections;
                             searchInput.placeholder = `Search ${allCollections.length} collections...`;
                             displayCollections(allCollections);
@@ -218,14 +220,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (movie.in_library) {
                                 statusHTML = `<button class="action-button watch-button" onclick="showClientsForPoster(${movie.id})">Rewatch</button>`;
                             } else {
-                                statusHTML = `<span class="movie-status status-watched">On Trakt</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
+                                statusHTML = `<span class="movie-status status-watched">On ${trackingProviderLabel}</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
                             }
                             break;
                         case 'Requested':
                             statusHTML = `<span class="movie-status status-requested">Requested</span>`;
                             break;
                         case 'Request Watched':
-                             statusHTML = `<span class="movie-status status-watched">On Trakt</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
+                             statusHTML = `<span class="movie-status status-watched">On ${trackingProviderLabel}</span><button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;
                              break;
                         default:
                             statusHTML = `<button class="action-button request-button" data-movie-id="${movie.id}">Request</button>`;

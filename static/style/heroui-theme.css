@@ -2409,6 +2409,59 @@ body.heroui-theme #collection_modal .movie-item .status-watched {
   color: rgba(250, 250, 250, 0.3);
 }
 
+body.heroui-theme #collection_modal .collection-overview {
+  margin-top: 16px;
+}
+
+body.heroui-theme #collection_modal .collection-trigger-summary {
+  color: rgba(250, 250, 250, 0.65);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+body.heroui-theme #collection_modal .collection-overview h4 {
+  color: rgba(250, 250, 250, 0.42);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+}
+
+body.heroui-theme #collection_modal .movie-item.collection-current {
+  background: rgba(229, 160, 13, 0.08);
+}
+
+body.heroui-theme #collection_modal .movie-item.collection-watched:not(.collection-current) .movie-title {
+  opacity: 0.48;
+}
+
+body.heroui-theme #collection_modal .status-current {
+  background: rgba(229, 160, 13, 0.14);
+  color: #f8d68b;
+}
+
+@media (max-width: 480px) {
+  body.heroui-theme #collection_modal .movie-item {
+    align-items: flex-start;
+  }
+
+  body.heroui-theme #collection_modal .movie-title-link {
+    min-width: 0;
+  }
+
+  body.heroui-theme #collection_modal .movie-item.collection-current {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.heroui-theme #collection_modal .movie-item.collection-current .status-container {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
 body.heroui-theme #collection_modal .request-icon {
   fill: #e5a00d;
   width: 15px;

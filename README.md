@@ -2,7 +2,7 @@
 
 Can't decide what to watch? Movie Roulette helps you pick random movies from your Plex and/or Jellyfin libraries, with features like cinema poster mode, service integrations, and device control.
 
-[![Release](https://img.shields.io/badge/release-v5.3.0-blue)]()
+[![Release](https://img.shields.io/badge/release-v5.5.0-blue)]()
 [![Docker Pulls](https://img.shields.io/docker/pulls/sahara101/movie-roulette)](https://hub.docker.com/r/sahara101/movie-roulette)
 [![GHCR Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fsahara101%2FMovie-Roulette%2Fmovie-roulette.json&query=%24.downloads&label=GHCR%20Downloads)](https://github.com/sahara101/Movie-Roulette/pkgs/container/movie-roulette)
 [![GitHub Sponsor](https://img.shields.io/github/sponsors/sahara101?label=Sponsor&logo=GitHub)](https://github.com/sponsors/sahara101)
@@ -48,13 +48,13 @@ This project was extended with the assistance of AI tools. The core functionalit
 
 -  **Media Server Support**: Get random movies with Plex, Jellyfin, Emby
 -  **Cinema Poster Mode**: Digital movie poster display with real-time progress
--  **Collections Page**: Find al collections with missing watched movies. Optional connect Trakt to include more data
+-  **Collections Page**: Find all collections with missing watched movies. Optionally connect Trakt or Simkl to include watch history
 -  **Smart Discovery**: Filter by watch status, genre, year, and rating
 -  **Watch With** (Plex): Pick a random movie from a shared pool — *Watchlist* mode intersects plex.tv watchlists (no app account needed for partner), *Library* mode finds movies neither user has seen from the full library (partner must have logged in once)
 -  **PWA Support**: Install as app on mobile and desktop
 -  **Device Control**: Power on Apple TV and TV devices directly in the selected service application
 -  **Service Integration**: 
-  - Trakt for global watch status
+  - Trakt or Simkl for global watch status (one active provider per user)
   - Seerr or Ombi for requests
   - YouTube for trailers
 - **Authentication System**: Login with Media Servers, local admin (pass/passkey), Plex Managed User.
@@ -88,7 +88,7 @@ This project was extended with the assistance of AI tools. The core functionalit
 | GHCR | AMD64 + ARM64 + ARMv7 | `ghcr.io/sahara101/movie-roulette:latest` |
 | GHCR | ARM64/ARMv7 (legacy) | `ghcr.io/sahara101/movie-roulette:arm-latest` |
 
-`latest` is a multi-arch manifest — Docker and Kubernetes will automatically pull the correct image for your node's architecture. Instead of `latest` you can also use the version number (e.g. `v5.4.3`).
+`latest` is a multi-arch manifest — Docker and Kubernetes will automatically pull the correct image for your node's architecture. Instead of `latest` you can also use the version number (e.g. `v5.5.0`).
 
 ```yaml
 services:
@@ -117,7 +117,7 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 3. Optional: Enable Auth
 4. Automatic redirection to admin user setup page
 5. Wait for initial cache building for Plex
-6. Optional: Configure additional services (Trakt, Seerr, etc.)
+6. Optional: Configure watch tracking (Trakt or Simkl) and a request service (Seerr or Ombi)
 
 ## Key Configuration
 
@@ -140,7 +140,7 @@ For MacOS non-docker application please check [here](https://github.com/sahara10
 
 ### Integrations
 - TMDb (built-in key provided or custom API)
-- Trakt (built-in app or custom credentials)
+- Trakt or Simkl (built-in apps with optional custom credentials)
 - Seerr or Ombi (optional, for requests)
 
 ### Devices
@@ -175,8 +175,8 @@ See [sample-compose.yml](sample-compose.yml) for full configuration options.
       - Watch and Watch Again
       - Request
       - Requested
-      - Watched on Trakt
-   - Integration with trakt for a full list of collections
+      - Watched on the selected tracking provider
+   - Integration with Trakt or Simkl for a full list of collections
    - Search and display a random collection 
 
 ## Setup
@@ -289,6 +289,24 @@ Movie Roulette offers two ways to configure the application:
 | `TRAKT_CLIENT_SECRET` | Custom Trakt secret | Built-in app | ✅ Built-in auth |
 | `TRAKT_ACCESS_TOKEN` | Custom access token | - | ✅ Built-in auth |
 | `TRAKT_REFRESH_TOKEN` | Custom refresh token | - | ✅ Built-in auth |
+
+### Watch Tracking (Optional)
+Only one tracking provider is active for each user. Select **None**, **Trakt**, or **Simkl** under **Settings > Integrations > Watch Tracking**. Existing tokens are retained when switching providers, so switching back does not require reconnecting.
+
+#### Simkl
+Movie Roulette includes a Simkl application Client ID. Select **Simkl**, choose **Connect Simkl Account**, open the displayed authorization URL, and enter the PIN. Every authenticated Movie Roulette user connects their own Simkl account; accounts do not share watch history or access tokens.
+
+The Simkl PIN flow does not use a client secret, redirect URI, or refresh token. Its long-lived access token remains available until it expires or access is revoked. Self-hosters who prefer their own Simkl application can override the built-in Client ID through `SIMKL_CLIENT_ID`.
+
+Simkl synchronization stores completed TMDb movie IDs locally. Subsequent updates check Simkl activity timestamps first and only download changed history when necessary. The selected provider contributes watched status to movie filters, collection completion, ratings, and external links.
+
+| Variable | Description | Default | UI Alternative |
+|----------|-------------|---------|----------------|
+| `TRACKING_PROVIDER` | Lock the instance to `none`, `trakt`, or `simkl` | Per-user UI selection | ✅ Provider selector |
+| `SIMKL_CLIENT_ID` | Override the built-in Movie Roulette Simkl application Client ID | Built-in app | ❌ Environment only |
+| `SIMKL_ACCESS_TOKEN` | Global Simkl account access token | - | ✅ Per-user PIN authorization |
+
+Leave `TRACKING_PROVIDER` unset to allow each user to choose a provider. Each user can connect their own Simkl account through PIN authorization without configuring a Client ID, client secret, or redirect URI.
 
 ## Plex Configuration
 ### Plex Client

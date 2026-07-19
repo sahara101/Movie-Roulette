@@ -8,9 +8,11 @@ const SORT_OPTIONS = {
 
 let currentSort = SORT_OPTIONS.YEAR_DESC;
 
-let lastTraktSync = 0;
+let lastTrackingSync = 0;
 let plexFilterMode = 'all';
-const TRAKT_FRONTEND_SYNC_MIN_INTERVAL = 30 * 1000;
+let trackingProvider = 'none';
+let trackingProviderLabel = 'Tracker';
+const TRACKING_FRONTEND_SYNC_MIN_INTERVAL = 30 * 1000;
 
 let currentFilters = {
     genres: [],
@@ -200,7 +202,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             nextButton.style.marginRight = '0';
         }
     }
-    await syncTraktWatched(false);
+    await syncTrackingWatched(false);
     startVersionChecker();
 
     const closeCollectionModal = document.getElementById('collection_modal_close');
@@ -223,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 document.addEventListener('visibilitychange', function() {
     if (!document.hidden) {
-        syncTraktWatched(false);
+        syncTrackingWatched(false);
     }
 });
 
@@ -855,7 +857,7 @@ async function playSelectedMovie(clientId, movieId) {
             throw new Error(data.error || "Failed to start playback");
         }
 
-        setTimeout(() => syncTraktWatched(false), 30000);
+        setTimeout(() => syncTrackingWatched(false), 30000);
     } catch (error) {
         console.error("Error playing movie:", error);
         alert("Failed to play movie. Please try again.");
@@ -1374,7 +1376,7 @@ function updateMovieDisplay(movieData) {
 
     if (!window.HOMEPAGE_MODE && window.USE_LINKS) {
         elements["tmdb_link"] = document.getElementById("tmdb_link");
-        elements["trakt_link"] = document.getElementById("trakt_link");
+        elements["tracking_link"] = document.getElementById("tracking_link");
         elements["imdb_link"] = document.getElementById("imdb_link");
         elements["trailer_link"] = document.getElementById("trailer_link");
     }
@@ -1387,7 +1389,7 @@ function updateMovieDisplay(movieData) {
 
         const setPlaceholder = (el, text = "Loading...") => {
             if (el) {
-                if (key === "tmdb_link" || key === "trakt_link" || key === "imdb_link" || key === "trailer_link" || key === "movie_logo_img" || key === "collectionButton") {
+                if (key === "tmdb_link" || key === "tracking_link" || key === "imdb_link" || key === "trailer_link" || key === "movie_logo_img" || key === "collectionButton") {
                     el.style.display = 'none';
                 } else {
                     el.innerHTML = `<span class="placeholder-text">${text}</span>`;
@@ -1563,7 +1565,7 @@ function updateMovieDisplay(movieData) {
                 break;
 
             case "tmdb_link":
-            case "trakt_link":
+            case "tracking_link":
             case "imdb_link":
             case "trailer_link":
             case "movie_logo_img":
@@ -1645,7 +1647,7 @@ function handleAsyncMovieDetails(details, error = null) {
         document.getElementById("writers").textContent = 'Writing: Error';
         document.getElementById("actors").textContent = 'Cast: Error';
         document.getElementById("tmdb_link")?.style.setProperty('display', 'none', 'important');
-        document.getElementById("trakt_link")?.style.setProperty('display', 'none', 'important');
+        document.getElementById("tracking_link")?.style.setProperty('display', 'none', 'important');
         document.getElementById("imdb_link")?.style.setProperty('display', 'none', 'important');
         document.getElementById("movie-logo-img")?.style.setProperty('display', 'none', 'important');
         document.getElementById("collectionButton")?.style.setProperty('display', 'none', 'important');
@@ -1660,7 +1662,7 @@ function handleAsyncMovieDetails(details, error = null) {
     const writersEl = document.getElementById("writers");
     const actorsEl = document.getElementById("actors");
     const tmdbLink = document.getElementById("tmdb_link");
-    const traktLink = document.getElementById("trakt_link");
+    const trackingLink = document.getElementById("tracking_link");
     const imdbLink = document.getElementById("imdb_link");
     const logoImg = document.getElementById("movie-logo-img");
     const collectionButton = document.getElementById("collectionButton");
@@ -1797,7 +1799,22 @@ function handleAsyncMovieDetails(details, error = null) {
 
     if (window.USE_LINKS) {
         if (tmdbLink && details.tmdb_url) { tmdbLink.href = details.tmdb_url; tmdbLink.style.display = 'inline-block'; } else if (tmdbLink) { tmdbLink.style.display = 'none'; }
-        if (traktLink && details.trakt_url) { traktLink.href = details.trakt_url; traktLink.style.display = 'inline-block'; } else if (traktLink) { traktLink.style.display = 'none'; }
+        if (trackingLink && details.tracking_url) {
+            const provider = details.tracking_provider || 'trakt';
+            const label = details.tracking_provider_label || (provider === 'simkl' ? 'Simkl' : 'Trakt');
+            const logo = trackingLink.querySelector('img');
+            trackingLink.href = details.tracking_url;
+            trackingLink.title = label;
+            trackingLink.style.display = 'inline-block';
+            if (logo) {
+                logo.src = provider === 'simkl'
+                    ? 'https://us.simkl.in/img_favicon/v2/favicon-192x192.png'
+                    : '/static/logos/trakt_logo.svg';
+                logo.alt = `${label} Logo`;
+            }
+        } else if (trackingLink) {
+            trackingLink.style.display = 'none';
+        }
         if (imdbLink && details.imdb_url) { imdbLink.href = details.imdb_url; imdbLink.style.display = 'inline-block'; } else if (imdbLink) { imdbLink.style.display = 'none'; }
     }
 
@@ -1866,16 +1883,18 @@ async function handleCollectionWarning(movieData) {
         ...unwatchedMovies.map(m => m.id),
         ...requestableOtherMovies.map(m => m.id)
     ];
-    const traktData = await fetchTraktWatchedStatus(candidateIds);
+    const trackingData = await fetchTrackingWatchedStatus(candidateIds);
 
-    if (traktData.enabled) {
-        const watchedSet = new Set(traktData.watched_tmdb_ids);
-        unwatchedMovies.forEach(m => { m.is_watched_on_trakt = watchedSet.has(m.id); });
-        otherMovies.forEach(m => { m.is_watched_on_trakt = watchedSet.has(m.id); });
+    if (trackingData.enabled) {
+        trackingProvider = trackingData.provider || trackingProvider;
+        trackingProviderLabel = trackingData.provider_label || (trackingProvider === 'simkl' ? 'Simkl' : 'Trakt');
+        const watchedSet = new Set(trackingData.watched_tmdb_ids);
+        unwatchedMovies.forEach(m => { m.is_watched_on_tracker = watchedSet.has(m.id); });
+        otherMovies.forEach(m => { m.is_watched_on_tracker = watchedSet.has(m.id); });
 
         const allHandled =
-            unwatchedMovies.every(m => m.is_watched_on_trakt) &&
-            otherMovies.every(m => m.in_library || m.is_watched_on_trakt);
+            unwatchedMovies.every(m => m.is_watched_on_tracker) &&
+            otherMovies.every(m => m.in_library || m.is_watched_on_tracker);
 
         if (allHandled) {
             collectionButton.classList.add('hidden');
@@ -1887,8 +1906,8 @@ async function handleCollectionWarning(movieData) {
 
     const badge = collectionButton.querySelector('.badge');
     if (badge) {
-        const unseenCount = unwatchedMovies.filter(m => !m.is_watched_on_trakt).length;
-        const missingOtherCount = requestableOtherMovies.filter(m => !m.is_watched_on_trakt).length;
+        const unseenCount = unwatchedMovies.filter(m => !m.is_watched_on_tracker).length;
+        const missingOtherCount = requestableOtherMovies.filter(m => !m.is_watched_on_tracker).length;
         badge.textContent = unseenCount + missingOtherCount;
     }
 
@@ -1902,31 +1921,37 @@ async function handleCollectionWarning(movieData) {
 async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies) {
     const modalContainer = document.getElementById('collection_modal');
     const infoContainer = document.getElementById('collection_info_container');
+    const collectionMovies = (collectionInfo.collection_movies || [
+        ...unwatchedMovies,
+        ...(otherMovies || [])
+    ]).map(movie => ({ ...movie }));
 
-    const allMovieIds = [
-        ...unwatchedMovies.map(m => m.id),
-        ...(otherMovies ? otherMovies.map(m => m.id) : [])
-    ];
+    const allMovieIds = collectionMovies.map(movie => movie.id);
 
-    const [requestServiceStatus, traktData] = await Promise.all([
+    const [requestServiceStatus, trackingData] = await Promise.all([
         checkRequestServiceAvailability(),
-        fetchTraktWatchedStatus(allMovieIds)
+        fetchTrackingWatchedStatus(allMovieIds)
     ]);
 
-    if (traktData.enabled) {
-        const watchedSet = new Set(traktData.watched_tmdb_ids);
+    if (trackingData.enabled) {
+        trackingProvider = trackingData.provider || trackingProvider;
+        trackingProviderLabel = trackingData.provider_label || (trackingProvider === 'simkl' ? 'Simkl' : 'Trakt');
+        const watchedSet = new Set(trackingData.watched_tmdb_ids);
         unwatchedMovies.forEach(movie => {
-            movie.is_watched_on_trakt = watchedSet.has(movie.id);
+            movie.is_watched_on_tracker = watchedSet.has(movie.id);
         });
         if (otherMovies) {
             otherMovies.forEach(movie => {
-                movie.is_watched_on_trakt = watchedSet.has(movie.id);
+                movie.is_watched_on_tracker = watchedSet.has(movie.id);
             });
         }
+        collectionMovies.forEach(movie => {
+            movie.is_watched_on_tracker = watchedSet.has(movie.id);
+        });
 
         const allMoviesHandled =
-            unwatchedMovies.every(m => m.is_watched_on_trakt) &&
-            (!otherMovies || otherMovies.every(m => m.in_library || m.is_watched_on_trakt));
+            unwatchedMovies.every(m => m.is_watched_on_tracker) &&
+            (!otherMovies || otherMovies.every(m => m.in_library || m.is_watched_on_tracker));
 
         if (allMoviesHandled) {
             document.getElementById('collectionButton')?.classList.add('hidden');
@@ -1957,15 +1982,66 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     };
     unwatchedMovies.sort(sortByYear);
     if (otherMovies) otherMovies.sort(sortByYear);
+    collectionMovies.sort(sortByYear);
 
-    const displayMovies = traktData.enabled
-        ? unwatchedMovies.filter(m => !m.is_watched_on_trakt)
+    const displayMovies = trackingData.enabled
+        ? unwatchedMovies.filter(m => !m.is_watched_on_tracker)
         : unwatchedMovies;
 
-    const moviesToRequest = [
-        ...displayMovies.filter(movie => !movie.in_library && !movie.is_requested),
-        ...(otherMovies ? otherMovies.filter(movie => !movie.in_library && !movie.is_requested) : [])
-    ];
+    const missingLibraryMovies = collectionMovies.filter(movie => !movie.in_library);
+    const moviesToRequest = missingLibraryMovies.filter(movie => !movie.is_requested);
+    const firstWatchablePrevious = displayMovies.find(movie => movie.in_library);
+
+    const summaryParts = [];
+    if (displayMovies.length > 0) {
+        summaryParts.push(
+            `You have ${displayMovies.length} unwatched previous movie${displayMovies.length === 1 ? '' : 's'} in this collection`
+        );
+    }
+    if (missingLibraryMovies.length > 0) {
+        summaryParts.push(
+            `${missingLibraryMovies.length} movie${missingLibraryMovies.length === 1 ? '' : 's'} missing from your library`
+        );
+    }
+
+    const getMovieStatus = (movie) => {
+        if (movie.is_watched) {
+            return { className: 'status-watched', label: 'Watched' };
+        }
+        if (movie.is_watched_on_tracker) {
+            return { className: 'status-watched', label: `Watched on ${trackingProviderLabel}` };
+        }
+        if (movie.in_library) {
+            return { className: 'status-in-library', label: 'In library' };
+        }
+        if (movie.is_requested) {
+            return { className: 'status-requested', label: 'Requested' };
+        }
+        return { className: 'status-not-in-library', label: 'Missing' };
+    };
+
+    const renderMovieRows = (movies) => movies.map(movie => {
+        const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
+        const status = getMovieStatus(movie);
+        const isCurrent = movie.relation === 'current' || movie.id === collectionInfo.current_movie_id;
+        const isWatched = movie.is_watched || movie.is_watched_on_tracker;
+        const requestIconHTML = createRequestIcon(movie);
+        return `
+            <li class="movie-item${isCurrent ? ' collection-current' : ''}${isWatched ? ' collection-watched' : ''}">
+                ${isCurrent ?
+                    `<span class="movie-title-link"><span class="movie-title">${movie.title}${year}</span></span>` :
+                    `<span class="movie-title-link" data-movie-id="${movie.id}"><span class="movie-title">${movie.title}${year}</span></span>`}
+                <div class="status-container">
+                    ${isCurrent ? '<span class="movie-status status-current">Selected</span>' : ''}
+                    <span class="movie-status ${status.className}">${status.label}</span>
+                    ${requestIconHTML}
+                </div>
+            </li>
+        `;
+    }).join('');
+
+    const previousCollectionMovies = collectionMovies.filter(movie => movie.relation === 'previous');
+    const otherCollectionMovies = collectionMovies.filter(movie => movie.relation !== 'previous');
 
     const createRequestIcon = (movie) => {
         if (isRequestServiceAvailable && !movie.in_library && !movie.is_requested) {
@@ -1984,56 +2060,20 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         <div class="collection-info-header">
             <h3>Part of ${collectionInfo.collection_name}</h3>
         </div>
-        <div class="unwatched-movies">
-            <p>You have ${displayMovies.length} unwatched previous movie${displayMovies.length > 1 ? 's' : ''} in this collection.</p>
-            <ul class="movie-list">
-                ${displayMovies.map(movie => {
-                    const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
-                    const statusClass = movie.in_library ? 'status-in-library' :
-                                      (movie.is_requested ? 'status-requested' : 'status-not-in-library');
-                    const statusText = movie.in_library ? 'In library' :
-                                     (movie.is_requested ? 'Requested' : 'Not in library');
-                    const requestIconHTML = createRequestIcon(movie);
-                    return `
-                        <li class="movie-item">
-                            <span class="movie-title-link" data-movie-id="${movie.id}"><span class="movie-title">${movie.title}${year}</span></span>
-                            <div class="status-container">
-                                <span class="movie-status ${statusClass}">${statusText}</span>
-                                ${requestIconHTML}
-                            </div>
-                        </li>
-                    `;
-                }).join('')}
-            </ul>
-        </div>
-        ${otherMovies && otherMovies.length > 0 ? `
-            <div class="other-movies">
-                <h4>Other movies in this collection:</h4>
-                <ul class="movie-list">
-                    ${otherMovies.map(movie => {
-                        const year = movie.release_date ? ` (${movie.release_date.substring(0, 4)})` : '';
-                        const statusClass = movie.in_library ? 'status-in-library' :
-                                          (movie.is_watched_on_trakt ? 'status-watched' :
-                                          (movie.is_requested ? 'status-requested' : 'status-not-in-library'));
-                        const statusText = movie.in_library ? 'In library' :
-                                         (movie.is_watched_on_trakt ? 'Watched on Trakt' :
-                                         (movie.is_requested ? 'Requested' : 'Not in library'));
-                        const requestIconHTML = createRequestIcon(movie);
-                        return `
-                            <li class="movie-item">
-                                <span class="movie-title-link" data-movie-id="${movie.id}"><span class="movie-title">${movie.title}${year}</span></span>
-                                <div class="status-container">
-                                    <span class="movie-status ${statusClass}">${statusText}</span>
-                                    ${requestIconHTML}
-                                </div>
-                            </li>
-                        `;
-                    }).join('')}
-                </ul>
+        <div class="collection-overview">
+            <div class="unwatched-movies">
+                <p>${summaryParts.join('. ')}.</p>
+                <ul class="movie-list">${renderMovieRows(previousCollectionMovies)}</ul>
             </div>
-        ` : ''}
+            ${otherCollectionMovies.length > 0 ? `
+                <div class="other-movies">
+                    <h4>Other movies in this collection:</h4>
+                    <ul class="movie-list">${renderMovieRows(otherCollectionMovies)}</ul>
+                </div>
+            ` : ''}
+        </div>
         <div class="action-buttons">
-            ${displayMovies.some(movie => movie.in_library) ?
+            ${firstWatchablePrevious ?
                 `<button class="action-button watch-button" id="watch_collection_movie">Watch Previous Movie</button>` : ''}
             ${moviesToRequest.length > 0 ?
                 `<button class="action-button request-button${!isRequestServiceAvailable ? ' disabled' : ''}"
@@ -2076,7 +2116,7 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     const watchButton = document.getElementById('watch_collection_movie');
     if (watchButton) {
         watchButton.addEventListener('click', () => {
-            const movieToWatch = displayMovies.find(movie => movie.in_library);
+            const movieToWatch = firstWatchablePrevious;
             if (movieToWatch && typeof showClientsForPoster === 'function') {
                 showClientsForPoster(movieToWatch.id);
                 modalContainer.classList.add('hidden');
@@ -2127,9 +2167,9 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     });
 }
 
-async function fetchTraktWatchedStatus(tmdbIds) {
+async function fetchTrackingWatchedStatus(tmdbIds) {
     try {
-        const response = await fetch('/api/collections/trakt_watched', {
+        const response = await fetch('/api/collections/tracking_watched', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -3096,8 +3136,8 @@ async function openMovieDataOverlay(movieId) {
             movieData.tmdb_rating
                 ? `<span class="md-rating-badge"><span class="md-rating-service">TMDb</span> ★ ${movieData.tmdb_rating.toFixed(1)}</span>`
                 : '',
-            movieData.trakt_rating
-                ? `<span class="md-rating-badge"><span class="md-rating-service">Trakt</span> ${Math.round(movieData.trakt_rating)}%</span>`
+            movieData.tracking_rating
+                ? `<span class="md-rating-badge"><span class="md-rating-service">${movieData.tracking_provider_label || 'Tracker'}</span> ${Math.round(movieData.tracking_rating)}%</span>`
                 : ''
         ].filter(Boolean).join('');
 
@@ -3114,7 +3154,7 @@ async function openMovieDataOverlay(movieId) {
 
         const linksHtml = [
             movieData.tmdb_url ? `<a href="${movieData.tmdb_url}" target="_blank" class="md-link-btn" title="TMDb"><img src="/static/logos/tmdb_logo.svg" alt="TMDb"></a>` : '',
-            movieData.trakt_url ? `<a href="${movieData.trakt_url}" target="_blank" class="md-link-btn" title="Trakt"><img src="/static/logos/trakt_logo.svg" alt="Trakt"></a>` : '',
+            movieData.tracking_url ? `<a href="${movieData.tracking_url}" target="_blank" class="md-link-btn" title="${movieData.tracking_provider_label || 'Tracker'}"><img src="${movieData.tracking_provider === 'simkl' ? 'https://us.simkl.in/img_favicon/v2/favicon-192x192.png' : '/static/logos/trakt_logo.svg'}" alt="${movieData.tracking_provider_label || 'Tracker'}"></a>` : '',
             movieData.imdb_url ? `<a href="${movieData.imdb_url}" target="_blank" class="md-link-btn" title="IMDb"><img src="/static/logos/imdb_logo.svg" alt="IMDb"></a>` : ''
         ].filter(Boolean).join('');
 
@@ -3381,7 +3421,7 @@ async function playMovie(clientId) {
             throw new Error(data.error || "Failed to start playback");
         }
 
-        setTimeout(() => syncTraktWatched(false), 30000);
+        setTimeout(() => syncTrackingWatched(false), 30000);
 
     } catch (error) {
         console.error("Error playing movie:", error);
@@ -3452,7 +3492,7 @@ async function playMovieFromPoster(clientId, tmdbId) {
             throw new Error(playData.error || "Failed to start playback");
         }
 
-        setTimeout(() => syncTraktWatched(false), 30000);
+        setTimeout(() => syncTrackingWatched(false), 30000);
 
     } catch (error) {
         console.error("Error playing movie:", error);
@@ -3898,7 +3938,7 @@ async function checkAndLoadCache() {
     }
 }
 
-let traktFilterMode = 'all';
+let trackingFilterMode = 'all';
 let watchedMovies = [];
 
 function updateFilters() {
@@ -3945,16 +3985,18 @@ async function setupFilters() {
     `;
 
     try {
-        const response = await fetch('/trakt/status');
+        const response = await fetch('/api/tracking/status', { cache: 'no-store' });
         const data = await response.json();
 
-        if (data.connected && (data.env_controlled || data.enabled)) {
+        trackingProvider = data.provider || 'none';
+        trackingProviderLabel = data.provider_label || 'Tracker';
+        if (data.enabled) {
             filterButtons.innerHTML += `
                 <button class="filter-dropdown-button" id="watchStatusButton">Watch Status</button>
             `;
         }
     } catch (error) {
-        console.error('Error checking Trakt status:', error);
+        console.error('Error checking tracking status:', error);
     }
 
     const sortButtons = document.querySelector('.sort-controls');
@@ -3995,15 +4037,15 @@ async function setupFilters() {
         watchStatusDropdown.innerHTML = `
             <div class="filter-options">
                 <label>
-                    <input type="radio" name="watchStatus" value="all" ${traktFilterMode === 'all' ? 'checked' : ''}>
+                    <input type="radio" name="watchStatus" value="all" ${trackingFilterMode === 'all' ? 'checked' : ''}>
                     Show All <span class="count">(0)</span>
                 </label>
                 <label>
-                    <input type="radio" name="watchStatus" value="watched" ${traktFilterMode === 'watched' ? 'checked' : ''}>
+                    <input type="radio" name="watchStatus" value="watched" ${trackingFilterMode === 'watched' ? 'checked' : ''}>
                     Show Watched <span class="count">(0)</span>
                 </label>
                 <label>
-                    <input type="radio" name="watchStatus" value="unwatched" ${traktFilterMode === 'unwatched' ? 'checked' : ''}>
+                    <input type="radio" name="watchStatus" value="unwatched" ${trackingFilterMode === 'unwatched' ? 'checked' : ''}>
                     Show Unwatched <span class="count">(0)</span>
                 </label>
             </div>
@@ -4066,7 +4108,7 @@ async function setupFilters() {
 
     if (watchButton) {
         watchStatusDropdown.addEventListener('change', (e) => {
-            traktFilterMode = e.target.value;
+            trackingFilterMode = e.target.value;
             watchButton.classList.add('active');
             applyAllFilters();
         });
@@ -4147,15 +4189,15 @@ async function applyAllFilters() {
             const isHiddenBySearch = card.dataset.hiddenBySearch === 'true';
             const hasServiceBadge = card.querySelector('.plex-badge, .jellyfin-badge, .emby-badge') !== null;
 
-            let shouldShowByTrakt = true;
+            let shouldShowByTracking = true;
             let shouldShowByPlex = true;
 
-            switch (traktFilterMode) {
+            switch (trackingFilterMode) {
                 case 'watched':
-                    shouldShowByTrakt = isWatched;
+                    shouldShowByTracking = isWatched;
                     break;
                 case 'unwatched':
-                    shouldShowByTrakt = !isWatched;
+                    shouldShowByTracking = !isWatched;
                     break;
             }
 
@@ -4168,7 +4210,7 @@ async function applyAllFilters() {
                     break;
             }
 
-            card.style.display = (shouldShowByTrakt && shouldShowByPlex && !isHiddenBySearch) ? 'block' : 'none';
+            card.style.display = (shouldShowByTracking && shouldShowByPlex && !isHiddenBySearch) ? 'block' : 'none';
         });
     } catch (error) {
         console.error('Error applying filters:', error);
@@ -4177,26 +4219,17 @@ async function applyAllFilters() {
 
 async function getWatchedMovies() {
     if (watchedMovies.length === 0) {
-        const response = await fetch('/trakt_watched_status');
+        const response = await fetch('/api/tracking/watched');
         if (response.ok) {
-            watchedMovies = await response.json();
+            const data = await response.json();
+            trackingProvider = data.provider || 'none';
+            trackingProviderLabel = data.provider_label || 'Tracker';
+            watchedMovies = data.watched_tmdb_ids || [];
         } else {
-            console.error("Failed to fetch Trakt watched status");
+            console.error("Failed to fetch tracking watched status");
         }
     }
     return watchedMovies;
-}
-
-async function syncTraktWatched() {
-    showContextLoadingOverlay('trakt');
-    const response = await fetch('/sync_trakt_watched');
-    if (response.ok) {
-        console.log("Trakt watched status synced");
-        watchedMovies = [];
-    } else {
-        console.error("Failed to sync Trakt watched status");
-    }
-    hideLoadingOverlay();
 }
 
 async function isMovieInService(tmdbId) {
@@ -4308,18 +4341,18 @@ function setupMovieSearch() {
                 const title = card.querySelector('p').textContent.toLowerCase();
                 const matches = title.includes(searchTerm);
 
-                const isHiddenByTraktFilter = card.style.display === 'none' &&
+                const isHiddenByTrackingFilter = card.style.display === 'none' &&
                     !card.dataset.hiddenBySearch;
 
                 if (searchTerm === '') {
-                    card.style.display = isHiddenByTraktFilter ? 'none' : 'block';
+                    card.style.display = isHiddenByTrackingFilter ? 'none' : 'block';
                     delete card.dataset.hiddenBySearch;
                 } else {
                     if (!matches) {
                         card.style.display = 'none';
                         card.dataset.hiddenBySearch = 'true';
                     } else {
-                        card.style.display = isHiddenByTraktFilter ? 'none' : 'block';
+                        card.style.display = isHiddenByTrackingFilter ? 'none' : 'block';
                         delete card.dataset.hiddenBySearch;
                     }
                 }
@@ -4499,10 +4532,10 @@ function showContextLoadingOverlay(context) {
                 'Fetching movie information...'
             );
             break;
-        case 'trakt':
+        case 'tracking':
             loadingContent.innerHTML = getLoadingContent(
                 'Syncing Watch Status',
-                'Updating watch history from Trakt...'
+                `Updating watch history from ${trackingProviderLabel}...`
             );
             break;
         default:
@@ -4547,22 +4580,30 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-async function syncTraktWatched(showLoading = false) {
+async function syncTrackingWatched(showLoading = false) {
     const now = Date.now();
-    if (now - lastTraktSync < TRAKT_FRONTEND_SYNC_MIN_INTERVAL) {
+    if (now - lastTrackingSync < TRACKING_FRONTEND_SYNC_MIN_INTERVAL) {
         console.log("Skipping sync - too soon since last sync");
         return;
     }
 
     if (showLoading) {
-        showContextLoadingOverlay('trakt');
+        showContextLoadingOverlay('tracking');
     }
 
     try {
-        const response = await fetch('/sync_trakt_watched');
+        const response = await fetch('/api/tracking/sync', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
         if (response.ok) {
-            console.log("Trakt watched status synced at", new Date().toLocaleTimeString());
-            lastTraktSync = now;
+            const data = await response.json();
+            trackingProvider = data.provider || trackingProvider;
+            trackingProviderLabel = data.provider_label || 'Tracker';
+            if (data.enabled) {
+                console.log(`${trackingProviderLabel} watched status synced at`, new Date().toLocaleTimeString());
+            }
+            lastTrackingSync = now;
             watchedMovies = [];
 
             const moviesOverlay = document.getElementById('movies_overlay');
@@ -4570,10 +4611,10 @@ async function syncTraktWatched(showLoading = false) {
 		await applyAllFilters();
             }
         } else {
-            console.error("Failed to sync Trakt watched status");
+            console.error("Failed to sync tracking watched status");
         }
     } catch (error) {
-        console.error("Error syncing Trakt watched status:", error);
+        console.error("Error syncing tracking watched status:", error);
     } finally {
         if (showLoading) {
             hideLoadingOverlay();

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'static-cache-v19';
+const CACHE_NAME = 'static-cache-v24';
 const ASSETS_TO_CACHE = [
   '/',
   '/static/js/script.js',

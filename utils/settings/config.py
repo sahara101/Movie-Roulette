@@ -83,12 +83,19 @@ DEFAULT_SETTINGS = {
         'enabled': False,
         'api_key': ''
     },
+    'tracking': {
+        'provider': 'none'
+    },
     'trakt': {
         'enabled': False,
         'client_id': '',
         'client_secret': '',
         'access_token': '',
         'refresh_token': ''
+    },
+    'simkl': {
+        'client_id': '',
+        'access_token': ''
     },
     'system': {
         'disable_settings': False
@@ -178,6 +185,11 @@ ENV_MAPPINGS = {
     'TRAKT_CLIENT_SECRET': ('trakt', 'client_secret', str),
     'TRAKT_ACCESS_TOKEN': ('trakt', 'access_token', str),
     'TRAKT_REFRESH_TOKEN': ('trakt', 'refresh_token', str),
+
+    # Tracking provider / Simkl
+    'TRACKING_PROVIDER': ('tracking', 'provider', lambda x: x.strip().lower()),
+    'SIMKL_CLIENT_ID': ('simkl', 'client_id', str),
+    'SIMKL_ACCESS_TOKEN': ('simkl', 'access_token', str),
 
     # Settings
     'DISABLE_SETTINGS': ('system', 'disable_settings', lambda x: x.upper() == 'TRUE'),

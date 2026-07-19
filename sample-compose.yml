@@ -89,6 +89,12 @@ services:
       TRAKT_ACCESS_TOKEN: "your-trakt-access-token"
       TRAKT_REFRESH_TOKEN: "your-trakt-refresh-token"
 
+      # Watch Tracking (Optional)
+      # Leave TRACKING_PROVIDER unset to allow per-user selection in Settings.
+      # TRACKING_PROVIDER: "simkl" # none, trakt, or simkl; locks the selector
+      # SIMKL_CLIENT_ID: "your-simkl-client-id" # Overrides the built-in app ID
+      # SIMKL_ACCESS_TOKEN: "your-global-simkl-access-token"
+
     volumes:
       - /path/to/data:/app/data
     restart: unless-stopped

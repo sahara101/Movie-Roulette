@@ -3,6 +3,16 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentSettings = null;
     let currentOverrides = null;
     let traktStatus = { enabled: false, connected: false, env_controlled: false };
+    let trackingStatus = {
+        provider: 'none',
+        provider_label: 'None',
+        enabled: false,
+        env_controlled: false,
+        providers: {
+            trakt: { connected: false, configured: true, env_controlled: false },
+            simkl: { connected: false, configured: false, env_controlled: false }
+        }
+    };
     const isHeroUI = document.body.classList.contains('heroui-theme');
 
     const HEROUI_SERVICE_LOGOS = {
@@ -200,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-    	} catch (error) {
+	    } catch (error) {
             console.error('Error updating setting:', error);
             showError(error.message || 'Failed to update setting');
     	}
@@ -390,6 +400,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         traktStatus.connected = true;
                         traktStatus.enabled = true; 
                         checkConnectionStatus(); 
+                        await refreshTrackingStatus();
+                        sessionStorage.setItem('collections_force_refresh', '1');
+                        loadTabContent('integrations');
                     } else {
                         throw new Error(data.error || 'Failed to connect to Trakt');
                     }
@@ -450,6 +463,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         showSuccess('Successfully disconnected from Trakt');
                         traktStatus.connected = false;
                         checkConnectionStatus();
+                        await refreshTrackingStatus();
+                        sessionStorage.setItem('collections_force_refresh', '1');
+                        loadTabContent('integrations');
                     }
                 } catch (error) {
                     showError(error.message || 'Failed to disconnect from Trakt');
@@ -493,6 +509,215 @@ document.addEventListener('DOMContentLoaded', function() {
         wrapper.appendChild(button);
         container.appendChild(wrapper);
         checkConnectionStatus();
+    }
+
+    async function refreshTrackingStatus() {
+        const response = await fetch('/api/tracking/status', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Failed to load tracking status');
+        trackingStatus = await response.json();
+        const trakt = trackingStatus.providers?.trakt || {};
+        traktStatus = {
+            connected: Boolean(trakt.connected),
+            env_controlled: Boolean(trakt.env_controlled),
+            enabled: trackingStatus.provider === 'trakt' && Boolean(trakt.connected)
+        };
+        if (currentSettings) {
+            setNestedValue(currentSettings, 'tracking.provider', trackingStatus.provider);
+        }
+        return trackingStatus;
+    }
+
+    function renderTrackingProvider(container) {
+        const control = document.createElement('div');
+        control.className = 'tracking-provider-control';
+
+        [
+            { value: 'none', label: 'None' },
+            { value: 'trakt', label: 'Trakt' },
+            { value: 'simkl', label: 'Simkl' }
+        ].forEach(option => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `tracking-provider-option${trackingStatus.provider === option.value ? ' active' : ''}`;
+            button.textContent = option.label;
+            button.setAttribute('aria-pressed', trackingStatus.provider === option.value ? 'true' : 'false');
+
+            const simklUnavailable = option.value === 'simkl' && !trackingStatus.providers?.simkl?.configured;
+            button.disabled = Boolean(trackingStatus.env_controlled || simklUnavailable);
+            if (simklUnavailable) button.title = 'Configure a Simkl Client ID first';
+            if (trackingStatus.env_controlled) button.title = 'Set by TRACKING_PROVIDER';
+
+            button.addEventListener('click', async () => {
+                if (option.value === trackingStatus.provider) return;
+                control.querySelectorAll('button').forEach(item => { item.disabled = true; });
+                try {
+                    const response = await fetch('/api/tracking/provider', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({ provider: option.value })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Failed to change tracking provider');
+                    trackingStatus = data.tracking;
+                    await refreshTrackingStatus();
+                    sessionStorage.setItem('collections_force_refresh', '1');
+                    showSuccess(`Tracking provider changed to ${trackingStatus.provider_label}`);
+                    loadTabContent('integrations');
+                } catch (error) {
+                    showError(error.message || 'Failed to change tracking provider');
+                    loadTabContent('integrations');
+                }
+            });
+            control.appendChild(button);
+        });
+
+        container.appendChild(control);
+        if (trackingStatus.env_controlled) {
+            const indicator = document.createElement('div');
+            indicator.className = 'env-override';
+            indicator.textContent = 'Set by environment variable';
+            container.appendChild(indicator);
+        }
+    }
+
+    function createSimklIntegration(container) {
+        const state = trackingStatus.providers?.simkl || {};
+        const wrapper = document.createElement('div');
+        wrapper.className = 'trakt-integration-wrapper simkl-integration-wrapper';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `trakt-connect-button${state.connected ? ' connected' : ''}`;
+
+        const updateButton = (loading = false) => {
+            button.disabled = Boolean(loading || state.env_controlled || !state.configured);
+            button.className = `trakt-connect-button${state.connected ? ' connected' : ''}${loading ? ' loading' : ''}`;
+            if (loading) {
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+            } else {
+                button.innerHTML = `<i class="fa-solid fa-${state.connected ? 'plug-circle-xmark' : 'plug'}"></i> ${state.connected ? 'Disconnect from Simkl' : 'Connect Simkl Account'}`;
+            }
+        };
+
+        const disconnect = async () => {
+            updateButton(true);
+            try {
+                const response = await fetch('/simkl/disconnect', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to disconnect Simkl');
+                showSuccess('Successfully disconnected from Simkl');
+                await refreshTrackingStatus();
+                sessionStorage.setItem('collections_force_refresh', '1');
+                loadTabContent('integrations');
+            } catch (error) {
+                showError(error.message || 'Failed to disconnect Simkl');
+                updateButton(false);
+            }
+        };
+
+        const connect = async () => {
+            updateButton(true);
+            try {
+                const response = await fetch('/simkl/authorize', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to start Simkl authorization');
+
+                const dialog = document.createElement('div');
+                dialog.className = 'trakt-confirm-dialog';
+                dialog.innerHTML = `
+                    <div class="dialog-content simkl-pin-dialog">
+                        <h3>Connect to Simkl</h3>
+                        <p>Enter this code at Simkl to authorize Movie Roulette.</p>
+                        <div class="simkl-pin-code" aria-label="Simkl authorization code">${data.user_code}</div>
+                        <a class="submit-button simkl-verify-link" href="${data.verification_uri}" target="_blank" rel="noopener">Open Simkl</a>
+                        <div class="dialog-note"><i class="fa-solid fa-spinner fa-spin"></i> Waiting for authorization...</div>
+                        <div class="dialog-buttons"><button class="cancel-button">Cancel</button></div>
+                    </div>`;
+                document.body.appendChild(dialog);
+
+                let stopped = false;
+                let pollTimer;
+                const closeDialog = () => {
+                    stopped = true;
+                    if (pollTimer) clearTimeout(pollTimer);
+                    dialog.remove();
+                    updateButton(false);
+                };
+                dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
+                dialog.addEventListener('click', event => {
+                    if (event.target === dialog) closeDialog();
+                });
+                window.open(data.verification_uri, 'SimklAuth', 'width=600,height=800');
+
+                const poll = async () => {
+                    if (stopped) return;
+                    try {
+                        const pollResponse = await fetch('/simkl/poll', {
+                            method: 'POST',
+                            headers: { 'X-CSRFToken': getCsrfToken() }
+                        });
+                        const pollData = await pollResponse.json();
+                        if (pollResponse.ok && pollData.status === 'success') {
+                            stopped = true;
+                            dialog.remove();
+                            showSuccess('Successfully connected to Simkl');
+                            await refreshTrackingStatus();
+                            sessionStorage.setItem('collections_force_refresh', '1');
+                            loadTabContent('integrations');
+                            return;
+                        }
+                        if (pollResponse.status !== 202) {
+                            throw new Error(pollData.error || 'Simkl authorization failed');
+                        }
+                        pollTimer = setTimeout(poll, (pollData.interval || data.interval || 5) * 1000);
+                    } catch (error) {
+                        closeDialog();
+                        showError(error.message || 'Simkl authorization failed');
+                    }
+                };
+                pollTimer = setTimeout(poll, (data.interval || 5) * 1000);
+            } catch (error) {
+                showError(error.message || 'Failed to connect Simkl');
+                updateButton(false);
+            }
+        };
+
+        button.addEventListener('click', () => state.connected ? disconnect() : connect());
+        wrapper.appendChild(button);
+        if (!state.configured) {
+            const note = document.createElement('div');
+            note.className = 'env-override';
+            note.textContent = 'A Simkl Client ID is required';
+            wrapper.appendChild(note);
+        } else if (state.env_controlled) {
+            const note = document.createElement('div');
+            note.className = 'env-override';
+            note.textContent = 'Set by environment variable';
+            wrapper.appendChild(note);
+        }
+        container.appendChild(wrapper);
+        updateButton(false);
+    }
+
+    function renderTrackingConnection(container) {
+        if (trackingStatus.provider === 'trakt') {
+            createTraktIntegration(container);
+        } else if (trackingStatus.provider === 'simkl') {
+            createSimklIntegration(container);
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'setting-description tracking-empty-state';
+            empty.textContent = 'No external tracking account is active.';
+            container.appendChild(empty);
+        }
     }
 
     function renderSettingsSection(title, settings, envOverrides, fields) {
@@ -1258,10 +1483,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     ]
                 },
                 {
-                    title: 'Trakt',
+                    title: 'Watch Tracking',
                     fields: [
-                        { key: 'trakt.enabled', label: 'Enable Trakt', type: 'switch', description: 'Sync watch history and ratings with your Trakt account.' },
-                        { key: 'trakt.connect', label: 'Trakt Connection', type: 'custom' }
+                        {
+                            key: 'tracking.provider',
+                            label: 'Tracking Provider',
+                            type: 'custom',
+                            render: renderTrackingProvider
+                        },
+                        {
+                            key: 'tracking.connection',
+                            label: 'Account Connection',
+                            type: 'custom',
+                            render: renderTrackingConnection
+                        }
                     ]
                 },
                 {
@@ -2524,22 +2759,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (prefResponse.ok) window.userPreferences = await prefResponse.json();
             } catch (_) {}
 
-            if (currentSettings && currentSettings.trakt) {
-                traktStatus.enabled = currentSettings.trakt.enabled || false;
-            }
-
             try {
-                const traktStatusResponse = await fetch('/trakt/status');
-                if (traktStatusResponse.ok) {
-                    const statusData = await traktStatusResponse.json();
-                    traktStatus.connected = statusData.connected;
-                    traktStatus.env_controlled = statusData.env_controlled;
-                    traktStatus.enabled = statusData.enabled; 
-                } else {
-                    console.error('Failed to fetch Trakt status:', traktStatusResponse.statusText);
-                }
+                await refreshTrackingStatus();
             } catch (statusError) {
-                console.error('Error fetching Trakt status:', statusError);
+                console.error('Error fetching tracking status:', statusError);
             }
 
             const tabsContainer = document.querySelector('.settings-tabs');
@@ -2771,7 +2994,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentTab === 'integrations') {
                 allSections.forEach(section => {
                     const title = section.querySelector('h2')?.textContent.trim();
-                    section.style.display = (title === 'Trakt' || title === 'Now Watching') ? '' : 'none';
+                    section.style.display = (title === 'Watch Tracking' || title === 'Now Watching') ? '' : 'none';
                 });
             } else {
                 allSections.forEach(section => section.style.display = 'none');
@@ -2785,7 +3008,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentTab === 'integrations') {
                 allSections.forEach(section => {
                     const title = section.querySelector('h2')?.textContent.trim();
-                    section.style.display = (title === 'Trakt' || title === 'Now Watching') ? '' : 'none';
+                    section.style.display = (title === 'Watch Tracking' || title === 'Now Watching') ? '' : 'none';
                 });
             } else {
                 allSections.forEach(section => section.style.display = 'none');
@@ -2799,7 +3022,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentTab === 'integrations') {
                  allSections.forEach(section => {
                     const title = section.querySelector('h2')?.textContent.trim();
-                    section.style.display = (title === 'Trakt' || title === 'Now Watching') ? '' : 'none';
+                    section.style.display = (title === 'Watch Tracking' || title === 'Now Watching') ? '' : 'none';
                 });
             } else if (currentTab === 'clients') {
                  allSections.forEach(section => {

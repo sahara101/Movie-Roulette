@@ -4056,18 +4056,18 @@ body.homepage-mode #description.truncated::after {
     font-weight: bold;
 }
 
-.unwatched-movies, .other-movies {
+.unwatched-movies, .other-movies, .collection-overview {
     margin-top: 20px;
 }
 
-.unwatched-movies p {
+.unwatched-movies p, .collection-trigger-summary {
     font-size: 1.1rem;
     margin-bottom: 12px;
     font-weight: normal;
     color: #ddd;
 }
 
-.other-movies h4 {
+.other-movies h4, .collection-overview h4 {
     color: #e5a00d;
     margin-bottom: 12px;
     font-size: 1.4rem;
@@ -4132,6 +4132,24 @@ body.homepage-mode #description.truncated::after {
 .status-watched-again {
     background-color: #008CBA;
     color: white;
+}
+
+#collection_modal .movie-item.collection-current {
+    background: rgba(229, 160, 13, 0.1);
+}
+
+#collection_modal .movie-item.collection-watched:not(.collection-current) .movie-title {
+    opacity: 0.55;
+}
+
+#collection_modal .status-current {
+    background: rgba(229, 160, 13, 0.18);
+    color: #f8d68b;
+}
+
+#collection_modal .status-container {
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .action-buttons {
@@ -4269,6 +4287,28 @@ body.homepage-mode #description.truncated::after {
 
     .collection-info-header h3 {
         font-size: 1.5rem;
+    }
+
+    #collection_modal .movie-item {
+        align-items: flex-start;
+    }
+
+    #collection_modal .movie-title-link {
+        min-width: 0;
+    }
+
+    #collection_modal .movie-title {
+        overflow-wrap: anywhere;
+    }
+
+    #collection_modal .movie-item.collection-current {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    #collection_modal .movie-item.collection-current .status-container {
+        justify-content: flex-start;
+        width: 100%;
     }
 
     #collection_modal_close {

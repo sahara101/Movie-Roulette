@@ -56,6 +56,7 @@ def _reset_seen(session_key):
     with _seen_sessions_lock:
         _seen_sessions.pop(session_key, None)
 from routes.trakt_routes import trakt_bp
+from routes.tracking_routes import tracking_bp
 from utils.emby_service import EmbyService
 from utils.jellyfin_service import JellyfinService 
 from utils.tv import TVFactory
@@ -1023,10 +1024,11 @@ def get_movie_details(movie_id):
                     content_rating = certifications[0]['certification']
                     break
 
-        from utils.trakt_service import get_current_user_id
         user_id = get_current_user_id()
-        trakt_rating = get_trakt_rating(movie_id, user_id)
+        tracking_rating = get_tracking_rating(movie_id, user_id)
         tmdb_url, trakt_url, imdb_url = fetch_movie_links_for_overlay(movie_id)
+        tracking_provider = get_tracking_provider(user_id)
+        tracking_url = get_tracking_url(movie_id, trakt_url, user_id)
         trailer_url = search_youtube_trailer(title, year)
 
         return {
@@ -1037,7 +1039,11 @@ def get_movie_details(movie_id):
             "contentRating": content_rating,
             "genres": genres,
             "tmdb_rating": tmdb_rating,
-            "trakt_rating": trakt_rating,
+            "tracking_provider": tracking_provider,
+            "tracking_provider_label": get_tracking_provider_label(tracking_provider),
+            "tracking_rating": tracking_rating,
+            "tracking_url": tracking_url,
+            "trakt_rating": tracking_rating if tracking_provider == 'trakt' else None,
             "description": description,
             "tmdb_url": tmdb_url,
             "trakt_url": trakt_url,
@@ -1052,13 +1058,29 @@ load_settings()
 
 from routes.request_routes import request_bp
 from routes.now_playing_routes import now_playing_bp
-from utils.trakt_service import get_local_watched_movies, sync_watched_status, get_movie_ratings, get_trakt_rating, get_current_user_id, get_watched_movies
+from utils.tracking_service import (
+    PROVIDER_LABELS,
+    get_current_user_id,
+    get_local_watched_movies,
+    get_movie_ratings,
+    get_tracking_provider,
+    get_tracking_rating,
+    get_tracking_url,
+    get_watched_movies,
+    is_tracking_enabled,
+    sync_watched_status,
+)
+
+
+def get_tracking_provider_label(provider):
+    return PROVIDER_LABELS.get(provider, 'None')
 
 app.register_blueprint(request_bp)
 app.register_blueprint(now_playing_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(poster_bp)
 app.register_blueprint(trakt_bp)
+app.register_blueprint(tracking_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(user_cache_bp)
 app.register_blueprint(watchlist_bp)
@@ -2496,7 +2518,7 @@ def trigger_resync():
 @app.route('/trakt_watched_status')
 @auth_manager.require_auth
 def trakt_watched_status():
-    """Get Trakt watched status for current user"""
+    """Compatibility endpoint for the selected tracking provider."""
     user_id = get_current_user_id()
     watched_movies = get_local_watched_movies(user_id)
     return jsonify(watched_movies)
@@ -2504,7 +2526,7 @@ def trakt_watched_status():
 @app.route('/sync_trakt_watched')
 @auth_manager.require_auth
 def sync_trakt_watched():
-    """Sync watched status for current user"""
+    """Compatibility endpoint for the selected tracking provider."""
     user_id = get_current_user_id()
     watched_movies = sync_watched_status(user_id)
     return jsonify(watched_movies)
@@ -3371,10 +3393,11 @@ def movie_details(movie_id):
                         content_rating = certifications[0]['certification']
                         break
 
-        from utils.trakt_service import get_current_user_id
         user_id = get_current_user_id()
-        trakt_rating = get_trakt_rating(movie_id, user_id)
+        tracking_rating = get_tracking_rating(movie_id, user_id)
         tmdb_url, trakt_url, imdb_url = tmdb_service.get_movie_links(movie_id)
+        tracking_provider = get_tracking_provider(user_id)
+        tracking_url = get_tracking_url(movie_id, trakt_url, user_id)
         trailer_url = search_youtube_trailer(title, year)
         logo_url = tmdb_service.get_movie_logo_url(movie_id) 
 
@@ -3395,7 +3418,11 @@ def movie_details(movie_id):
             "contentRating": content_rating,
             "genres": genres,
             "tmdb_rating": tmdb_rating,
-            "trakt_rating": trakt_rating,
+            "tracking_provider": tracking_provider,
+            "tracking_provider_label": get_tracking_provider_label(tracking_provider),
+            "tracking_rating": tracking_rating,
+            "tracking_url": tracking_url,
+            "trakt_rating": tracking_rating if tracking_provider == 'trakt' else None,
             "description": description,
             "tmdb_url": tmdb_url,
             "trakt_url": trakt_url,
@@ -3706,18 +3733,27 @@ def get_collections():
     user = g.user if hasattr(g, 'user') else None
     user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
 
-    from utils.trakt_service import is_trakt_enabled_for_user, get_current_user_id as trakt_get_user_id
-    trakt_user_id = trakt_get_user_id()
-    trakt_currently_enabled = is_trakt_enabled_for_user(trakt_user_id)
+    tracking_user_id = get_current_user_id()
+    tracking_provider = get_tracking_provider(tracking_user_id)
 
     current_service = session.get('current_service', get_available_service())
     cached_data = collection_service.get_collections_from_cache(user=user, service_name=current_service)
 
     if isinstance(cached_data, dict):
-        trakt_enabled_in_cache = cached_data.get('trakt_enabled_in_cache', False)
+        cached_provider = cached_data.get('tracking_provider_in_cache')
+        if cached_provider is None:
+            cached_provider = 'trakt' if cached_data.get('trakt_enabled_in_cache') else 'none'
 
-        if trakt_currently_enabled == trakt_enabled_in_cache:
-            return jsonify({"collections": cached_data.get('collections', [])})
+        has_complete_library = (
+            current_service != 'plex' or
+            cached_data.get('library_cache_scope') == 'all'
+        )
+        if tracking_provider == cached_provider and has_complete_library:
+            return jsonify({
+                "collections": cached_data.get('collections', []),
+                "tracking_provider": tracking_provider,
+                "tracking_provider_label": get_tracking_provider_label(tracking_provider),
+            })
 
     if collection_service.cache_building:
         return jsonify({"status": "building_cache"}), 202
@@ -3725,20 +3761,23 @@ def get_collections():
     current_service = session.get('current_service', get_available_service())
     cache_manager = g.cache_manager if hasattr(g, 'cache_manager') else None
 
-    logger.info(f"Rebuilding collections cache for user {user_id}. Reason: Trakt status changed or cache is invalid/old.")
-    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id, trakt_user_id=trakt_user_id)
+    logger.info(f"Rebuilding collections cache for user {user_id}. Reason: Tracking provider changed or cache is invalid/old.")
+    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id, tracking_user_id=tracking_user_id)
 
     return jsonify({"status": "building_cache"}), 202
 
 @app.route('/api/collections/trakt_watched', methods=['POST'])
 @auth_manager.require_auth
 def get_collections_trakt_watched():
-    """Get Trakt watched status for collection movies from local cache"""
-    from utils.trakt_service import is_trakt_enabled_for_user, get_current_user_id as trakt_get_user_id, get_local_watched_movies
-    user_id = trakt_get_user_id()
+    """Compatibility endpoint for selected-provider collection watched status."""
+    user_id = get_current_user_id()
 
-    if not is_trakt_enabled_for_user(user_id):
-        return jsonify({'enabled': False, 'watched_tmdb_ids': []})
+    if not is_tracking_enabled(user_id):
+        return jsonify({
+            'provider': get_tracking_provider(user_id),
+            'enabled': False,
+            'watched_tmdb_ids': [],
+        })
 
     try:
         tmdb_ids_filter = set()
@@ -3750,9 +3789,13 @@ def get_collections_trakt_watched():
         if tmdb_ids_filter:
             watched_tmdb_ids = [tid for tid in watched_tmdb_ids if tid in tmdb_ids_filter]
 
-        return jsonify({'enabled': True, 'watched_tmdb_ids': watched_tmdb_ids})
+        return jsonify({
+            'provider': get_tracking_provider(user_id),
+            'enabled': True,
+            'watched_tmdb_ids': watched_tmdb_ids,
+        })
     except Exception as e:
-        logger.error(f"Error fetching Trakt watched status: {e}")
+        logger.error(f"Error fetching tracking watched status: {e}")
         return jsonify({'enabled': False, 'watched_tmdb_ids': []}), 500
 
 @app.route('/api/collections/build_cache', methods=['POST'])
@@ -3765,13 +3808,12 @@ def build_collections_cache_endpoint():
     user = g.user if hasattr(g, 'user') else None
     user_id = user['internal_username'] if user and 'internal_username' in user else get_current_user_id()
 
-    from utils.trakt_service import get_current_user_id as trakt_get_user_id
-    trakt_user_id = trakt_get_user_id()
+    tracking_user_id = get_current_user_id()
 
     current_service = session.get('current_service', get_available_service())
     cache_manager = g.cache_manager if hasattr(g, 'cache_manager') else None
 
-    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id, trakt_user_id=trakt_user_id)
+    socketio.start_background_task(collection_service.build_collections_cache, app, current_service, cache_manager, user=user, sid=user_id, tracking_user_id=tracking_user_id)
     return jsonify({'status': 'cache build started'}), 202
 
 

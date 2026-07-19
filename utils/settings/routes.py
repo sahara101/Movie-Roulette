@@ -92,6 +92,7 @@ SENSITIVE_SETTINGS_FIELDS = {
     'jellyfin': ['api_key', 'user_id'],
     'emby': ['api_key', 'user_id'],
     'trakt': ['access_token', 'refresh_token', 'client_id', 'client_secret'],
+    'simkl': ['access_token'],
     'seerr': ['api_key'],
     'ombi': ['api_key'],
     'tmdb': ['api_key'],
@@ -124,7 +125,10 @@ def get_settings():
         if auth_manager.auth_enabled:
             username = session.get('username')
             if username:
-                user_data = auth_manager.db.get_user(username)
+                user_data = (
+                    auth_manager.db.get_managed_user_by_username(username)
+                    or auth_manager.db.get_user(username)
+                )
                 if user_data:
                     trakt_env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
                                          settings.is_field_env_controlled('trakt.client_id') or \
@@ -141,6 +145,12 @@ def get_settings():
                             all_settings['trakt']['enabled'] = user_trakt_enabled
                         else:
                             all_settings['trakt']['enabled'] = settings.get('trakt', {}).get('enabled', False)
+
+                    if not settings.is_field_env_controlled('tracking.provider'):
+                        provider = user_data.get('tracking_provider')
+                        if provider not in ('none', 'trakt', 'simkl'):
+                            provider = 'trakt' if user_data.get('trakt_enabled') else 'none'
+                        all_settings.setdefault('tracking', {})['provider'] = provider
 
         _strip_sensitive_fields(all_settings)
 
@@ -267,7 +277,7 @@ def update_settings(category):
                     needs_reinit = True
                     logger.info("Client settings changed, will reinitialize services")
 
-                if category in ['seerr', 'ombi', 'tmdb', 'trakt', 'request_services']:
+                if category in ['seerr', 'ombi', 'tmdb', 'trakt', 'simkl', 'tracking', 'request_services']:
                     needs_reinit = True
                     logger.info("Integration settings changed, will reinitialize services")
 

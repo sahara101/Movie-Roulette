@@ -4,7 +4,14 @@ import json
 from functools import lru_cache
 from datetime import datetime
 from utils.tmdb_service import tmdb_service
-from utils.trakt_service import get_watched_movies as get_trakt_watched_movies, get_local_watched_movies, is_movie_watched as is_movie_watched_on_trakt, is_trakt_enabled_for_user, get_current_user_id
+from utils.tracking_service import (
+    get_current_user_id,
+    get_local_watched_movies,
+    get_tracking_provider,
+    get_watched_movies as get_tracking_watched_movies,
+    is_movie_watched as is_movie_watched_on_tracker,
+    is_tracking_enabled,
+)
 from utils.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -229,13 +236,13 @@ class CollectionService:
             if part.get('release_date') and part.get('release_date', '9999-99-99') <= today
         ]
 
-        other_movies = [
-            part for part in parts
-            if part['id'] != int(tmdb_id) and part not in previous_movies
-        ]
-
+        previous_movie_ids = {int(movie['id']) for movie in previous_movies}
+        all_library_movies = self.get_all_movies()
+        result_movies = []
         result_previous = []
-        for movie in previous_movies:
+        result_other = []
+
+        for movie in parts:
             in_library = False
             try:
                 if current_service == 'plex':
@@ -247,47 +254,40 @@ class CollectionService:
             except Exception as e:
                 logger.error(f"Error checking library status for movie {movie['id']}: {e}")
 
-            is_watched_in_library = self._is_movie_watched(movie['id'], self.get_all_movies())
-            is_watched_trakt = is_movie_watched_on_trakt(movie['id'])
+            is_watched_in_library = self._is_movie_watched(movie['id'], all_library_movies)
+            is_watched_tracker = is_movie_watched_on_tracker(movie['id'])
+            is_requested = self.check_request_status(movie['id']) if not in_library else False
 
-            is_requested = self.check_request_status(movie['id'])
+            movie_id = int(movie['id'])
+            if movie_id == int(tmdb_id):
+                relation = 'current'
+            elif movie_id in previous_movie_ids:
+                relation = 'previous'
+            else:
+                relation = 'later'
 
-            result_previous.append({
+            result_movie = {
                 'id': movie['id'],
                 'title': movie['title'],
                 'release_date': movie.get('release_date', ''),
                 'poster_path': movie.get('poster_path', ''),
                 'in_library': in_library,
                 'is_watched': is_watched_in_library,
-                'is_watched_on_trakt': is_watched_trakt,
-                'is_requested': is_requested
-            })
+                'is_watched_on_tracker': is_watched_tracker,
+                'is_watched_on_trakt': (
+                    is_watched_tracker and get_tracking_provider() == 'trakt'
+                ),
+                'is_requested': is_requested,
+                'relation': relation,
+            }
+            result_movies.append(result_movie)
 
-        result_other = []
-        for movie in other_movies:
-            in_library = False
-            try:
-                if current_service == 'plex':
-                    in_library = self._is_movie_in_plex(movie['id'])
-                elif current_service == 'jellyfin':
-                    in_library = self._is_movie_in_jellyfin(movie['id'])
-                elif current_service == 'emby':
-                    in_library = self._is_movie_in_emby(movie['id'])
-            except Exception as e:
-                logger.error(f"Error checking library status for movie {movie['id']}: {e}")
+            if relation == 'previous':
+                result_previous.append(result_movie)
+            elif relation == 'later':
+                result_other.append(result_movie)
 
-            is_requested = self.check_request_status(movie['id'])
-
-            result_other.append({
-                'id': movie['id'],
-                'title': movie['title'],
-                'release_date': movie.get('release_date', ''),
-                'poster_path': movie.get('poster_path', ''),
-                'in_library': in_library,
-                'is_requested': is_requested
-            })
-
-            if not found_future_unowned_unrequested:
+            if relation == 'later' and not found_future_unowned_unrequested:
                 movie_release_date_str = movie.get('release_date')
                 if movie_release_date_str:
                     try:
@@ -305,6 +305,8 @@ class CollectionService:
             'collection_poster': movie_details['belongs_to_collection'].get('poster_path', ''),
             'previous_movies': result_previous,
             'other_movies': result_other,
+            'collection_movies': result_movies,
+            'current_movie_id': int(tmdb_id),
             'has_future_unowned_unrequested_movie': found_future_unowned_unrequested
         }
         return final_result
@@ -359,6 +361,25 @@ class CollectionService:
         from flask import g
         return g.media_service.get_all_movies('all')
 
+    @staticmethod
+    def _ensure_plex_all_movies_cache(cache_manager):
+        """Ensure collection status checks use the complete Plex library."""
+        if cache_manager is None:
+            raise RuntimeError("Cannot build the Plex collections cache without a cache manager")
+
+        cache_path = getattr(cache_manager, 'all_movies_cache_path', None)
+        if not cache_path:
+            raise RuntimeError("The Plex all-movies cache path is not configured")
+
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+            return
+
+        logger.info("Plex all-movies cache is missing. Building it before the collections cache.")
+        cache_manager.cache_all_plex_movies(synchronous=True)
+
+        if not os.path.exists(cache_path) or os.path.getsize(cache_path) <= 0:
+            raise RuntimeError("The Plex all-movies cache could not be built")
+
     def get_collections_from_cache(self, user=None, path=None, service_name=None):
         """Get collections from the cache file."""
         cache_path = path or self._get_cache_path(user=user, service_name=service_name)
@@ -368,7 +389,7 @@ class CollectionService:
         return None
 
 
-    def build_collections_cache(self, app, current_service, cache_manager=None, user=None, path=None, sid=None, trakt_user_id=None):
+    def build_collections_cache(self, app, current_service, cache_manager=None, user=None, path=None, sid=None, tracking_user_id=None, trakt_user_id=None):
         """Build and save the collections cache."""
         with app.app_context():
             if self.cache_building:
@@ -395,6 +416,8 @@ class CollectionService:
                     g.media_service = emby
                 
                 service_instance = g.media_service
+                if current_service == 'plex':
+                    self._ensure_plex_all_movies_cache(getattr(g, 'cache_manager', None))
                 all_movies = service_instance.get_all_movies('all')
                 
                 collections = {}
@@ -417,14 +440,21 @@ class CollectionService:
                         self.socketio.emit('collections_cache_progress', {'progress': (i + 1) / total_movies * 50}, room=sid)
 
                 user_id = user['internal_username'] if user else get_current_user_id()
-                effective_trakt_user_id = trakt_user_id if trakt_user_id is not None else user_id
-                trakt_enabled = is_trakt_enabled_for_user(effective_trakt_user_id)
-                trakt_watched_movies = set(get_trakt_watched_movies(effective_trakt_user_id)) if trakt_enabled else set()
+                effective_tracking_user_id = (
+                    tracking_user_id if tracking_user_id is not None
+                    else (trakt_user_id if trakt_user_id is not None else user_id)
+                )
+                tracking_provider = get_tracking_provider(effective_tracking_user_id)
+                tracking_enabled = is_tracking_enabled(effective_tracking_user_id)
+                tracking_watched_movies = (
+                    set(get_tracking_watched_movies(effective_tracking_user_id))
+                    if tracking_enabled else set()
+                )
 
-                if trakt_enabled:
-                    trakt_movie_ids = list(trakt_watched_movies)
-                    total_trakt_movies = len(trakt_movie_ids)
-                    for i, tmdb_id in enumerate(trakt_movie_ids):
+                if tracking_enabled:
+                    tracking_movie_ids = list(tracking_watched_movies)
+                    total_tracking_movies = len(tracking_movie_ids)
+                    for i, tmdb_id in enumerate(tracking_movie_ids):
                         collection_info = self.get_movie_collection(tmdb_id)
                         if collection_info:
                             collection_id = collection_info['id']
@@ -436,8 +466,8 @@ class CollectionService:
                                     'overview': collection_info.get('overview'),
                                     'movies': []
                                 }
-                        if self.socketio and total_trakt_movies > 0:
-                            progress = 50 + (i + 1) / total_trakt_movies * 25
+                        if self.socketio and total_tracking_movies > 0:
+                            progress = 50 + (i + 1) / total_tracking_movies * 25
                             self.socketio.emit('collections_cache_progress', {'progress': progress}, room=sid)
 
                 all_tmdb_ids = {str(movie.get('tmdb_id')) for movie in all_movies if movie.get('tmdb_id')}
@@ -460,9 +490,9 @@ class CollectionService:
                         in_library = part_tmdb_id in all_tmdb_ids
                         is_requested = self.check_request_status(part_tmdb_id) if not in_library else False
                         is_watched_in_library = self._is_movie_watched(part_tmdb_id, all_movies) if in_library else False
-                        is_watched_trakt = int(part_tmdb_id) in trakt_watched_movies
+                        is_watched_tracker = int(part_tmdb_id) in tracking_watched_movies
                         
-                        if not (is_watched_in_library or is_watched_trakt):
+                        if not (is_watched_in_library or is_watched_tracker):
                             is_fully_watched = False
 
                         status = "request"
@@ -470,8 +500,8 @@ class CollectionService:
                             status = "Watched" if is_watched_in_library else "In Library"
                         elif is_requested:
                             status = "Requested"
-                        elif trakt_enabled:
-                            if is_watched_trakt:
+                        elif tracking_enabled:
+                            if is_watched_tracker:
                                 status = "Watched"
                             else:
                                 status = "unwatched"
@@ -485,7 +515,7 @@ class CollectionService:
                             'overview': movie_details.get('overview', ''),
                             'in_library': in_library,
                             'is_requested': is_requested,
-                            'is_watched': is_watched_in_library or is_watched_trakt,
+                            'is_watched': is_watched_in_library or is_watched_tracker,
                             'status': status
                         })
                     
@@ -495,8 +525,8 @@ class CollectionService:
                         final_collections.append(collection_data)
 
                     if self.socketio and total_collections > 0:
-                        progress_start = 75 if trakt_enabled else 50
-                        progress_range = 25 if trakt_enabled else 50
+                        progress_start = 75 if tracking_enabled else 50
+                        progress_range = 25 if tracking_enabled else 50
                         progress = progress_start + (i + 1) / total_collections * progress_range
                         self.socketio.emit('collections_cache_progress', {'progress': progress}, room=sid)
                 
@@ -506,7 +536,9 @@ class CollectionService:
                 
                 cache_content = {
                     'collections': final_collections,
-                    'trakt_enabled_in_cache': trakt_enabled
+                    'tracking_provider_in_cache': tracking_provider,
+                    'trakt_enabled_in_cache': tracking_provider == 'trakt' and tracking_enabled,
+                    'library_cache_scope': 'all',
                 }
                 with open(cache_path, 'w') as f:
                     json.dump(cache_content, f)
@@ -542,14 +574,14 @@ class CollectionService:
             movie_status_map = {str(movie.get('tmdb_id')): movie for movie in all_movies}
 
             user_id = user['internal_username'] if user else get_current_user_id()
-            trakt_enabled = is_trakt_enabled_for_user(user_id)
-            trakt_watched_movies = set(get_local_watched_movies(user_id)) if trakt_enabled else set()
+            tracking_enabled = is_tracking_enabled(user_id)
+            tracking_watched_movies = set(get_local_watched_movies(user_id)) if tracking_enabled else set()
             
             cached_movie_ids = {str(movie['id']) for collection in collections for movie in collection.get('movies', [])}
 
             all_library_movie_ids = set(movie_status_map.keys())
-            all_trakt_movie_ids = {str(tmdb_id) for tmdb_id in trakt_watched_movies}
-            all_current_movie_ids = all_library_movie_ids.union(all_trakt_movie_ids)
+            all_tracking_movie_ids = {str(tmdb_id) for tmdb_id in tracking_watched_movies}
+            all_current_movie_ids = all_library_movie_ids.union(all_tracking_movie_ids)
 
             new_movie_ids_to_check = all_current_movie_ids - cached_movie_ids
 
@@ -575,8 +607,8 @@ class CollectionService:
                                 for movie_part in collection_data.get('parts', []):
                                     part_tmdb_id = str(movie_part['id'])
                                     is_watched_in_library = movie_status_map.get(part_tmdb_id, {}).get('watched', False)
-                                    is_watched_trakt = int(part_tmdb_id) in trakt_watched_movies
-                                    if not (is_watched_in_library or is_watched_trakt):
+                                    is_watched_tracker = int(part_tmdb_id) in tracking_watched_movies
+                                    if not (is_watched_in_library or is_watched_tracker):
                                         is_fully_watched = False
                                         break
                             
@@ -614,8 +646,8 @@ class CollectionService:
                     else:
                         movie['in_library'] = False
 
-                    is_watched_trakt = int(tmdb_id) in trakt_watched_movies
-                    movie['is_watched'] = is_watched_in_library or is_watched_trakt
+                    is_watched_tracker = int(tmdb_id) in tracking_watched_movies
+                    movie['is_watched'] = is_watched_in_library or is_watched_tracker
                     
                     if movie['in_library']:
                         movie['status'] = "Watched" if movie['is_watched'] else "In Library"

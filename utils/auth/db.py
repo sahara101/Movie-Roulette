@@ -189,13 +189,16 @@ class AuthDB:
             'trakt_access_token': None,
             'trakt_refresh_token': None,
             'trakt_enabled': False,
+            'simkl_access_token': None,
+            'tracking_provider': 'none',
             'passkeys': []
         }
 
         allowed_service_keys = ['service_user_id', 'service_token', 'service_server_id',
                                 'plex_token', 'plex_email', 'jellyfin_token', 'jellyfin_user_id',
                                 'is_plex_owner', 'is_jellyfin_owner', 'is_emby_owner',
-                                'trakt_access_token', 'trakt_refresh_token', 'trakt_enabled']
+                                'trakt_access_token', 'trakt_refresh_token', 'trakt_enabled',
+                                'simkl_access_token', 'tracking_provider']
         for key, value in kwargs.items():
             if key in allowed_service_keys:
                 user_entry[key] = value
@@ -384,7 +387,9 @@ class AuthDB:
             'last_login': None,
             'trakt_access_token': None,
             'trakt_refresh_token': None,
-            'trakt_enabled': False
+            'trakt_enabled': False,
+            'simkl_access_token': None,
+            'tracking_provider': 'none'
         }
         self.save_db()
         logger.info(f"Added managed user: {username} (Plex ID: {plex_user_id})")
@@ -397,7 +402,11 @@ class AuthDB:
                 'plex_user_id': data.get('plex_user_id'),
                 'created_at': data.get('created_at'),
                 'last_login': data.get('last_login'),
-                'trakt_enabled': data.get('trakt_enabled', False)
+                'trakt_enabled': data.get('trakt_enabled', False),
+                'tracking_provider': data.get(
+                    'tracking_provider',
+                    'trakt' if data.get('trakt_enabled') else 'none'
+                )
             }
             for username, data in self.managed_users.items()
         }
@@ -476,7 +485,10 @@ class AuthDB:
             return False, "Managed user not found"
 
         user = self.managed_users[username]
-        allowed_keys = ['trakt_access_token', 'trakt_refresh_token', 'trakt_enabled']
+        allowed_keys = [
+            'trakt_access_token', 'trakt_refresh_token', 'trakt_enabled',
+            'simkl_access_token', 'tracking_provider'
+        ]
         updated = False
 
         for key, value in data_to_update.items():
@@ -610,7 +622,12 @@ class AuthDB:
                 'service_server_id': user_data.get('service_server_id'),
                 'trakt_access_token': user_data.get('trakt_access_token'),
                 'trakt_refresh_token': user_data.get('trakt_refresh_token'),
-                'trakt_enabled': user_data.get('trakt_enabled', False)
+                'trakt_enabled': user_data.get('trakt_enabled', False),
+                'simkl_access_token': user_data.get('simkl_access_token'),
+                'tracking_provider': user_data.get(
+                    'tracking_provider',
+                    'trakt' if user_data.get('trakt_enabled') else 'none'
+                )
             })
 
         return session_info
@@ -692,7 +709,10 @@ class AuthDB:
             return False, "User not found"
 
         user = self.users[username]
-        allowed_keys = ['trakt_access_token', 'trakt_refresh_token', 'trakt_enabled']
+        allowed_keys = [
+            'trakt_access_token', 'trakt_refresh_token', 'trakt_enabled',
+            'simkl_access_token', 'tracking_provider'
+        ]
         updated = False
 
         for key, value in data_to_update.items():

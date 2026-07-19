@@ -10,6 +10,7 @@ import logging
 from utils.settings import settings 
 from utils.auth.manager import auth_manager
 from utils.auth.db import AuthDB 
+from utils.tracking_service import get_tracking_provider
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def status():
     if env_controlled:
         global_settings = settings.get('trakt', {})
         is_connected = bool(global_settings.get('access_token'))
-        is_enabled = is_connected 
+        is_enabled = is_connected and get_tracking_provider('global') == 'trakt'
 
         return jsonify({
             'connected': is_connected,
@@ -64,8 +65,7 @@ def status():
                  return jsonify({'error': 'User not found in database'}), 404
 
         is_connected = bool(user_data.get('trakt_access_token'))
-        is_connected = bool(user_data.get('trakt_access_token'))
-        is_enabled = user_data.get('trakt_enabled', False)
+        is_enabled = is_connected and get_tracking_provider(username) == 'trakt'
 
         status_payload = {
             'connected': is_connected,
@@ -77,7 +77,7 @@ def status():
     else:
         trakt_settings = settings.get('trakt', {})
         is_connected = bool(trakt_settings.get('access_token'))
-        is_enabled = trakt_settings.get('enabled', False)
+        is_enabled = is_connected and get_tracking_provider('global') == 'trakt'
 
         status_payload = {
             'connected': is_connected,
@@ -161,7 +161,8 @@ def get_token():
                 update_data = {
                     'trakt_access_token': token_data['access_token'],
                     'trakt_refresh_token': token_data['refresh_token'],
-                    'trakt_enabled': True
+                    'trakt_enabled': True,
+                    'tracking_provider': 'trakt'
                 }
 
                 success = False
@@ -188,6 +189,7 @@ def get_token():
                 }
                 try:
                     settings.update('trakt', trakt_data)
+                    settings.update('tracking', {'provider': 'trakt'})
                     logger.info("Successfully saved Trakt tokens to global settings")
                     return jsonify({'status': 'success'})
                 except Exception as e:
@@ -234,6 +236,8 @@ def disconnect():
                 'trakt_refresh_token': None,
                 'trakt_enabled': False
             }
+            if get_tracking_provider(username) == 'trakt':
+                update_data['tracking_provider'] = 'none'
 
             success = False
             message = "User type not handled"
@@ -259,6 +263,8 @@ def disconnect():
             }
             try:
                 settings.update('trakt', trakt_data)
+                if get_tracking_provider('global') == 'trakt':
+                    settings.update('tracking', {'provider': 'none'})
                 logger.info("Successfully disconnected Trakt in global settings")
                 return jsonify({'status': 'success'})
             except Exception as e:
@@ -300,7 +306,14 @@ def update_trakt_settings():
         username = session_data['username']
         user_type = session_data.get('user_type', 'local')
 
-        update_data = {'trakt_enabled': enabled_state}
+        current_provider = get_tracking_provider(username)
+        update_data = {
+            'trakt_enabled': enabled_state,
+            'tracking_provider': (
+                'trakt' if enabled_state
+                else ('none' if current_provider == 'trakt' else current_provider)
+            )
+        }
         success = False
         message = "User type not handled"
 
@@ -330,6 +343,13 @@ def update_trakt_settings():
     else:
         try:
             settings.update('trakt', {'enabled': enabled_state})
+            current_provider = get_tracking_provider('global')
+            settings.update('tracking', {
+                'provider': (
+                    'trakt' if enabled_state
+                    else ('none' if current_provider == 'trakt' else current_provider)
+                )
+            })
             logger.info(f"Successfully updated Trakt enabled status to {enabled_state} in global settings")
             return jsonify({'status': 'success', 'enabled': enabled_state})
         except Exception as e:
