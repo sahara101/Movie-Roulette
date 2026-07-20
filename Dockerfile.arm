@@ -14,11 +14,15 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/lib/pkgconfig
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 WORKDIR /build
+COPY requirements.txt /build/requirements.txt
 RUN pip install --upgrade pip setuptools wheel
-RUN timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
-    cffi setuptools-rust cryptography==44.0.0 && \
+RUN CFFI_REQUIREMENT="$(grep '^cffi==' requirements.txt)" && \
+    CRYPTOGRAPHY_REQUIREMENT="$(grep '^cryptography==' requirements.txt)" && \
+    GEVENT_REQUIREMENT="$(grep '^gevent==' requirements.txt)" && \
+    timeout 3600 pip wheel --no-deps --no-cache-dir --wheel-dir /wheels \
+      "$CFFI_REQUIREMENT" setuptools-rust "$CRYPTOGRAPHY_REQUIREMENT" && \
     GEVENT_CONFIGURE_KWARGS="--disable-dependency-tracking" \
-    pip wheel --no-deps --no-cache-dir --wheel-dir /wheels gevent
+      pip wheel --no-deps --no-cache-dir --wheel-dir /wheels "$GEVENT_REQUIREMENT"
 
 FROM python:3.12-slim-bookworm
 RUN apt-get update && \
