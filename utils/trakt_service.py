@@ -9,15 +9,13 @@ import logging
 from utils.settings import settings
 from flask import request, session, current_app 
 from utils.auth.manager import auth_manager 
+from utils.trakt_credentials import get_trakt_client_id, get_trakt_client_secret
 
 logger = logging.getLogger(__name__)
 
 TRAKT_SETTINGS = settings.get('trakt', {})
 TMDB_SETTINGS = settings.get('tmdb', {})
 
-HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
-
-TRAKT_CLIENT_ID = os.getenv('TRAKT_CLIENT_ID') or HARDCODED_CLIENT_ID
 TRAKT_ACCESS_TOKEN = os.getenv('TRAKT_ACCESS_TOKEN') or TRAKT_SETTINGS.get('access_token')
 TRAKT_REFRESH_TOKEN = os.getenv('TRAKT_REFRESH_TOKEN') or TRAKT_SETTINGS.get('refresh_token')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY') or TMDB_SETTINGS.get('api_key')
@@ -63,10 +61,8 @@ def get_current_user_id():
     return 'global'  
 
 def is_trakt_env_controlled():
-    """Check if any core Trakt setting is controlled by ENV vars."""
+    """Check whether user tokens, rather than app credentials, are ENV controlled."""
     return settings.is_field_env_controlled('trakt.enabled') or \
-           settings.is_field_env_controlled('trakt.client_id') or \
-           settings.is_field_env_controlled('trakt.client_secret') or \
            settings.is_field_env_controlled('trakt.access_token') or \
            settings.is_field_env_controlled('trakt.refresh_token')
 
@@ -139,102 +135,115 @@ def get_user_trakt_tokens(user_id=None):
     else:
         return None 
 
-def refresh_user_trakt_token(user_id=None):
-    """Refresh Trakt token for a specific user using AuthDB."""
+def _clear_invalid_user_tokens(user_id):
+    """Clear a rejected OAuth session so the UI asks the user to reconnect."""
+    if user_id == 'global':
+        settings.update('trakt', {
+            'enabled': False,
+            'access_token': None,
+            'refresh_token': None,
+        })
+        if settings.get('tracking', {}).get('provider') == 'trakt':
+            settings.update('tracking', {'provider': 'none'})
+        return
+
+    update_data = {
+        'trakt_access_token': None,
+        'trakt_refresh_token': None,
+        'trakt_enabled': False,
+        'tracking_provider': 'none',
+    }
+    if auth_manager.db.get_managed_user_by_username(user_id):
+        auth_manager.db.update_managed_user_data(user_id, update_data)
+    elif auth_manager.db.get_user(user_id):
+        auth_manager.db.update_user_data(user_id, update_data)
+
+
+def refresh_user_trakt_token(user_id=None, stale_access_token=None):
+    """Refresh a user's single-use Trakt token without racing another request."""
     if user_id is None:
         user_id = get_current_user_id()
 
     if is_trakt_env_controlled():
         print(f"Skipping Trakt token refresh for user {user_id}: ENV controlled.")
-        return True 
+        return True
 
-    tokens = get_user_trakt_tokens(user_id)
-    if not tokens or not tokens.get('refresh_token'):
-        print(f"No refresh token found for user {user_id}. Cannot refresh.")
-        return False
+    with token_lock:
+        tokens = get_user_trakt_tokens(user_id)
+        if not tokens or not tokens.get('refresh_token'):
+            print(f"No refresh token found for user {user_id}. Cannot refresh.")
+            return False
 
-    refresh_token = tokens['refresh_token']
+        # A concurrent request may already have exchanged the old refresh token.
+        if stale_access_token and tokens.get('access_token') != stale_access_token:
+            return True
 
-    print(f"Attempting to refresh Trakt token for user {user_id}...")
-    try:
-        response = requests.post(
-            f'{TRAKT_API_URL}/oauth/token',
-            json={
-                'refresh_token': refresh_token,
-                'client_id': TRAKT_CLIENT_ID,
-                'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
-                'grant_type': 'refresh_token'
-            }
-        )
+        request_data = {
+            'refresh_token': tokens['refresh_token'],
+            'client_id': get_trakt_client_id(),
+            'grant_type': 'refresh_token',
+        }
+        client_secret = get_trakt_client_secret()
+        if client_secret:
+            request_data['client_secret'] = client_secret
 
-        if response.ok:
-            data = response.json()
-            new_access_token = data['access_token']
-            new_refresh_token = data['refresh_token']
+        print(f"Attempting to refresh Trakt token for user {user_id}...")
+        try:
+            response = requests.post(
+                f'{TRAKT_API_URL}/oauth/token',
+                json=request_data,
+                timeout=20,
+            )
 
-            update_data = {
-                'trakt_access_token': new_access_token,
-                'trakt_refresh_token': new_refresh_token
-            }
+            if response.ok:
+                data = response.json()
+                update_data = {
+                    'trakt_access_token': data['access_token'],
+                    'trakt_refresh_token': data['refresh_token'],
+                }
 
-            if user_id == 'global':
-                try:
+                if user_id == 'global':
                     settings.update('trakt', {
-                        'access_token': new_access_token,
-                        'refresh_token': new_refresh_token
+                        'access_token': data['access_token'],
+                        'refresh_token': data['refresh_token'],
                     })
-                    print(f"Successfully refreshed and saved Trakt token for global settings")
+                    print("Successfully refreshed and saved Trakt token for global settings")
                     return True
-                except Exception as save_err:
-                    print(f"Failed to save refreshed Trakt token to global settings: {save_err}")
+
+                if auth_manager.db.get_managed_user_by_username(user_id):
+                    user_type = 'plex_managed'
+                    success, message = auth_manager.db.update_managed_user_data(user_id, update_data)
+                elif auth_manager.db.get_user(user_id):
+                    user_type = 'local'
+                    success, message = auth_manager.db.update_user_data(user_id, update_data)
+                else:
+                    print(f"Could not determine user type for {user_id} to save refreshed token.")
                     return False
 
-            user_type = None
-            if auth_manager.db.get_managed_user_by_username(user_id):
-                user_type = 'plex_managed'
-            elif auth_manager.db.get_user(user_id):
-                user_type = 'local'
-
-            success = False
-            message = "User type not handled for token refresh save"
-
-            if user_type == 'plex_managed':
-                success, message = auth_manager.db.update_managed_user_data(user_id, update_data)
-            elif user_type == 'local':
-                success, message = auth_manager.db.update_user_data(user_id, update_data)
-            else:
-                print(f"Could not determine user type for {user_id} to save refreshed token.")
-
-            if success:
-                print(f"Successfully refreshed and saved Trakt token for user {user_id} (type: {user_type})")
-                return True
-            else:
+                if success:
+                    print(f"Successfully refreshed and saved Trakt token for user {user_id} (type: {user_type})")
+                    return True
                 print(f"Failed to save refreshed Trakt token for user {user_id} (type: {user_type}): {message}")
                 return False
-        else:
-            user_type = 'unknown'
+
             if auth_manager.db.get_managed_user_by_username(user_id):
                 user_type = 'plex_managed'
             elif auth_manager.db.get_user(user_id):
                 user_type = 'local'
+            else:
+                user_type = 'unknown'
             print(f"Trakt token refresh API call failed for user {user_id} (type: {user_type}): {response.status_code} - {response.text}")
-            if response.status_code == 401:
-                print(f"Refresh token for user {user_id} (type: {user_type}) seems invalid. Clearing tokens and disabling.")
-                if user_id == 'global':
-                    settings.update('trakt', {'enabled': False, 'access_token': None, 'refresh_token': None})
-                elif user_type == 'plex_managed':
-                    auth_manager.db.update_managed_user_data(user_id, {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False})
-                elif user_type == 'local':
-                    auth_manager.db.update_user_data(user_id, {'trakt_access_token': None, 'trakt_refresh_token': None, 'trakt_enabled': False})
+            try:
+                oauth_error = response.json().get('error')
+            except (TypeError, ValueError):
+                oauth_error = None
+            if response.status_code == 401 or oauth_error == 'invalid_grant':
+                print(f"Refresh token for user {user_id} (type: {user_type}) is invalid. Clearing tokens and disabling.")
+                _clear_invalid_user_tokens(user_id)
             return False
-    except Exception as e:
-        user_type = 'unknown'
-        if auth_manager.db.get_managed_user_by_username(user_id):
-            user_type = 'plex_managed'
-        elif auth_manager.db.get_user(user_id):
-            user_type = 'local'
-        print(f"Exception during Trakt token refresh for user {user_id} (type: {user_type}): {e}")
-        return False
+        except Exception as e:
+            print(f"Exception during Trakt token refresh for user {user_id}: {e}")
+            return False
 
 def get_trakt_headers(user_id=None):
     """Get headers with a valid access token for specific user using AuthDB."""
@@ -250,7 +259,7 @@ def get_trakt_headers(user_id=None):
     return {
         'Content-Type': 'application/json',
         'trakt-api-version': '2',
-        'trakt-api-key': TRAKT_CLIENT_ID,
+        'trakt-api-key': get_trakt_client_id(),
         'Authorization': f'Bearer {access_token}'
     }
 
@@ -264,7 +273,8 @@ def make_trakt_request(method, endpoint, user_id=None, **kwargs):
 
     if not headers:
         print(f"make_trakt_request: Initial token invalid for user {user_id}. Attempting refresh...")
-        if refresh_user_trakt_token(user_id):
+        stale_access_token = headers.get('Authorization', '').removeprefix('Bearer ')
+        if refresh_user_trakt_token(user_id, stale_access_token=stale_access_token):
             headers = get_trakt_headers(user_id) 
             if not headers:
                  print(f"make_trakt_request: Still no valid token after refresh for user {user_id}")
@@ -570,8 +580,9 @@ def update_watched_status_for_users():
             users_to_sync.append('global')
     else:
         all_regular_users = auth_manager.db.get_users()
-        for user_id, user_data in all_regular_users.items():
-            if user_data.get('trakt_enabled') and user_data.get('trakt_access_token'):
+        for user_id in all_regular_users:
+            user_data = auth_manager.db.get_user(user_id)
+            if user_data and user_data.get('trakt_enabled') and user_data.get('trakt_access_token'):
                 users_to_sync.append(user_id)
 
         all_managed_users = auth_manager.db.get_all_managed_users()

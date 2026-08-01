@@ -286,12 +286,14 @@ Movie Roulette offers two ways to configure the application:
 | Variable | Description | Default | UI Alternative |
 |----------|-------------|---------|----------------|
 | `TRAKT_CLIENT_ID` | Custom Trakt app ID | Built-in app | ✅ Built-in auth |
-| `TRAKT_CLIENT_SECRET` | Custom Trakt secret | Built-in app | ✅ Built-in auth |
+| `TRAKT_CLIENT_SECRET` | Custom Trakt app secret, required whenever `TRAKT_CLIENT_ID` is set | Built-in app | ✅ Built-in auth |
 | `TRAKT_ACCESS_TOKEN` | Custom access token | - | ✅ Built-in auth |
 | `TRAKT_REFRESH_TOKEN` | Custom refresh token | - | ✅ Built-in auth |
 
 ### Watch Tracking (Optional)
 Only one tracking provider is active for each user. Select **None**, **Trakt**, or **Simkl** under **Settings > Integrations > Watch Tracking**. Existing tokens are retained when switching providers, so switching back does not require reconnecting.
+
+Trakt connections use its Device Code flow. Movie Roulette includes a built-in Trakt application, so no configuration is needed: select **Trakt**, choose **Connect Trakt Account**, then open the displayed activation page and enter the short code. To use your own Trakt application instead, set both `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` (Trakt requires the secret for the device and refresh grants). The app polls Trakt securely from the server, saves the user's rotating access and refresh tokens, and immediately synchronizes watched movies.
 
 #### Simkl
 Movie Roulette includes a Simkl application Client ID. Select **Simkl**, choose **Connect Simkl Account**, open the displayed authorization URL, and enter the PIN. Every authenticated Movie Roulette user connects their own Simkl account; accounts do not share watch history or access tokens.

@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsRoot = document.getElementById('settings-root');
     let currentSettings = null;
     let currentOverrides = null;
-    let traktStatus = { enabled: false, connected: false, env_controlled: false };
+    let traktStatus = { enabled: false, connected: false, configured: false, env_controlled: false };
     let trackingStatus = {
         provider: 'none',
         provider_label: 'None',
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="fa-solid fa-${isConnected ? 'plug-circle-xmark' : 'plug'}"></i>
                     ${isConnected ? 'Disconnect from Trakt' : 'Connect Trakt Account'}
                 `;
-                button.disabled = isEnvControlled; 
+                button.disabled = isEnvControlled || (!isConnected && !traktStatus.configured);
 
                 const wrapper = button.closest('.trakt-integration-wrapper'); 
                 if (wrapper) {
@@ -281,85 +281,55 @@ document.addEventListener('DOMContentLoaded', function() {
              return traktStatus;
         }
 
-        async function handleOAuthFlow(authUrl) {
+        async function handleOAuthFlow(authorization) {
             const codeDialog = document.createElement('div');
             codeDialog.className = 'trakt-confirm-dialog';
             codeDialog.innerHTML = `
-                <div class="dialog-content">
+                <div class="dialog-content trakt-device-dialog">
                     <h3>Connect to Trakt</h3>
-                    <div class="dialog-steps">
-                        <p class="step current">1. Authorize Movie Roulette in the Trakt window</p>
-                        <p class="step">2. Copy the code shown by Trakt</p>
-                        <p class="step">3. Paste the code here and click Connect</p>
-                    </div>
-                    <input type="text"
-                           class="setting-input code-input"
-                           placeholder="Paste your authorization code here"
-                           autocomplete="off"
-                           spellcheck="false">
+                    <p>Enter this code at Trakt to authorize Movie Roulette.</p>
+                    <div class="trakt-device-code" aria-label="Trakt authorization code"></div>
+                    <a class="submit-button trakt-verify-link" target="_blank" rel="noopener">Open Trakt</a>
                     <div class="dialog-note">
-                        <i class="fa-solid fa-info-circle"></i>
-                        Authorize in the Trakt window. Then, copy the code provided by Trakt and paste it here.
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        Waiting for authorization...
                     </div>
                     <div class="dialog-buttons">
                         <button class="cancel-button">Cancel</button>
-                        <button class="submit-button" disabled>Connect</button>
                     </div>
                 </div>
             `;
 
             document.body.appendChild(codeDialog);
 
+            const verificationUrl = new URL(authorization.verification_url);
+            if (verificationUrl.protocol !== 'https:') {
+                codeDialog.remove();
+                throw new Error('Trakt returned an invalid verification URL');
+            }
+            codeDialog.querySelector('.trakt-device-code').textContent = authorization.user_code;
+            const verifyLink = codeDialog.querySelector('.trakt-verify-link');
+            verifyLink.href = verificationUrl.href;
+
             const popup = window.open(
-                authUrl,
+                verificationUrl.href,
                 'TraktAuth',
                 'width=600,height=800'
             );
 
             if (!popup) {
-                showError('Popup was blocked. Please allow popups for this site.');
-                codeDialog.remove();
-                updateButtonState(false, false);
-                return;
+                const note = codeDialog.querySelector('.dialog-note');
+                note.innerHTML = '<i class="fa-solid fa-info-circle"></i> Open Trakt with the button above, then enter the displayed code.';
             }
 
-            const input = codeDialog.querySelector('.code-input');
-            const submitButton = codeDialog.querySelector('.submit-button');
-            const steps = codeDialog.querySelectorAll('.step');
-
-            input.focus();
-
-            input.addEventListener('input', () => {
-                const hasValue = input.value.trim();
-                submitButton.disabled = !hasValue;
-                if (hasValue) {
-                    steps[1].classList.remove('current');
-                    steps[2].classList.add('current');
-                } else {
-                    steps[1].classList.add('current');
-                    steps[2].classList.remove('current');
-                }
-            });
-
-            const checkPopup = setInterval(() => {
-                if (popup.closed) {
-                    clearInterval(checkPopup);
-                    const note = codeDialog.querySelector('.dialog-note');
-                    note.innerHTML = '<i class="fa-solid fa-check-circle"></i> Trakt window closed. Click Connect when ready.';
-                }
-            }, 1000);
-
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !submitButton.disabled) {
-                    submitButton.click();
-                }
-            });
-
+            let stopped = false;
+            let pollTimer;
             function removeDialog() {
-                if (!popup.closed) {
+                stopped = true;
+                if (pollTimer) clearTimeout(pollTimer);
+                if (popup && !popup.closed) {
                     popup.close();
                 }
-                clearInterval(checkPopup);
                 codeDialog.remove();
                 updateButtonState(false, false);
             }
@@ -372,47 +342,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
             codeDialog.querySelector('.cancel-button').addEventListener('click', removeDialog);
 
-            submitButton.addEventListener('click', async () => {
-                const code = input.value.trim();
-                if (!code) {
-                    showError('Please enter the authorization code');
-                    return;
-                }
-
-                updateButtonState(false, true);
-                submitButton.disabled = true;
-                submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting...';
-
+            const poll = async () => {
+                if (stopped) return;
                 try {
-                    const response = await fetch('/trakt/token', {
+                    const response = await fetch('/trakt/poll', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken() 
-                        },
-                        body: JSON.stringify({ code })
+                        headers: { 'X-CSRFToken': getCsrfToken() }
                     });
-
                     const data = await response.json();
                     if (response.ok && data.status === 'success') {
+                        stopped = true;
+                        if (popup && !popup.closed) popup.close();
                         showSuccess('Successfully connected to Trakt');
                         codeDialog.remove();
-                        traktStatus.connected = true;
-                        traktStatus.enabled = true; 
-                        checkConnectionStatus(); 
                         await refreshTrackingStatus();
                         sessionStorage.setItem('collections_force_refresh', '1');
                         loadTabContent('integrations');
-                    } else {
-                        throw new Error(data.error || 'Failed to connect to Trakt');
+                        return;
                     }
+                    if (response.status !== 202) {
+                        throw new Error(data.error || 'Trakt authorization failed');
+                    }
+                    pollTimer = setTimeout(
+                        poll,
+                        (data.interval || authorization.interval || 5) * 1000
+                    );
                 } catch (error) {
+                    removeDialog();
                     showError(error.message);
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Connect';
-                    updateButtonState(false, false);
                 }
-            });
+            };
+            pollTimer = setTimeout(poll, (authorization.interval || 5) * 1000);
         }
 
         async function handleDisconnect() {
@@ -487,17 +447,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateButtonState(false, true);
 
                 try {
-                    const response = await fetch('/trakt/authorize');
+                    const response = await fetch('/trakt/authorize', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCsrfToken() }
+                    });
                     if (!response.ok) {
-                        throw new Error('Failed to initialize Trakt authorization');
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || 'Failed to initialize Trakt authorization');
                     }
 
                     const data = await response.json();
-                    if (!data.auth_url) {
-                        throw new Error('Invalid authorization URL');
+                    if (!data.user_code || !data.verification_url) {
+                        throw new Error('Invalid Trakt authorization response');
                     }
 
-                    await handleOAuthFlow(data.auth_url);
+                    await handleOAuthFlow(data);
                 } catch (error) {
                     console.error('Trakt authorization error:', error);
                     showError(error.message || 'Failed to start Trakt authorization');
@@ -507,6 +471,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         wrapper.appendChild(button);
+        if (!traktStatus.configured && !traktStatus.connected) {
+            const note = document.createElement('div');
+            note.className = 'env-override';
+            note.textContent = 'A custom Trakt Client ID also requires its Client Secret';
+            wrapper.appendChild(note);
+        }
         container.appendChild(wrapper);
         checkConnectionStatus();
     }
@@ -518,6 +488,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const trakt = trackingStatus.providers?.trakt || {};
         traktStatus = {
             connected: Boolean(trakt.connected),
+            configured: Boolean(trakt.configured),
             env_controlled: Boolean(trakt.env_controlled),
             enabled: trackingStatus.provider === 'trakt' && Boolean(trakt.connected)
         };
@@ -527,29 +498,84 @@ document.addEventListener('DOMContentLoaded', function() {
         return trackingStatus;
     }
 
+    const TRACKING_SETUP_REQUIREMENTS = { trakt: 'Client Secret', simkl: 'Client ID' };
+    const TRACKING_PROVIDER_LOGOS = {
+        trakt: '/static/logos/trakt_logo.svg',
+        simkl: '/static/logos/simkl_logo.svg'
+    };
+
+    function getTrackingOptionState(value, isActive) {
+        if (value === 'none') {
+            return { text: 'Off', icon: 'fa-regular fa-circle', className: '' };
+        }
+        const provider = trackingStatus.providers?.[value] || {};
+        if (!provider.configured) {
+            return {
+                text: `Needs ${TRACKING_SETUP_REQUIREMENTS[value]}`,
+                icon: 'fa-solid fa-triangle-exclamation',
+                className: 'needs-setup'
+            };
+        }
+        if (!provider.connected) {
+            return { text: 'Not connected', icon: 'fa-regular fa-circle', className: '' };
+        }
+        // Both providers can hold tokens at once, but only the selected one tracks anything.
+        return isActive
+            ? { text: 'Active', icon: 'fa-solid fa-circle', className: 'is-connected' }
+            : { text: 'Signed in', icon: 'fa-regular fa-circle', className: '' };
+    }
+
     function renderTrackingProvider(container) {
         const control = document.createElement('div');
         control.className = 'tracking-provider-control';
+        control.setAttribute('role', 'group');
+        control.setAttribute('aria-label', 'Tracking provider');
 
         [
             { value: 'none', label: 'None' },
             { value: 'trakt', label: 'Trakt' },
             { value: 'simkl', label: 'Simkl' }
         ].forEach(option => {
+            const isActive = trackingStatus.provider === option.value;
+            const state = getTrackingOptionState(option.value, isActive);
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = `tracking-provider-option${trackingStatus.provider === option.value ? ' active' : ''}`;
-            button.textContent = option.label;
-            button.setAttribute('aria-pressed', trackingStatus.provider === option.value ? 'true' : 'false');
+            button.className = `tracking-provider-option${isActive ? ' active' : ''}`;
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
 
-            const simklUnavailable = option.value === 'simkl' && !trackingStatus.providers?.simkl?.configured;
-            button.disabled = Boolean(trackingStatus.env_controlled || simklUnavailable);
-            if (simklUnavailable) button.title = 'Configure a Simkl Client ID first';
+            const name = document.createElement('span');
+            name.className = 'tracking-provider-name';
+            const logo = TRACKING_PROVIDER_LOGOS[option.value];
+            if (logo) {
+                const image = document.createElement('img');
+                image.className = 'tracking-provider-logo';
+                image.src = logo;
+                image.alt = '';
+                name.appendChild(image);
+            } else {
+                const mark = document.createElement('i');
+                mark.className = 'fa-solid fa-ban tracking-provider-logo';
+                name.appendChild(mark);
+            }
+            name.append(option.label);
+            const status = document.createElement('span');
+            status.className = `tracking-provider-state ${state.className}`.trim();
+            status.innerHTML = `<i class="${state.icon}"></i>`;
+            status.append(state.text);
+            button.append(name, status);
+            button.setAttribute('aria-label', `${option.label} - ${state.text}`);
+
+            const unavailable = option.value !== 'none' && !trackingStatus.providers?.[option.value]?.configured;
+            button.disabled = Boolean(trackingStatus.env_controlled || unavailable);
+            if (unavailable) button.title = `Configure a ${option.label} ${TRACKING_SETUP_REQUIREMENTS[option.value]} first`;
             if (trackingStatus.env_controlled) button.title = 'Set by TRACKING_PROVIDER';
 
             button.addEventListener('click', async () => {
                 if (option.value === trackingStatus.provider) return;
                 control.querySelectorAll('button').forEach(item => { item.disabled = true; });
+                status.className = 'tracking-provider-state';
+                status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                status.append('Switching...');
                 try {
                     const response = await fetch('/api/tracking/provider', {
                         method: 'PUT',

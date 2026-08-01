@@ -1,25 +1,18 @@
-from flask import Blueprint, jsonify, redirect, request, session, make_response
+from flask import Blueprint, jsonify, request, session, make_response
 import requests
-import json
-import os
-import hashlib
-import base64
-import secrets
-from datetime import datetime
+import time
 import logging
 from utils.settings import settings 
 from utils.auth.manager import auth_manager
-from utils.auth.db import AuthDB 
 from utils.tracking_service import get_tracking_provider
+from utils.trakt_credentials import get_trakt_client_id, get_trakt_client_secret
 
 logger = logging.getLogger(__name__)
 
 trakt_bp = Blueprint('trakt_bp', __name__)
 
-HARDCODED_CLIENT_ID = '2203f1d6e97f5f8fcbfc3dcd5a6942ad03559831695939a01f9c44a1c685c4d1'
-REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
-
-CLIENT_ID = os.getenv('TRAKT_CLIENT_ID') or HARDCODED_CLIENT_ID
+TRAKT_AUTH_URL = 'https://auth.trakt.tv'
+TRAKT_DEVICE_SESSION_KEY = 'trakt_device_auth'
 
 @trakt_bp.route('/trakt/status')
 @auth_manager.require_auth 
@@ -27,8 +20,6 @@ def status():
     """Get Trakt connection status for current user"""
 
     env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
-                     settings.is_field_env_controlled('trakt.client_id') or \
-                     settings.is_field_env_controlled('trakt.client_secret') or \
                      settings.is_field_env_controlled('trakt.access_token') or \
                      settings.is_field_env_controlled('trakt.refresh_token')
 
@@ -92,118 +83,183 @@ def status():
     response.headers['Expires'] = '0'
     return response
 
-@trakt_bp.route('/trakt/authorize')
+def _current_auth_identity():
+    if not auth_manager.auth_enabled:
+        return 'global', 'global'
+
+    token = request.cookies.get('auth_token')
+    session_data = auth_manager.verify_auth(token)
+    if not session_data:
+        return None, None
+    return session_data['username'], session_data.get('user_type', 'local')
+
+
+def _save_trakt_tokens(username, user_type, token_data):
+    update_data = {
+        'trakt_access_token': token_data['access_token'],
+        'trakt_refresh_token': token_data['refresh_token'],
+        'trakt_enabled': True,
+        'tracking_provider': 'trakt',
+    }
+
+    if username == 'global':
+        settings.update('trakt', {
+            'access_token': token_data['access_token'],
+            'refresh_token': token_data['refresh_token'],
+            'enabled': True,
+        })
+        settings.update('tracking', {'provider': 'trakt'})
+        return True, 'Trakt tokens saved'
+
+    if user_type == 'plex_managed' or auth_manager.db.get_managed_user_by_username(username):
+        return auth_manager.db.update_managed_user_data(username, update_data)
+    return auth_manager.db.update_user_data(username, update_data)
+
+
+@trakt_bp.route('/trakt/authorize', methods=['POST'])
 @auth_manager.require_auth
 def authorize():
-    """Start the Trakt authorization flow using PKCE (no client_secret required)"""
-    code_verifier = secrets.token_urlsafe(96)
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b'=').decode()
-    session['trakt_pkce_verifier'] = code_verifier
+    """Start Trakt's portable device-code authorization flow."""
+    client_secret = get_trakt_client_secret()
+    if not client_secret:
+        return jsonify({
+            'error': 'A custom TRAKT_CLIENT_ID also requires TRAKT_CLIENT_SECRET.'
+        }), 503
 
-    auth_url = 'https://trakt.tv/oauth/authorize'
-    full_auth_url = (
-        f"{auth_url}?response_type=code&client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
-        f"&code_challenge={code_challenge}&code_challenge_method=S256"
-    )
-
-    return jsonify({
-        'auth_url': full_auth_url,
-        'oob': True
-    })
-
-@trakt_bp.route('/trakt/token', methods=['POST'])
-@auth_manager.require_auth 
-def get_token():
-    """Handle the authorization code and get tokens"""
-    code = request.json.get('code')
-    if not code:
-        logger.error("No code provided")
-        return jsonify({'error': 'No code provided'}), 400
+    username, user_type = _current_auth_identity()
+    if not username:
+        return jsonify({'error': 'User session not found or invalid'}), 401
 
     try:
-        code_verifier = session.pop('trakt_pkce_verifier', None)
-        if not code_verifier:
-            return jsonify({'error': 'PKCE session expired. Restart the authorization.'}), 400
+        response = requests.post(
+            f'{TRAKT_AUTH_URL}/oauth/device/code',
+            json={'client_id': get_trakt_client_id()},
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        logger.error("Unable to start Trakt device authorization: %s", exc)
+        return jsonify({'error': 'Unable to contact Trakt authorization.'}), 502
 
-        request_data = {
-            'code': code,
-            'client_id': CLIENT_ID,
-            'redirect_uri': REDIRECT_URI,
-            'code_verifier': code_verifier,
-            'grant_type': 'authorization_code'
-        }
+    if not response.ok:
+        logger.error("Trakt device-code request failed: %s - %s", response.status_code, response.text)
+        return jsonify({'error': 'Trakt could not start authorization.'}), 502
 
-        session_data = None
-        username = None
-        user_type = None
-        if auth_manager.auth_enabled:
-            token = request.cookies.get('auth_token')
-            session_data = auth_manager.verify_auth(token)
-            if not session_data:
-                return jsonify({'error': 'User session not found or invalid'}), 401
-            username = session_data['username']
-            user_type = session_data.get('user_type', 'local')
-            logger.info(f"Making token request with data for user {username} (type: {user_type})")
-        else:
-            logger.info("Making token request with data (auth disabled, using global settings)")
+    payload = response.json()
+    device_code = payload.get('device_code')
+    user_code = payload.get('user_code')
+    verification_url = payload.get('verification_url') or f'{TRAKT_AUTH_URL}/activate'
+    if not device_code or not user_code:
+        logger.error("Trakt device-code response omitted required fields")
+        return jsonify({'error': 'Trakt returned an invalid authorization response.'}), 502
+    if not verification_url.startswith(('https://auth.trakt.tv/', 'https://trakt.tv/')):
+        verification_url = f'{TRAKT_AUTH_URL}/activate'
 
-        response = requests.post('https://api.trakt.tv/oauth/token', json=request_data)
+    interval = max(int(payload.get('interval', 5)), 5)
+    expires_in = max(int(payload.get('expires_in', 600)), interval)
+    session[TRAKT_DEVICE_SESSION_KEY] = {
+        'device_code': device_code,
+        'expires_at': time.time() + expires_in,
+        'interval': interval,
+        'last_poll': 0,
+        'username': username,
+        'user_type': user_type,
+    }
 
-        logger.info(f"Token response status: {response.status_code}")
+    return jsonify({
+        'user_code': user_code,
+        'verification_url': verification_url,
+        'expires_in': expires_in,
+        'interval': interval,
+    })
 
-        if response.ok:
-            token_data = response.json()
 
-            if auth_manager.auth_enabled:
-                update_data = {
-                    'trakt_access_token': token_data['access_token'],
-                    'trakt_refresh_token': token_data['refresh_token'],
-                    'trakt_enabled': True,
-                    'tracking_provider': 'trakt'
-                }
+@trakt_bp.route('/trakt/poll', methods=['POST'])
+@auth_manager.require_auth
+def poll_device_authorization():
+    """Poll Trakt until the user approves or rejects the displayed device code."""
+    device_auth = session.get(TRAKT_DEVICE_SESSION_KEY) or {}
+    if not device_auth.get('device_code') or time.time() >= device_auth.get('expires_at', 0):
+        session.pop(TRAKT_DEVICE_SESSION_KEY, None)
+        return jsonify({'error': 'Trakt authorization expired. Start again.'}), 410
 
-                success = False
-                message = "User type not handled"
+    username, user_type = _current_auth_identity()
+    if not username or username != device_auth.get('username'):
+        session.pop(TRAKT_DEVICE_SESSION_KEY, None)
+        return jsonify({'error': 'User session changed. Start Trakt authorization again.'}), 401
 
-                if user_type == 'plex_managed':
-                    success, message = auth_manager.db.update_managed_user_data(username, update_data)
-                else:
-                    success, message = auth_manager.db.update_user_data(username, update_data)
+    interval = max(int(device_auth.get('interval', 5)), 5)
+    if time.time() - device_auth.get('last_poll', 0) < interval:
+        return jsonify({'status': 'pending', 'interval': interval}), 202
 
-                if success:
-                    logger.info(f"Successfully saved Trakt tokens and enabled for user {username} (type: {user_type})")
-                    return jsonify({'status': 'success'})
-                else:
-                    logger.error(f"Failed to save Trakt tokens for user {username} (type: {user_type}): {message}")
-                    if "not found" in message.lower():
-                         return jsonify({'error': f'Failed to save tokens: User {username} (type: {user_type}) not found in the expected database.'}), 404
-                    return jsonify({'error': f'Failed to save tokens: {message}'}), 500
-            else:
-                trakt_data = {
-                    'access_token': token_data['access_token'],
-                    'refresh_token': token_data['refresh_token'],
-                    'enabled': True
-                }
-                try:
-                    settings.update('trakt', trakt_data)
-                    settings.update('tracking', {'provider': 'trakt'})
-                    logger.info("Successfully saved Trakt tokens to global settings")
-                    return jsonify({'status': 'success'})
-                except Exception as e:
-                    logger.error(f"Failed to save Trakt tokens to global settings: {e}")
-                    return jsonify({'error': f'Failed to save tokens: {str(e)}'}), 500
-        else:
-            logger.error(f"Token request failed: {response.status_code} - {response.text}")
-            if response.status_code == 403 or 'banned' in response.text.lower():
-                return jsonify({'error': 'Your IP has been temporarily banned by Trakt. Please wait a while and try again.'}), 503
-            return jsonify({'error': 'Failed to get access token'}), 500
+    client_secret = get_trakt_client_secret()
+    if not client_secret:
+        session.pop(TRAKT_DEVICE_SESSION_KEY, None)
+        return jsonify({'error': 'Trakt client secret is no longer configured.'}), 503
 
-    except Exception as e:
-        logger.error(f"Trakt token error: {e}")
-        return jsonify({'error': str(e)}), 500
+    device_auth['last_poll'] = time.time()
+    session[TRAKT_DEVICE_SESSION_KEY] = device_auth
+    try:
+        response = requests.post(
+            f'{TRAKT_AUTH_URL}/oauth/device/token',
+            json={
+                'code': device_auth['device_code'],
+                'client_id': get_trakt_client_id(),
+                'client_secret': client_secret,
+            },
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        logger.error("Unable to poll Trakt device authorization: %s", exc)
+        return jsonify({'error': 'Unable to contact Trakt authorization.'}), 502
+
+    if response.ok:
+        token_data = response.json()
+        if not token_data.get('access_token') or not token_data.get('refresh_token'):
+            session.pop(TRAKT_DEVICE_SESSION_KEY, None)
+            return jsonify({'error': 'Trakt returned incomplete tokens.'}), 502
+
+        success, message = _save_trakt_tokens(username, user_type, token_data)
+        if not success:
+            logger.error("Failed to save Trakt tokens for %s: %s", username, message)
+            return jsonify({'error': f'Failed to save Trakt tokens: {message}'}), 500
+
+        session.pop(TRAKT_DEVICE_SESSION_KEY, None)
+        try:
+            from utils.tracking_service import sync_watched_status
+            sync_watched_status(username, force=True)
+        except Exception as exc:
+            logger.warning("Initial Trakt sync failed for %s: %s", username, exc)
+        logger.info("Successfully connected Trakt for user %s", username)
+        return jsonify({'status': 'success'})
+
+    if response.status_code == 400:
+        return jsonify({'status': 'pending', 'interval': interval}), 202
+    if response.status_code == 429:
+        interval += 5
+        device_auth['interval'] = interval
+        session[TRAKT_DEVICE_SESSION_KEY] = device_auth
+        return jsonify({'status': 'pending', 'interval': interval}), 202
+
+    session.pop(TRAKT_DEVICE_SESSION_KEY, None)
+    errors = {
+        404: ('Trakt authorization code is invalid. Start again.', 410),
+        409: ('Trakt authorization code was already used. Start again.', 410),
+        410: ('Trakt authorization expired. Start again.', 410),
+        418: ('Trakt authorization was denied.', 403),
+    }
+    message, status_code = errors.get(
+        response.status_code,
+        ('Trakt authorization failed. Start again.', 502),
+    )
+    logger.warning("Trakt device authorization failed: %s - %s", response.status_code, response.text)
+    return jsonify({'error': message}), status_code
+
+
+@trakt_bp.route('/trakt/token', methods=['POST'])
+@auth_manager.require_auth
+def get_token():
+    """Reject clients using the retired manual out-of-band authorization flow."""
+    return jsonify({'error': 'Manual Trakt codes are no longer supported. Start authorization again.'}), 410
 
 @trakt_bp.route('/trakt/disconnect')
 @auth_manager.require_auth 
@@ -211,10 +267,8 @@ def disconnect():
     """Disconnect Trakt account for current user"""
     try:
         env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
-                         settings.is_field_env_controlled('trakt.client_id') or \
-                         settings.is_field_env_controlled('trakt.client_secret') or \
                          settings.is_field_env_controlled('trakt.access_token') or \
-                          settings.is_field_env_controlled('trakt.refresh_token')
+                         settings.is_field_env_controlled('trakt.refresh_token')
 
         if env_controlled:
             logger.warning("Attempted to disconnect Trakt while ENV controlled.")
@@ -280,8 +334,6 @@ def disconnect():
 def update_trakt_settings():
     """Update the Trakt enabled status for the current user."""
     env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
-                     settings.is_field_env_controlled('trakt.client_id') or \
-                     settings.is_field_env_controlled('trakt.client_secret') or \
                      settings.is_field_env_controlled('trakt.access_token') or \
                      settings.is_field_env_controlled('trakt.refresh_token')
 

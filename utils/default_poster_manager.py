@@ -263,6 +263,7 @@ class DefaultPosterManager:
         """Set default poster or start screensaver after timer expires"""
         with self.lock:
             logger.info(f"Setting default poster - Mode: {self.poster_mode}, Movie Service: {bool(self.movie_service)}")
+            self.default_poster_timer = None  # Timer has fired; allow the next STOPPED to arm a new one
             if self.last_state == 'STOPPED' and time.time() - self.state_change_time >= 300:  # 5 minutes
                 if os.path.exists(self.current_movie_file):
                     with open(self.current_movie_file, 'r') as f:
@@ -289,8 +290,8 @@ class DefaultPosterManager:
                                        namespace='/poster')
 
     def clear_current_movie(self):
-        if os.path.exists(self.current_movie_file):
-            os.remove(self.current_movie_file)
+        from utils.poster_view import clear_current_movie
+        clear_current_movie()
 
     def handle_playback_state(self, state):
         """Handle playback state changes"""

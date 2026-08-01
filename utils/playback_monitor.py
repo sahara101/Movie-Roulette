@@ -592,6 +592,12 @@ class PlaybackMonitor(threading.Thread):
                                     logger.info(f"Playback status changed to {new_status}: {movie_data.get('title')} at {position:.0f}s")
                                 notify_now_playing_status(new_status, position,
                                             room='nw_global' if self._is_owner_stream(selected_stream) else 'nw_nobody')
+
+                            # Drive the poster manager from the monitor rather than from
+                            # browser polling of /playback_state, which stops as soon as a
+                            # client leaves playback mode and would latch the manager's state.
+                            if default_poster_manager:
+                                default_poster_manager.handle_playback_state(new_status)
                     else:
                         if self.current_movie_id is not None:
                             logger.info("No active streams - switching to default poster")

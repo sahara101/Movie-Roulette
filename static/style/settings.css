@@ -363,45 +363,181 @@
     color: #EAEAEC;
 }
 
-/* Trakt Integration Styles */
+/* Tracking Provider Selector */
 .tracking-provider-control {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: min(100%, 420px);
-    min-height: 40px;
+    gap: 6px;
+    width: min(100%, 460px);
+    padding: 6px;
     border: 1px solid #4A4C51;
-    border-radius: 8px;
-    overflow: hidden;
+    border-radius: 10px;
+    background-color: #212326;
+    box-sizing: border-box;
 }
 
 .tracking-provider-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     min-width: 0;
-    border: 0;
-    border-right: 1px solid #4A4C51;
-    border-radius: 0;
-    background: #25272B;
+    padding: 9px 8px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
     color: #D1D5DB;
-    padding: 9px 12px;
-    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9375rem;
     font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
-.tracking-provider-option:last-child {
-    border-right: 0;
+.tracking-provider-option:hover:not(:disabled):not(.active) {
+    background-color: #34373D;
+    color: #EAEAEC;
 }
 
-.tracking-provider-option:hover:not(:disabled) {
-    background: #34373D;
+.tracking-provider-option:focus-visible {
+    outline: none;
+    border-color: #E5A00D;
+    box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.25);
 }
 
 .tracking-provider-option.active {
-    background: #E5A00D;
-    color: #17181B;
+    background-color: #E5A00D;
+    color: #282A2D;
 }
 
 .tracking-provider-option:disabled {
     cursor: not-allowed;
     opacity: 0.5;
+}
+
+.tracking-provider-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tracking-provider-logo {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+i.tracking-provider-logo {
+    font-size: 0.8125rem;
+    line-height: 1;
+    text-align: center;
+    opacity: 0.7;
+}
+
+.tracking-provider-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    color: #9CA3AF;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tracking-provider-state i {
+    font-size: 0.6875rem;
+    flex-shrink: 0;
+}
+
+.tracking-provider-state .fa-circle {
+    font-size: 0.5rem;
+}
+
+.tracking-provider-state.is-connected {
+    color: #50c356;
+}
+
+.tracking-provider-state.needs-setup {
+    color: #E5A00D;
+}
+
+.tracking-provider-option.active .tracking-provider-state {
+    color: inherit;
+    opacity: 0.75;
+}
+
+body.heroui-theme .tracking-provider-control {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+body.heroui-theme .tracking-provider-option {
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    transition: all var(--transition-base);
+}
+
+body.heroui-theme .tracking-provider-option:hover:not(:disabled):not(.active) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+body.heroui-theme .tracking-provider-option:focus-visible {
+    border-color: transparent;
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+body.heroui-theme .tracking-provider-option.active {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 12px rgba(229, 160, 13, 0.3);
+}
+
+body.heroui-theme .tracking-provider-state {
+    color: var(--text-secondary);
+}
+
+body.heroui-theme .tracking-provider-state.is-connected {
+    color: var(--success);
+}
+
+body.heroui-theme .tracking-provider-state.needs-setup {
+    color: var(--warning);
+}
+
+body.heroui-theme .tracking-provider-option.active .tracking-provider-state {
+    color: rgba(255, 255, 255, 0.92);
+    opacity: 1;
+}
+
+@media (max-width: 640px) {
+    .tracking-provider-control {
+        width: 100%;
+        gap: 4px;
+        padding: 4px;
+    }
+
+    .tracking-provider-option {
+        padding: 8px 4px;
+        font-size: 0.875rem;
+    }
+
+    .tracking-provider-state {
+        font-size: 0.6875rem;
+    }
 }
 
 .tracking-empty-state {
@@ -420,11 +556,13 @@
     background-color: #2EA043;
 }
 
-.simkl-pin-dialog {
+.simkl-pin-dialog,
+.trakt-device-dialog {
     text-align: center;
 }
 
-.simkl-pin-code {
+.simkl-pin-code,
+.trakt-device-code {
     margin: 18px auto;
     padding: 12px 16px;
     max-width: 240px;
@@ -438,7 +576,8 @@
     letter-spacing: 0;
 }
 
-.simkl-verify-link {
+.simkl-verify-link,
+.trakt-verify-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;

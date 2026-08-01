@@ -131,8 +131,6 @@ def get_settings():
                 )
                 if user_data:
                     trakt_env_controlled = settings.is_field_env_controlled('trakt.enabled') or \
-                                         settings.is_field_env_controlled('trakt.client_id') or \
-                                         settings.is_field_env_controlled('trakt.client_secret') or \
                                          settings.is_field_env_controlled('trakt.access_token') or \
                                          settings.is_field_env_controlled('trakt.refresh_token')
 

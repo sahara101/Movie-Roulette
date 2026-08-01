@@ -19,6 +19,9 @@ poster_bp = Blueprint('poster', __name__)
 socketio = None
 
 CURRENT_MOVIE_FILE = '/app/data/current_movie.json'
+# Grace period after a movie's computed end time before its stored playback
+# state is treated as stale. Absorbs clock skew and end-credits overrun.
+STALE_MOVIE_GRACE = timedelta(minutes=5)
 
 def init_socket(socket):
     global socketio
@@ -40,6 +43,14 @@ def load_current_movie():
             return json.load(f)
     return None
 
+def clear_current_movie():
+    """Remove the stored playback state so the poster falls back to default/screensaver."""
+    if os.path.exists(CURRENT_MOVIE_FILE):
+        try:
+            os.remove(CURRENT_MOVIE_FILE)
+        except OSError as e:
+            logger.error(f"Error removing current movie file: {e}")
+
 def get_poster_data():
     current_movie = load_current_movie()
     if not current_movie:
@@ -59,6 +70,12 @@ def get_poster_data():
     duration = timedelta(hours=current_movie['duration_hours'], minutes=current_movie['duration_minutes'])
     end_time = start_time + duration
     logger.debug(f"Calculated end_time: {end_time}")
+
+    if datetime.now(current_tz) > end_time + STALE_MOVIE_GRACE:
+        title = current_movie.get('movie', {}).get('title', 'Unknown')
+        logger.info(f"Stored movie '{title}' ended at {end_time} - clearing stale playback state")
+        clear_current_movie()
+        return None
 
     movie_data = current_movie['movie']
     movie_data.update({
@@ -169,6 +186,9 @@ def set_current_movie(movie_data, service, resume_position=0, session_type='NEW'
     default_poster_manager = current_app.config.get('DEFAULT_POSTER_MANAGER')
     if default_poster_manager:
         default_poster_manager.is_default_poster_active = False
+        # The screensaver loop would otherwise keep pushing update_screensaver to
+        # the poster clients during playback, which resets their movie state.
+        default_poster_manager.stop_screensaver()
         logger.info("Reset default poster flag before movie change notification")
 
     if socketio:

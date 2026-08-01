@@ -127,6 +127,7 @@ def get_tracking_status(user_id=None):
     user_id = user_id or get_current_user_id()
     provider = get_tracking_provider(user_id)
 
+    from utils.trakt_credentials import get_trakt_client_secret
     from utils.trakt_service import get_user_trakt_tokens, is_trakt_env_controlled
     from utils.simkl_service import (
         get_simkl_client_id,
@@ -144,7 +145,7 @@ def get_tracking_status(user_id=None):
         'providers': {
             'trakt': {
                 'connected': trakt_connected,
-                'configured': True,
+                'configured': bool(get_trakt_client_secret()),
                 'env_controlled': is_trakt_env_controlled(),
             },
             'simkl': {
