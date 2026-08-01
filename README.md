@@ -291,9 +291,12 @@ Movie Roulette offers two ways to configure the application:
 | `TRAKT_REFRESH_TOKEN` | Custom refresh token | - | ✅ Built-in auth |
 
 ### Watch Tracking (Optional)
-Only one tracking provider is active for each user. Select **None**, **Trakt**, or **Simkl** under **Settings > Integrations > Watch Tracking**. Existing tokens are retained when switching providers, so switching back does not require reconnecting.
+Only one tracking provider is active for each user. Select **None**, **Trakt**, or **Simkl** under **Settings > Integrations > Watch Tracking**. Connecting an account also makes it the active provider. Both accounts can stay connected at the same time, but only the selected one contributes watched status; the other is left untouched and neither token is deleted, so switching back does not require reconnecting.
 
-Trakt connections use its Device Code flow. Movie Roulette includes a built-in Trakt application, so no configuration is needed: select **Trakt**, choose **Connect Trakt Account**, then open the displayed activation page and enter the short code. To use your own Trakt application instead, set both `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` (Trakt requires the secret for the device and refresh grants). The app polls Trakt securely from the server, saves the user's rotating access and refresh tokens, and immediately synchronizes watched movies.
+#### Trakt
+Trakt connections use its Device Code flow. Movie Roulette includes a built-in Trakt application, so no configuration is needed: select **Trakt**, choose **Connect Trakt Account**, then open the displayed activation page and enter the short code. To use your own Trakt application instead, set both `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` (Trakt requires the secret for the device and refresh grants). The app polls Trakt securely from the server and synchronizes watched movies as soon as the connection succeeds.
+
+Trakt access tokens are valid for seven days and are refreshed automatically. Each refresh returns a new refresh token that replaces the previous one, so Movie Roulette stores the rotated pair after every exchange. If Trakt rejects a stored session, the tokens are cleared and the UI asks for a new connection.
 
 #### Simkl
 Movie Roulette includes a Simkl application Client ID. Select **Simkl**, choose **Connect Simkl Account**, open the displayed authorization URL, and enter the PIN. Every authenticated Movie Roulette user connects their own Simkl account; accounts do not share watch history or access tokens.
