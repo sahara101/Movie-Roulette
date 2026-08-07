@@ -1854,7 +1854,7 @@ function handleAsyncTrailer(trailerUrl, error = null) {
      }
 }
 
-async function handleCollectionWarning(movieData) {
+function handleCollectionWarning(movieData) {
     const collectionButton = document.getElementById('collectionButton');
     if (!collectionButton) return;
 
@@ -1868,53 +1868,35 @@ async function handleCollectionWarning(movieData) {
         return;
     }
 
-    const previousMovies = movieData.collection_info.previous_movies || [];
-    const otherMovies = movieData.collection_info.other_movies || [];
+    const collectionInfo = movieData.collection_info;
+    if (collectionInfo.tracking_provider && collectionInfo.tracking_provider !== 'none') {
+        trackingProvider = collectionInfo.tracking_provider;
+        trackingProviderLabel = collectionInfo.tracking_provider_label || trackingProviderLabel;
+    }
 
-    const unwatchedMovies = previousMovies.filter(movie => !movie.is_watched);
-    const requestableOtherMovies = otherMovies.filter(movie => !movie.in_library);
+    const previousMovies = collectionInfo.previous_movies || [];
+    const otherMovies = collectionInfo.other_movies || [];
+
+    // A movie watched on the tracking provider counts as seen even when it is not in the library.
+    const unwatchedMovies = previousMovies.filter(movie => !movie.is_watched && !movie.is_watched_on_tracker);
+    const requestableOtherMovies = otherMovies.filter(movie => !movie.in_library && !movie.is_watched_on_tracker);
 
     if (unwatchedMovies.length === 0 && requestableOtherMovies.length === 0) {
         collectionButton.classList.add('hidden');
         return;
     }
 
-    const candidateIds = [
-        ...unwatchedMovies.map(m => m.id),
-        ...requestableOtherMovies.map(m => m.id)
-    ];
-    const trackingData = await fetchTrackingWatchedStatus(candidateIds);
-
-    if (trackingData.enabled) {
-        trackingProvider = trackingData.provider || trackingProvider;
-        trackingProviderLabel = trackingData.provider_label || (trackingProvider === 'simkl' ? 'Simkl' : 'Trakt');
-        const watchedSet = new Set(trackingData.watched_tmdb_ids);
-        unwatchedMovies.forEach(m => { m.is_watched_on_tracker = watchedSet.has(m.id); });
-        otherMovies.forEach(m => { m.is_watched_on_tracker = watchedSet.has(m.id); });
-
-        const allHandled =
-            unwatchedMovies.every(m => m.is_watched_on_tracker) &&
-            otherMovies.every(m => m.in_library || m.is_watched_on_tracker);
-
-        if (allHandled) {
-            collectionButton.classList.add('hidden');
-            return;
-        }
-    }
-
     collectionButton.classList.remove('hidden');
 
     const badge = collectionButton.querySelector('.badge');
     if (badge) {
-        const unseenCount = unwatchedMovies.filter(m => !m.is_watched_on_tracker).length;
-        const missingOtherCount = requestableOtherMovies.filter(m => !m.is_watched_on_tracker).length;
-        badge.textContent = unseenCount + missingOtherCount;
+        badge.textContent = unwatchedMovies.length + requestableOtherMovies.length;
     }
 
-    collectionButton.dataset.collectionName = movieData.collection_info.collection_name;
-    collectionButton.dataset.collectionId = movieData.collection_info.collection_id;
+    collectionButton.dataset.collectionName = collectionInfo.collection_name;
+    collectionButton.dataset.collectionId = collectionInfo.collection_id;
     collectionButton.onclick = function() {
-        showCollectionModal(movieData.collection_info, unwatchedMovies, otherMovies);
+        showCollectionModal(collectionInfo, unwatchedMovies, otherMovies);
     };
 }
 
@@ -1926,39 +1908,7 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
         ...(otherMovies || [])
     ]).map(movie => ({ ...movie }));
 
-    const allMovieIds = collectionMovies.map(movie => movie.id);
-
-    const [requestServiceStatus, trackingData] = await Promise.all([
-        checkRequestServiceAvailability(),
-        fetchTrackingWatchedStatus(allMovieIds)
-    ]);
-
-    if (trackingData.enabled) {
-        trackingProvider = trackingData.provider || trackingProvider;
-        trackingProviderLabel = trackingData.provider_label || (trackingProvider === 'simkl' ? 'Simkl' : 'Trakt');
-        const watchedSet = new Set(trackingData.watched_tmdb_ids);
-        unwatchedMovies.forEach(movie => {
-            movie.is_watched_on_tracker = watchedSet.has(movie.id);
-        });
-        if (otherMovies) {
-            otherMovies.forEach(movie => {
-                movie.is_watched_on_tracker = watchedSet.has(movie.id);
-            });
-        }
-        collectionMovies.forEach(movie => {
-            movie.is_watched_on_tracker = watchedSet.has(movie.id);
-        });
-
-        const allMoviesHandled =
-            unwatchedMovies.every(m => m.is_watched_on_tracker) &&
-            (!otherMovies || otherMovies.every(m => m.in_library || m.is_watched_on_tracker));
-
-        if (allMoviesHandled) {
-            document.getElementById('collectionButton')?.classList.add('hidden');
-            return;
-        }
-    }
-
+    const requestServiceStatus = await checkRequestServiceAvailability();
     const isRequestServiceAvailable = requestServiceStatus.available;
 
     let requestServiceName = "";
@@ -1984,18 +1934,17 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     if (otherMovies) otherMovies.sort(sortByYear);
     collectionMovies.sort(sortByYear);
 
-    const displayMovies = trackingData.enabled
-        ? unwatchedMovies.filter(m => !m.is_watched_on_tracker)
-        : unwatchedMovies;
-
-    const missingLibraryMovies = collectionMovies.filter(movie => !movie.in_library);
+    // Watched on the tracking provider means seen, so it is neither unwatched nor worth requesting.
+    const missingLibraryMovies = collectionMovies.filter(
+        movie => !movie.in_library && !movie.is_watched_on_tracker
+    );
     const moviesToRequest = missingLibraryMovies.filter(movie => !movie.is_requested);
-    const firstWatchablePrevious = displayMovies.find(movie => movie.in_library);
+    const firstWatchablePrevious = unwatchedMovies.find(movie => movie.in_library);
 
     const summaryParts = [];
-    if (displayMovies.length > 0) {
+    if (unwatchedMovies.length > 0) {
         summaryParts.push(
-            `You have ${displayMovies.length} unwatched previous movie${displayMovies.length === 1 ? '' : 's'} in this collection`
+            `You have ${unwatchedMovies.length} unwatched previous movie${unwatchedMovies.length === 1 ? '' : 's'} in this collection`
         );
     }
     if (missingLibraryMovies.length > 0) {
@@ -2165,26 +2114,6 @@ async function showCollectionModal(collectionInfo, unwatchedMovies, otherMovies)
     document.getElementById('collection_modal_close').addEventListener('click', () => {
         modalContainer.classList.add('hidden');
     });
-}
-
-async function fetchTrackingWatchedStatus(tmdbIds) {
-    try {
-        const response = await fetch('/api/collections/tracking_watched', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            },
-            body: JSON.stringify({ tmdb_ids: tmdbIds }),
-            credentials: 'include'
-        });
-        if (!response.ok) {
-            return { enabled: false, watched_tmdb_ids: [] };
-        }
-        return await response.json();
-    } catch (error) {
-        return { enabled: false, watched_tmdb_ids: [] };
-    }
 }
 
 async function requestPreviousMovies(movies) {

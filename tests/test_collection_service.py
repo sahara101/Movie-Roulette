@@ -96,8 +96,8 @@ class CollectionStatusTests(unittest.TestCase):
             'check_request_status',
             side_effect=lambda movie_id: movie_id == 3,
         ) as request_mock, patch(
-            'utils.collection_service.is_movie_watched_on_tracker',
-            side_effect=lambda movie_id: movie_id == 3,
+            'utils.collection_service.get_local_watched_movies',
+            return_value=[3],
         ), patch(
             'utils.collection_service.get_tracking_provider',
             return_value='simkl',
@@ -116,8 +116,11 @@ class CollectionStatusTests(unittest.TestCase):
         self.assertEqual([movie['id'] for movie in result['other_movies']], [3])
         self.assertTrue(result['collection_movies'][0]['is_watched'])
         self.assertTrue(result['collection_movies'][2]['is_watched_on_tracker'])
+        self.assertFalse(result['collection_movies'][2]['is_watched_on_trakt'])
         self.assertTrue(result['collection_movies'][2]['is_requested'])
         self.assertEqual(result['current_movie_id'], 2)
+        self.assertEqual(result['tracking_provider'], 'simkl')
+        self.assertEqual(result['tracking_provider_label'], 'Simkl')
         all_movies_mock.assert_called_once_with()
         request_mock.assert_called_once_with(3)
 

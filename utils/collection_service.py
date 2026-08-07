@@ -5,11 +5,11 @@ from functools import lru_cache
 from datetime import datetime
 from utils.tmdb_service import tmdb_service
 from utils.tracking_service import (
+    PROVIDER_LABELS,
     get_current_user_id,
     get_local_watched_movies,
     get_tracking_provider,
     get_watched_movies as get_tracking_watched_movies,
-    is_movie_watched as is_movie_watched_on_tracker,
     is_tracking_enabled,
 )
 from utils.settings import settings
@@ -238,6 +238,8 @@ class CollectionService:
 
         previous_movie_ids = {int(movie['id']) for movie in previous_movies}
         all_library_movies = self.get_all_movies()
+        tracking_provider = get_tracking_provider()
+        tracking_watched_ids = set(get_local_watched_movies())
         result_movies = []
         result_previous = []
         result_other = []
@@ -255,10 +257,10 @@ class CollectionService:
                 logger.error(f"Error checking library status for movie {movie['id']}: {e}")
 
             is_watched_in_library = self._is_movie_watched(movie['id'], all_library_movies)
-            is_watched_tracker = is_movie_watched_on_tracker(movie['id'])
+            movie_id = int(movie['id'])
+            is_watched_tracker = movie_id in tracking_watched_ids
             is_requested = self.check_request_status(movie['id']) if not in_library else False
 
-            movie_id = int(movie['id'])
             if movie_id == int(tmdb_id):
                 relation = 'current'
             elif movie_id in previous_movie_ids:
@@ -274,9 +276,7 @@ class CollectionService:
                 'in_library': in_library,
                 'is_watched': is_watched_in_library,
                 'is_watched_on_tracker': is_watched_tracker,
-                'is_watched_on_trakt': (
-                    is_watched_tracker and get_tracking_provider() == 'trakt'
-                ),
+                'is_watched_on_trakt': is_watched_tracker and tracking_provider == 'trakt',
                 'is_requested': is_requested,
                 'relation': relation,
             }
@@ -307,7 +307,9 @@ class CollectionService:
             'other_movies': result_other,
             'collection_movies': result_movies,
             'current_movie_id': int(tmdb_id),
-            'has_future_unowned_unrequested_movie': found_future_unowned_unrequested
+            'has_future_unowned_unrequested_movie': found_future_unowned_unrequested,
+            'tracking_provider': tracking_provider,
+            'tracking_provider_label': PROVIDER_LABELS[tracking_provider]
         }
         return final_result
 

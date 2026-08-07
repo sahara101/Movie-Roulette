@@ -91,36 +91,6 @@ def sync_tracking_watched():
     })
 
 
-@tracking_bp.route('/api/collections/tracking_watched', methods=['POST'])
-@auth_manager.require_auth
-def collection_tracking_watched():
-    user_id = get_current_user_id()
-    provider = get_tracking_provider(user_id)
-    if not is_tracking_enabled(user_id):
-        return jsonify({
-            'provider': provider,
-            'provider_label': PROVIDER_LABELS[provider],
-            'enabled': False,
-            'watched_tmdb_ids': [],
-        })
-
-    data = request.get_json(silent=True) or {}
-    try:
-        requested_ids = {int(value) for value in data.get('tmdb_ids', [])}
-    except (TypeError, ValueError):
-        return jsonify({'error': 'tmdb_ids must contain integers'}), 400
-
-    watched = get_local_watched_movies(user_id)
-    if requested_ids:
-        watched = [tmdb_id for tmdb_id in watched if tmdb_id in requested_ids]
-    return jsonify({
-        'provider': provider,
-        'provider_label': PROVIDER_LABELS[provider],
-        'enabled': True,
-        'watched_tmdb_ids': watched,
-    })
-
-
 @tracking_bp.route('/simkl/status')
 @auth_manager.require_auth
 def simkl_status():
