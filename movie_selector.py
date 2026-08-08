@@ -17,7 +17,7 @@ import asyncio
 import secrets 
 from flask import Flask, jsonify, render_template, send_from_directory, request, session, redirect, flash, g, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask_wtf.csrf import CSRFProtect 
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from utils.poster_view import set_current_movie, poster_bp, init_socket, get_poster_proxy_url, get_backdrop_proxy_url
 from utils.default_poster_manager import init_default_poster_manager, default_poster_manager
@@ -80,8 +80,20 @@ if not flask_secret:
     flask_secret = secrets.token_hex(32)
 app.secret_key = flask_secret
 
-csrf = CSRFProtect() 
-csrf.init_app(app) 
+csrf = CSRFProtect()
+# The poster and roulette views stay open for hours, so a token that expires on a
+# timer would break every POST from a page nobody reloaded. The token stays bound
+# to the session, which is what actually provides the protection.
+app.config['WTF_CSRF_TIME_LIMIT'] = None
+csrf.init_app(app)
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(error):
+    logger.warning(f"CSRF validation failed for {request.path}: {error.description}")
+    if request.path.startswith('/api/') or request.is_json:
+        return jsonify({'error': 'Your session expired. Reload the page and try again.'}), 400
+    return error.description, 400
+
 _cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '*')
 socketio = SocketIO(app, cors_allowed_origins=_cors_origins, manage_session=False)
 init_socket(socketio)
@@ -3517,9 +3529,9 @@ def get_version_info():
         try:
             with open(VERSION_FILE, 'r') as f:
                 return json.load(f)
-        except:
-            pass
-    return {"last_version_seen": VERSION}
+        except (OSError, ValueError) as e:
+            logger.warning(f"Could not read {VERSION_FILE}: {e}")
+    return {}
 
 def save_version_info(info):
     os.makedirs(os.path.dirname(VERSION_FILE), exist_ok=True)
@@ -3530,48 +3542,53 @@ def save_version_info(info):
 @auth_manager.require_auth
 def check_version():
     try:
-        version_info = get_version_info()
-        manual_check = request.args.get('manual', 'false') == 'true'
         response = requests.get(
             "https://api.github.com/repos/sahara101/Movie-Roulette/releases/latest",
-            headers={'Accept': 'application/vnd.github.v3+json'}
+            headers={'Accept': 'application/vnd.github.v3+json'},
+            timeout=10
         )
-        if response.ok:
-            release = response.json()
-            latest_version = release['tag_name'].lstrip('v')
-            current_parts = [int(x) for x in VERSION.split('.')]
-            latest_parts = [int(x) for x in latest_version.split('.')]
-            is_newer = latest_parts > current_parts
-            show_popup = is_newer and latest_version != version_info["last_version_seen"]
-            if manual_check or show_popup:
-                version_info["last_version_seen"] = latest_version
-                save_version_info(version_info)
-            return jsonify({
-                'update_available': is_newer,
-                'current_version': VERSION,
-                'latest_version': latest_version,
-                'changelog': release['body'],
-                'download_url': release['html_url'],
-                'show_popup': show_popup or manual_check
-            })
-        else:
+        if not response.ok:
+            logger.error(f"GitHub returned {response.status_code} while checking for updates")
             return jsonify({'error': 'Failed to check version: GitHub API returned error'}), response.status_code
+
+        release = response.json()
+        latest_version = release['tag_name'].lstrip('v')
+        current_parts = [int(x) for x in VERSION.split('.')]
+        latest_parts = [int(x) for x in latest_version.split('.')]
+        is_newer = latest_parts > current_parts
+
+        # Recording the release as seen here would spend the notification on whichever
+        # tab polled first, so the popup keeps showing until it is actually dismissed.
+        manual_check = request.args.get('manual', 'false') == 'true'
+        dismissed_version = get_version_info().get('dismissed_version')
+
+        return jsonify({
+            'update_available': is_newer,
+            'current_version': VERSION,
+            'latest_version': latest_version,
+            'changelog': release['body'],
+            'download_url': release['html_url'],
+            'show_popup': is_newer and (manual_check or dismissed_version != latest_version)
+        })
     except Exception as e:
-        print(f"Error checking version: {e}")
+        logger.error(f"Error checking version: {e}")
         return jsonify({'error': 'Failed to check version'}), 500
 
 @app.route('/api/dismiss_update')
 @auth_manager.require_auth
 def dismiss_update():
     try:
-        with open('/app/data/last_update_check.json', 'w') as f:
-            json.dump({
-                'last_checked': datetime.now().isoformat(),
-                'dismissed': True
-            }, f)
+        version = request.args.get('version', '').lstrip('v')
+        if not version:
+            return jsonify({'error': 'version is required'}), 400
+
+        version_info = get_version_info()
+        version_info['dismissed_version'] = version
+        save_version_info(version_info)
         return jsonify({'status': 'success'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error dismissing update notice: {e}")
+        return jsonify({'error': 'Failed to dismiss update'}), 500
 
 @app.route('/search_movies')
 @auth_manager.require_auth

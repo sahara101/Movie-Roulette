@@ -1179,10 +1179,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function checkVersion(manual = false) {
     	try {
-            const response = await fetch('/api/check_version');
+            const response = await fetch(`/api/check_version${manual ? '?manual=true' : ''}`);
             const data = await response.json();
 
-            if (data.update_available && (data.show_popup || manual)) {
+            if (data.update_available && data.show_popup) {
             	showUpdateDialog(data);
             } else if (manual) {
             	showSuccess('You are running the latest version!');
@@ -1268,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     	const closeDialog = () => {
             dialog.remove();
-            fetch('/api/dismiss_update').catch(console.error);
+            fetch(`/api/dismiss_update?version=${encodeURIComponent(updateInfo.latest_version)}`).catch(console.error);
     	};
 
     	dialog.querySelector('.cancel-button').addEventListener('click', closeDialog);
