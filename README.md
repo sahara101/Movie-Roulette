@@ -32,11 +32,13 @@ Can't decide what to watch? Movie Roulette helps you pick random movies from you
 
 ## Star History
 
-<a href="https://www.star-history.com/#sahara101/Movie-Roulette&Date">
+## Star History
+
+<a href="https://www.star-history.com/?type=date&repos=sahara101%2FMovie-Roulette">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sahara101/Movie-Roulette&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=sahara101/Movie-Roulette&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=sahara101/Movie-Roulette&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=sahara101/Movie-Roulette&type=date&theme=dark&legend=top-left&sealed_token=ja7Sc7IiLCcYfH6PCwCSxPZAU7AQDcFdabQr6i0XqAPpd1YJm7GBlX7WNInIgg2qEKRQMFZeA6AzTOTQ4sDFNYqLFv7R_zYFQLBhuc5vP7zfxqYBQTTbL23Uyjcfd5jGIL9K6f-htJ04g5C_WIzT73aa5bfCsgRY4u_5RLZc_YZ9YfjDKLd1wMBaFI8Q" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=sahara101/Movie-Roulette&type=date&legend=top-left&sealed_token=ja7Sc7IiLCcYfH6PCwCSxPZAU7AQDcFdabQr6i0XqAPpd1YJm7GBlX7WNInIgg2qEKRQMFZeA6AzTOTQ4sDFNYqLFv7R_zYFQLBhuc5vP7zfxqYBQTTbL23Uyjcfd5jGIL9K6f-htJ04g5C_WIzT73aa5bfCsgRY4u_5RLZc_YZ9YfjDKLd1wMBaFI8Q" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=sahara101/Movie-Roulette&type=date&legend=top-left&sealed_token=ja7Sc7IiLCcYfH6PCwCSxPZAU7AQDcFdabQr6i0XqAPpd1YJm7GBlX7WNInIgg2qEKRQMFZeA6AzTOTQ4sDFNYqLFv7R_zYFQLBhuc5vP7zfxqYBQTTbL23Uyjcfd5jGIL9K6f-htJ04g5C_WIzT73aa5bfCsgRY4u_5RLZc_YZ9YfjDKLd1wMBaFI8Q" />
  </picture>
 </a>
 
