@@ -6,6 +6,7 @@ on:
       - 'Dockerfile'
       - 'Dockerfile.arm'
       - '.github/workflows/docker-build.yml'
+      - 'requirements.txt'
       - 'utils/version.py'
   workflow_dispatch:
 
