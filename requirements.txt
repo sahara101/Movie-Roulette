@@ -27,7 +27,7 @@ Flask-SocketIO==5.6.1
 Flask-WTF==1.2.2
 frozenlist==1.8.0
 future==1.0.0
-gevent==25.9.1
+gevent==26.8.0
 gevent-websocket==0.10.1
 greenlet==3.3.2
 gunicorn==25.1.0
