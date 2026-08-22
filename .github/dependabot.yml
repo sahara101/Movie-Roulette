@@ -9,3 +9,7 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
