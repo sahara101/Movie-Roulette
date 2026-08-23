@@ -1,12 +1,7 @@
 name: Docker Build
 on:
   push:
-    branches: [ main ]
-    paths:
-      - 'Dockerfile'
-      - 'Dockerfile.arm'
-      - '.github/workflows/docker-build.yml'
-      - 'utils/version.py'
+    tags: [ 'v*' ]
   workflow_dispatch:
 
 jobs:
@@ -18,11 +13,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract version
+      # Tag pushes publish; manual dispatch builds without publishing, so the
+      # workflow can be exercised on a branch without overwriting live tags.
+      - name: Resolve version
         id: version
         run: |
-          VERSION=$(python3 -c "import re; print(re.search(r'VERSION\s*=\s*[\"\'](.*?)[\"\']', open('utils/version.py').read()).group(1))")
-          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+          FILE_VERSION=$(python3 -c "import re; print(re.search(r'VERSION\s*=\s*[\"\'](.*?)[\"\']', open('utils/version.py').read()).group(1))")
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            if [ "${{ github.ref_name }}" != "v${FILE_VERSION}" ]; then
+              echo "Tag ${{ github.ref_name }} does not match utils/version.py (${FILE_VERSION})" >&2
+              exit 1
+            fi
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "push=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=v${FILE_VERSION}" >> $GITHUB_OUTPUT
+            echo "push=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -65,7 +72,7 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64
-          push: true
+          push: ${{ steps.version.outputs.push }}
           tags: |
             sahara101/movie-roulette:latest-amd64
             sahara101/movie-roulette:${{ steps.version.outputs.version }}-amd64
@@ -78,7 +85,7 @@ jobs:
           context: .
           file: Dockerfile.arm
           platforms: linux/arm64,linux/arm/v7
-          push: true
+          push: ${{ steps.version.outputs.push }}
           tags: |
             sahara101/movie-roulette:arm-latest
             sahara101/movie-roulette:arm-${{ steps.version.outputs.version }}
@@ -92,6 +99,7 @@ jobs:
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
       - name: Create and push multi-arch manifests
+        if: steps.version.outputs.push == 'true'
         run: |
           for REPO in "sahara101/movie-roulette" "ghcr.io/sahara101/movie-roulette"; do
             docker buildx imagetools create -t ${REPO}:latest \
