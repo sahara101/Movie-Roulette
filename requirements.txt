@@ -39,7 +39,7 @@ packaging==26.0
 pexpect==4.9.0
 PlexAPI==4.18.1
 propcache==0.4.1
-protobuf==7.34.0
+protobuf==7.35.1
 ptyprocess==0.7.0
 pyasn1==0.6.4
 pyatv==0.15.1
