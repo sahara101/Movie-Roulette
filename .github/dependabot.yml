@@ -4,6 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     groups:
       security-updates:
         applies-to: security-updates
@@ -13,3 +14,6 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
