@@ -6,12 +6,33 @@ import random
 import time
 import threading
 import re 
+import uuid
 from threading import Thread, Lock
 from datetime import datetime, timedelta
 from .settings import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+CLIENT_NAME = 'Movie Roulette'
+CLIENT_VERSION = '1.0'
+
+
+def token_auth_header(api_key):
+    """Authorization value for token-authenticated Jellyfin calls.
+
+    Jellyfin 12 stopped parsing X-Emby-Token, X-MediaBrowser-Token and the
+    ?api_key= query parameter (jellyfin/jellyfin#15559); only the standard
+    Authorization header is accepted. Jellyfin 10.x accepts it as well.
+    """
+    return f'MediaBrowser Token="{api_key}"'
+
+
+def client_auth_header(device='Web Browser', device_id=None):
+    """Authorization value for Jellyfin calls made before a token exists."""
+    return (f'MediaBrowser Client="{CLIENT_NAME}", Device="{device}", '
+            f'DeviceId="{device_id or uuid.uuid4()}", Version="{CLIENT_VERSION}"')
+
 
 class JellyfinService:
     def __init__(self, url=None, api_key=None, user_id=None, update_interval=600):
@@ -46,7 +67,7 @@ class JellyfinService:
             raise ValueError("Cannot make Jellyfin request: Missing User ID or API Key (either user-specific or admin default).")
 
         headers = {
-            'X-Emby-Token': target_api_key,
+            'Authorization': token_auth_header(target_api_key),
             'Content-Type': 'application/json'
         }
         return target_user_id, target_api_key, headers
@@ -204,7 +225,7 @@ class JellyfinService:
             logger.debug(f"Jellyfin API request params: {params}")
 
             if get_all:
-                return self._fetch_all_movies_paginated(movies_url, headers, params, target_user_id, api_key)
+                return self._fetch_all_movies_paginated(movies_url, headers, params)
 
             response = requests.get(movies_url, headers=headers, params=params, timeout=30)
             response.raise_for_status()
@@ -217,12 +238,12 @@ class JellyfinService:
                 return None
 
             chosen_movie = random.choice(movies)
-            return self.get_movie_data(chosen_movie, user_id=target_user_id, api_key=api_key)
+            return self.get_movie_data(chosen_movie)
         except Exception as e:
             logger.error(f"Error filtering movies: {str(e)}")
             return None
 
-    def _fetch_all_movies_paginated(self, movies_url, headers, params, user_id, api_key):
+    def _fetch_all_movies_paginated(self, movies_url, headers, params):
         """Fetch all movies from Jellyfin using pagination to avoid timeouts"""
         batch_size = 500
         start_index = 0
@@ -250,7 +271,7 @@ class JellyfinService:
             logger.warning("No movies found matching the criteria")
             return None
 
-        return [self.get_movie_data(movie, user_id=user_id, api_key=api_key) for movie in all_items]
+        return [self.get_movie_data(movie) for movie in all_items]
 
     def get_random_movies(self, count=9, genres=None, years=None, pg_ratings=None, watch_status='unwatched', user_id=None, api_key=None):
         """Get a list of random movies based on criteria"""
@@ -292,8 +313,7 @@ class JellyfinService:
             return False
         return True
 
-    def get_movie_data(self, movie, user_id=None, api_key=None):
-        target_user_id, target_api_key, _ = self._get_request_details(user_id, api_key)
+    def get_movie_data(self, movie):
         run_time_ticks = movie.get('RunTimeTicks', 0)
         total_minutes = run_time_ticks // 600000000  
         hours = total_minutes // 60
@@ -417,8 +437,8 @@ class JellyfinService:
             "description": movie.get('Overview', ''),
             "tagline": (movie.get('Taglines') or [''])[0],
             "genres": movie.get('Genres', []),
-            "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary?api_key={target_api_key}", 
-            "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop?api_key={target_api_key}" if movie.get('BackdropImageTags') else None, 
+            "poster": f"{self.server_url}/Items/{movie['Id']}/Images/Primary",
+            "background": f"{self.server_url}/Items/{movie['Id']}/Images/Backdrop" if movie.get('BackdropImageTags') else None,
             "ProviderIds": movie.get('ProviderIds', {}),
             "contentRating": movie.get('OfficialRating', ''),
             "videoFormat": video_format,
@@ -613,7 +633,7 @@ class JellyfinService:
 
             if response.status_code == 200:
                 movie = response.json()
-                return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
+                return self.get_movie_data(movie)
 
             if response.status_code in (400, 404):
                 logger.warning(f"Movie with ID {movie_id} not found (HTTP {response.status_code}). Checking if it's a TMDB ID.")
@@ -630,7 +650,7 @@ class JellyfinService:
                             response = requests.get(item_url, headers=headers, params=params)
                             response.raise_for_status()
                             movie = response.json()
-                            return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
+                            return self.get_movie_data(movie)
 
                 logger.info(f"Cache miss for TMDB ID {movie_id}, searching Jellyfin API with AnyProviderIdEquals")
                 search_url = f"{self.server_url}/Users/{target_user_id}/Items"
@@ -647,48 +667,16 @@ class JellyfinService:
                 if items:
                     jellyfin_id = items[0].get('Id')
                     logger.info(f"Found matching Jellyfin ID {jellyfin_id} for TMDB ID {movie_id} via API search")
-                    return self.get_movie_data(items[0], user_id=target_user_id, api_key=api_key)
+                    return self.get_movie_data(items[0])
 
                 logger.warning(f"Could not resolve ID {movie_id} as either Jellyfin ID or TMDB ID")
                 return None
 
             response.raise_for_status()
             movie = response.json()
-            return self.get_movie_data(movie, user_id=target_user_id, api_key=api_key)
+            return self.get_movie_data(movie)
         except Exception as e:
             logger.error(f"Error fetching movie by ID {movie_id}: {e}")
-            return None
-
-    def get_current_playback(self):
-        try:
-            sessions_url = f"{self.server_url}/Sessions"
-            response = requests.get(sessions_url, headers=self.headers)
-            response.raise_for_status()
-            sessions_json = response.json()
-            logger.debug(f"Sessions JSON Response: {json.dumps(sessions_json, indent=2)}")
-
-            if isinstance(sessions_json, list):
-                sessions = sessions_json
-            elif isinstance(sessions_json, dict):
-                sessions = sessions_json.get('Items', [])
-            else:
-                logger.error("Unexpected JSON structure for sessions.")
-                return None
-
-            for session in sessions:
-                if not isinstance(session, dict):
-                    logger.warning("Session item is not a dictionary. Skipping.")
-                    continue
-
-                now_playing = session.get('NowPlayingItem')
-                if now_playing:
-                    return {
-                        'id': now_playing.get('Id'),
-                        'position': session.get('PlayState', {}).get('PositionTicks', 0) / 10_000_000  
-                    }
-            return None
-        except Exception as e:
-            logger.error(f"Error fetching current playback: {e}")
             return None
 
     def play_movie(self, movie_id, session_id, user_id=None, api_key=None):
@@ -784,7 +772,7 @@ class JellyfinService:
     def search_movies(self, query, user_id=None, api_key=None):
         """Search for movies matching the query in titles only"""
         try:
-            target_user_id, target_api_key, headers = self._get_request_details(user_id, api_key)
+            target_user_id, _, headers = self._get_request_details(user_id, api_key)
             movies_url = f"{self.server_url}/Users/{target_user_id}/Items"
             params = {
                 'IncludeItemTypes': 'Movie',
@@ -813,7 +801,7 @@ class JellyfinService:
             for movie in movies:
                 movie_name = movie.get('Name', '')
                 if pattern and movie_name and pattern.search(movie_name):
-                    movie_data = self.get_movie_data(movie, user_id=target_user_id, api_key=target_api_key)
+                    movie_data = self.get_movie_data(movie)
                     results.append(movie_data)
 
             logger.info(f"Found {len(results)} Jellyfin movies matching title: {query}")

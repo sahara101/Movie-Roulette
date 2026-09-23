@@ -39,6 +39,7 @@ from webauthn.helpers.exceptions import WebAuthnException
 
 from .db import AuthDB
 from utils.settings import settings
+from utils.jellyfin_service import client_auth_header
 
 logger = logging.getLogger(__name__)
 
@@ -542,7 +543,7 @@ class AuthManager:
             headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-Emby-Authorization': f'Emby Client="Movie Roulette", Device="Web Browser", DeviceId="{str(uuid.uuid4())}", Version="1.0"'
+                'Authorization': client_auth_header(device_id=str(uuid.uuid4()))
             }
             payload = {
                 'Username': username,

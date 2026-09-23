@@ -58,7 +58,9 @@ def _reset_seen(session_key):
 from routes.trakt_routes import trakt_bp
 from routes.tracking_routes import tracking_bp
 from utils.emby_service import EmbyService
-from utils.jellyfin_service import JellyfinService 
+from utils.jellyfin_service import (JellyfinService,
+                                    token_auth_header as jellyfin_token_auth_header,
+                                    client_auth_header as jellyfin_client_auth_header)
 from utils.tv import TVFactory
 from utils.tv.base.tv_discovery import TVDiscoveryFactory
 from utils.auth import auth_bp, auth_manager
@@ -2874,7 +2876,7 @@ def test_media_connection():
                 return jsonify({'ok': False, 'error': 'Missing API key'}), 400
             resp = requests.get(
                 f'{url}/System/Info',
-                headers={'X-MediaBrowser-Token': api_key},
+                headers={'Authorization': jellyfin_token_auth_header(api_key)},
                 timeout=8
             )
             resp.raise_for_status()
@@ -3039,7 +3041,7 @@ def jellyfin_auth():
             f"{server_url}/Users/AuthenticateByName",
             json=auth_data,
             headers={
-                "X-Emby-Authorization": 'MediaBrowser Client="Movie Roulette", Device="Script", DeviceId="Script", Version="1.0.0"'
+                "Authorization": jellyfin_client_auth_header(device="Script", device_id="Script")
             }
         )
 
@@ -3135,7 +3137,7 @@ def get_jellyfin_users():
         response = requests.get(
             f"{jellyfin_url}/Users",
             headers={
-                'X-MediaBrowser-Token': api_key
+                'Authorization': jellyfin_token_auth_header(api_key)
             }
         )
 
@@ -3608,9 +3610,6 @@ def search_movies():
             results = [m for m in movies if query in m.get('title', '').lower()][:20]
 
         elif current_service == 'jellyfin' and JELLYFIN_AVAILABLE and g.media_service:
-            svc = g.media_service
-            _, api_key = get_current_jellyfin_user_creds()
-            api_key = api_key or svc.admin_api_key
             cache_path = '/app/data/jellyfin_all_movies.json'
             if os.path.exists(cache_path):
                 with open(cache_path, 'r') as f:
@@ -3622,13 +3621,12 @@ def search_movies():
                         'title': m['title'],
                         'year': m.get('year', ''),
                         'tmdb_id': m.get('tmdb_id'),
-                        'poster': f"{svc.server_url}/Items/{m['jellyfin_id']}/Images/Primary?api_key={api_key}",
+                        'poster': f"/proxy/poster/jellyfin/{m['jellyfin_id']}",
                     }
                     for m in matches
                 ]
 
         elif current_service == 'emby' and EMBY_AVAILABLE and g.media_service:
-            svc = g.media_service
             cache_path = '/app/data/emby_all_movies.json'
             if os.path.exists(cache_path):
                 with open(cache_path, 'r') as f:
@@ -3640,7 +3638,7 @@ def search_movies():
                         'title': m['title'],
                         'year': m.get('year', ''),
                         'tmdb_id': m.get('tmdb_id'),
-                        'poster': f"{svc.server_url}/Items/{m['emby_id']}/Images/Primary?api_key={svc.api_key}",
+                        'poster': f"/proxy/poster/emby/{m['emby_id']}",
                     }
                     for m in matches
                 ]

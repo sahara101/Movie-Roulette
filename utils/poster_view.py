@@ -10,6 +10,7 @@ import requests
 from flask import Response
 from utils.settings import settings
 from utils.auth import auth_manager 
+from utils.jellyfin_service import token_auth_header
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -581,6 +582,8 @@ def poster_settings():
 @auth_manager.require_auth 
 def proxy_poster(service, poster_id):
     try:
+        headers = None
+
         if service == 'plex':
             plex_service = current_app.config.get('PLEX_SERVICE')
             if not plex_service:
@@ -603,8 +606,8 @@ def proxy_poster(service, poster_id):
                 return Response(status=400)
 
             base_url = jellyfin_service.server_url
-            token = jellyfin_service.admin_api_key
-            full_url = f"{base_url}/Items/{poster_id}/Images/Primary?api_key={token}"
+            full_url = f"{base_url}/Items/{poster_id}/Images/Primary"
+            headers = {'Authorization': token_auth_header(jellyfin_service.admin_api_key)}
 
         elif service == 'emby':
             emby_service = current_app.config.get('EMBY_SERVICE')
@@ -613,14 +616,14 @@ def proxy_poster(service, poster_id):
                 return Response(status=400)
 
             base_url = emby_service.server_url
-            token = emby_service.api_key
-            full_url = f"{base_url}/Items/{poster_id}/Images/Primary?api_key={token}"
+            full_url = f"{base_url}/Items/{poster_id}/Images/Primary"
+            headers = emby_service.headers
 
         else:
             logger.error(f"Unknown service: {service}")
             return Response(status=400)
 
-        response = requests.get(full_url)
+        response = requests.get(full_url, headers=headers)
         if response.status_code == 200:
             return Response(response.content, mimetype=response.headers['content-type'])
         else:
@@ -635,6 +638,8 @@ def proxy_poster(service, poster_id):
 @auth_manager.require_auth
 def proxy_backdrop(service, item_id):
     try:
+        headers = None
+
         if service == 'plex':
             plex_service = current_app.config.get('PLEX_SERVICE')
             if not plex_service:
@@ -645,18 +650,20 @@ def proxy_backdrop(service, item_id):
             jellyfin_service = current_app.config.get('JELLYFIN_SERVICE')
             if not jellyfin_service:
                 return Response(status=400)
-            full_url = f"{jellyfin_service.server_url}/Items/{item_id}/Images/Backdrop?api_key={jellyfin_service.admin_api_key}"
+            full_url = f"{jellyfin_service.server_url}/Items/{item_id}/Images/Backdrop"
+            headers = {'Authorization': token_auth_header(jellyfin_service.admin_api_key)}
 
         elif service == 'emby':
             emby_service = current_app.config.get('EMBY_SERVICE')
             if not emby_service:
                 return Response(status=400)
-            full_url = f"{emby_service.server_url}/Items/{item_id}/Images/Backdrop?api_key={emby_service.api_key}"
+            full_url = f"{emby_service.server_url}/Items/{item_id}/Images/Backdrop"
+            headers = emby_service.headers
 
         else:
             return Response(status=400)
 
-        response = requests.get(full_url)
+        response = requests.get(full_url, headers=headers)
         if response.status_code == 200:
             return Response(response.content, mimetype=response.headers['content-type'])
         return Response(status=response.status_code)
