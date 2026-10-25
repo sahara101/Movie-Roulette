@@ -883,14 +883,14 @@ class PlexService:
             logger.error(f"Error in get_random_movies: {str(e)}")
             return []
 
-    def _get_requester_watchlist_guids(self, admin_token: str) -> set:
-        """Fetch admin's own watchlist from plex.tv REST API, return set of plex guids."""
+    def _get_requester_watchlist_guids(self, plex_token: str) -> set:
+        """Fetch the token owner's own watchlist from plex.tv REST API, return set of plex guids."""
         from plexapi.myplex import MyPlexAccount
-        account = MyPlexAccount(token=admin_token)
+        account = MyPlexAccount(token=plex_token)
         return {item.guid for item in account.watchlist(libtype='movie')}
 
-    def _get_friend_watchlist_guids(self, partner_uuid: str, admin_token: str) -> set:
-        """Fetch a friend's watchlist via Plex GraphQL (admin token only), return set of plex guids."""
+    def _get_friend_watchlist_guids(self, partner_uuid: str, plex_token: str) -> set:
+        """Fetch a friend's watchlist via Plex GraphQL, return set of plex guids. Token must belong to a friend of partner_uuid."""
         import requests as _requests
         query = '''
         query GetWatchlistHub($uuid: ID!, $first: PaginationInt!, $after: String) {
@@ -908,7 +908,7 @@ class PlexService:
             resp = _requests.post(
                 'https://community.plex.tv/api',
                 json={'query': query, 'variables': variables},
-                headers={'X-Plex-Token': admin_token, 'Content-Type': 'application/json'},
+                headers={'X-Plex-Token': plex_token, 'Content-Type': 'application/json'},
                 timeout=15
             )
             resp.raise_for_status()
@@ -924,13 +924,13 @@ class PlexService:
             variables['after'] = page_info['endCursor']
         return guids
 
-    def get_shared_watchlist_pool(self, admin_token: str, partner_uuid: str) -> list:
+    def get_shared_watchlist_pool(self, plex_token: str, partner_uuid: str) -> list:
         """
-        Intersect admin's watchlist with a friend's watchlist (via GraphQL, no user token needed).
+        Intersect the requester's watchlist with a friend's watchlist (via GraphQL, no partner token needed).
         Matches against local library by plex_guid. Falls back to tmdb_id for older cache entries.
         Result cached 5 minutes.
         """
-        cache_key = f"{admin_token[:8]}:{partner_uuid}"
+        cache_key = f"{plex_token[:8]}:{partner_uuid}"
         now = time.time()
         cached = PlexService._watchlist_pool_cache.get(cache_key)
         if cached and now - cached[1] < PlexService._WATCHLIST_CACHE_TTL:
@@ -940,8 +940,8 @@ class PlexService:
 
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=2) as _ex:
-            f_req = _ex.submit(self._get_requester_watchlist_guids, admin_token)
-            f_par = _ex.submit(self._get_friend_watchlist_guids, partner_uuid, admin_token)
+            f_req = _ex.submit(self._get_requester_watchlist_guids, plex_token)
+            f_par = _ex.submit(self._get_friend_watchlist_guids, partner_uuid, plex_token)
             requester_guids = f_req.result()
             partner_guids = f_par.result()
 

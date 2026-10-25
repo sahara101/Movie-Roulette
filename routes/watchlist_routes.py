@@ -9,6 +9,16 @@ logger = logging.getLogger(__name__)
 watchlist_bp = Blueprint('watchlist_bp', __name__)
 
 
+def _get_requester_plex_token():
+    """
+    Plex token whose friends and watchlist represent the logged-in user.
+    Local admin and managed users have no plex.tv token of their own, so they fall back to the server owner's.
+    """
+    internal_username = (g.user or {}).get('internal_username', '')
+    user_token = auth_manager.db.users.get(internal_username, {}).get('plex_token')
+    return user_token or settings.get('plex', {}).get('token', '')
+
+
 @watchlist_bp.route('/api/plex/app_users')
 @auth_manager.require_auth
 def get_plex_app_users():
@@ -41,25 +51,36 @@ def get_watch_partners():
     Return combined list of watchlist partners (plex.tv friends) and library partners
     (app users with a built Plex cache). Each entry includes which modes are available.
     """
-    admin_token = settings.get('plex', {}).get('token', '')
+    requester_token = _get_requester_plex_token()
     current_internal = (g.user or {}).get('internal_username', '')
     partners = {}
 
+    # Managed users' cache dirs are keyed by Plex user id (plex_managed_<id>), not by name
+    managed_prefix = 'plex_managed_'
+    managed_names_by_id = {
+        str(details.get('plex_user_id')): name
+        for name, details in auth_manager.db.get_all_managed_users().items()
+    }
+    own_managed_entry = next(
+        (f'{managed_prefix}{plex_id}' for plex_id, name in managed_names_by_id.items() if name == current_internal),
+        None
+    )
+
     # For local admin, find their Plex identity via the is_plex_owner flag
     current_plex_internal = current_internal
-    if not current_internal.startswith('plex_'):
+    if not current_internal.startswith('plex_') and not own_managed_entry:
         for uname, udata in auth_manager.db.users.items():
             if uname.startswith('plex_') and udata.get('is_plex_owner'):
                 current_plex_internal = uname
                 break
 
-    if admin_token:
+    if requester_token:
         try:
             import requests as _req
             resp = _req.post(
                 'https://community.plex.tv/api',
                 json={'query': 'query { allFriendsV2 { user { id username } } }'},
-                headers={'X-Plex-Token': admin_token, 'Content-Type': 'application/json'},
+                headers={'X-Plex-Token': requester_token, 'Content-Type': 'application/json'},
                 timeout=10
             )
             resp.raise_for_status()
@@ -82,12 +103,15 @@ def get_watch_partners():
         for entry in os.listdir(user_data_dir):
             if not entry.startswith('plex_'):
                 continue
-            if entry in (current_internal, current_plex_internal, f'plex_{current_internal}'):
+            if entry in (current_internal, current_plex_internal, f'plex_{current_internal}', own_managed_entry):
                 continue
             cache_path = os.path.join(user_data_dir, entry, 'plex_all_movies.json')
             if not os.path.exists(cache_path):
                 continue
-            plex_username = entry[len('plex_'):]
+            if entry.startswith(managed_prefix):
+                plex_username = managed_names_by_id.get(entry[len(managed_prefix):], entry[len('plex_'):])
+            else:
+                plex_username = entry[len('plex_'):]
             if plex_username in partners:
                 partners[plex_username]['modes'].append('library')
                 partners[plex_username]['library_id'] = entry
@@ -128,10 +152,10 @@ def shared_watchlist_movie():
         if partner_mode == 'library':
             pool = plex_service.get_library_intersection_pool(partner_id, watch_status)
         else:
-            admin_token = settings.get('plex', {}).get('token', '')
-            if not admin_token:
-                return jsonify({'error': 'Plex admin token not configured'}), 400
-            pool = plex_service.get_shared_watchlist_pool(admin_token, partner_id)
+            requester_token = _get_requester_plex_token()
+            if not requester_token:
+                return jsonify({'error': 'Plex token not configured'}), 400
+            pool = plex_service.get_shared_watchlist_pool(requester_token, partner_id)
     except Exception as e:
         logger.error("Watch partner pool error (%s): %s", partner_mode, e)
         return jsonify({'error': 'Could not fetch partner data'}), 500
